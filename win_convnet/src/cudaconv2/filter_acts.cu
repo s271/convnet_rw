@@ -67,7 +67,7 @@ __global__ void filterActs_YxX_color(float* images, float* filters, float* targe
     const int imgPixels = imgSizeY * imgSizeX;
     const int filterPixels = filterSize * filterSize;
 
-    const int blocksPerModule = numFilters / (B_Y*filtersPerThread);
+	const int blocksPerModule = numFilters / (B_Y*filtersPerThread);
     const int moduleIdx = blockIdx.y / blocksPerModule;
     const int blockFilterIdx = blockIdx.y % blocksPerModule;
 
@@ -602,6 +602,18 @@ __global__ void filterActs_YxX_sparse_random(float* images, float* filters, floa
     assert(filters.isContiguous());
     assert(targets.isContiguous());
     int imgsPerThread = numImages % 128 == 0 ? 4 : numImages % 64 == 0 ? 2 : 1;
+
+	//nan test start
+	int filtersPerThread = (numFilters % 32 == 0)?8:4; 
+	int shared_mem_usage = 4*(4*numImgColors)*(4*filtersPerThread + 32*imgsPerThread);
+	if(shared_mem_usage >= 48*1024)
+		imgsPerThread /= 2;
+	shared_mem_usage = 4*(4*numImgColors)*(4*filtersPerThread + 32*imgsPerThread);
+	if(shared_mem_usage >= 48*1024)
+		imgsPerThread /= 2;
+	shared_mem_usage = 4*(4*numImgColors)*(4*filtersPerThread + 32*imgsPerThread);
+	//nan test end
+
     dim3 blocks = numFiltersPerGroup % 32 == 0 ? dim3(DIVUP(numImages, 32 * imgsPerThread), (numModules * numFilters) / (4 * 8))
                                                : dim3(DIVUP(numImages, 32 * imgsPerThread), (numModules * numFilters) / (4 * 4));
     dim3 threads(32, 4);
@@ -612,7 +624,24 @@ __global__ void filterActs_YxX_sparse_random(float* images, float* filters, floa
         assert(targets.getNumRows() == numFilters * numModules);
         assert(targets.getNumCols() == numImages);
     }
-    
+/* 
+	int B_Y _1, int B_X _2, int imgsPerThread _3, int filtersPerThread _4, int numColors _5,
+    __shared__ float shFilters[B_Y*numColors][B_Y * filtersPerThread]; // pre-load B_Y pixels from B_Y*filtersPerThread filters
+    __shared__ float shImages[B_Y*numColors][B_X * imgsPerThread];
+	1_*5_*1_*4_
+	1_*5_*2_*3_
+	shared = 4 * 5_*1_*(1_*4_+ 2_*3_)
+	5_ 1:3
+	4_ 4,8
+	3_ 4
+	2_ 32
+	1_ 4
+	4,5 -> 8,1 4,1 8,2 4,2
+
+	shared = 4 * (4,8) * (1:3) 4 * (1 * (4, 8) + 32*4) = 
+*/	
+//	printf("** number of image colors %i, filtersPerThread %i imgsPerThread %i shared mem %i \n", numImgColors, filtersPerThread, imgsPerThread, shared_mem_usage);
+
     if (imgsPerThread == 4) {
         if (numImgColors <= 3) {
             assert(numGroups == 1); // It has to be based on above definitions, but just to be sure.
