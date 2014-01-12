@@ -1,0 +1,1 @@
+shownet_k.py -f E:\cifar-10-py\tmp_colormaj\ConvNet__t5 --write-predictions=E:\cifar-10-py\out --test-range=1-5 --multiview-test=1
