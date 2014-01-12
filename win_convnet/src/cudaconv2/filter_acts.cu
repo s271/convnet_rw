@@ -92,13 +92,14 @@ __global__ void filterActs_YxX_color(float* images, float* filters, float* targe
 
 
     float prod[filtersPerThread][imgsPerThread];
-    #pragma unroll
-    for(int f = 0; f < filtersPerThread; f++) {
-        #pragma unroll
-        for(int g = 0; g < imgsPerThread; g++) {
-            prod[f][g] = 0;
-        }
-    }
+    //#pragma unroll
+    //for(int f = 0; f < filtersPerThread; f++) {
+    //    #pragma unroll
+    //    for(int g = 0; g < imgsPerThread; g++) {
+    //        prod[f][g] = 0;
+    //    }
+    //}
+	memset(prod, 0, sizeof(prod));
 
     for (int p = 0; p < filterPixels; p += B_Y) {
         /*
@@ -628,6 +629,7 @@ __global__ void filterActs_YxX_sparse_random(float* images, float* filters, floa
 	int B_Y _1, int B_X _2, int imgsPerThread _3, int filtersPerThread _4, int numColors _5,
     __shared__ float shFilters[B_Y*numColors][B_Y * filtersPerThread]; // pre-load B_Y pixels from B_Y*filtersPerThread filters
     __shared__ float shImages[B_Y*numColors][B_X * imgsPerThread];
+
 	1_*5_*1_*4_
 	1_*5_*2_*3_
 	shared = 4 * 5_*1_*(1_*4_+ 2_*3_)
@@ -638,7 +640,16 @@ __global__ void filterActs_YxX_sparse_random(float* images, float* filters, floa
 	1_ 4
 	4,5 -> 8,1 4,1 8,2 4,2
 
-	shared = 4 * (4,8) * (1:3) 4 * (1 * (4, 8) + 32*4) = 
+	shared = 4 * (4,8) * (1:3) 4 * (1 * (4, 8) + 32*4) 
+
+(float* images, float* filters, float* targets,
+                                   const int numImages, const int numFilters,
+                                   const int imgSizeY, const int imgSizeX, const int filterSize, const int paddingStart,
+                                   const int moduleStride,
+                                   const int numModulesY, const int numModulesX, const int imgStride,
+                                   const float scaleTargets, const float scaleOutputs,
+                                   const bool conv)
+
 */	
 //	printf("** number of image colors %i, filtersPerThread %i imgsPerThread %i shared mem %i \n", numImgColors, filtersPerThread, imgsPerThread, shared_mem_usage);
 
