@@ -107,7 +107,21 @@ public:
             return 1;
         }
     };
-    
+
+    class Nan2Base {
+    public:
+        __device__ inline float operator()(const float a) const {
+			return isnan(a) ? 1e-24 : a;
+        }
+    };
+
+    class Nan2Zero {
+    public:
+        __device__ inline float operator()(const float a) const {
+			return isnan(a) ? 0 : a;
+        }
+    };
+
     class SmallerThanScalar {
     private:
         const float scalar;
@@ -305,18 +319,6 @@ public:
     class Max {
     public:
         __device__ inline float operator()(const float a, const float b) const {
-            return a > b ? a : b;
-        }
-        __device__ inline float getBaseValue() {
-            return -2e38;
-        }
-    };
-
-    class Max_check{
-    public:
-		__device__ inline float operator()(float a, float b) const {
-			if(isnan(a))a=-2e38;
-			if(isnan(b))b=-2e38;
             return a > b ? a : b;
         }
         __device__ inline float getBaseValue() {

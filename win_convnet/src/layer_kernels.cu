@@ -25,7 +25,7 @@
  */
 
 #include <assert.h>
-#define USE_CUDA_NAN_INF
+
 #include <layer_kernels.cuh>
 
 /*
@@ -45,7 +45,7 @@ __global__ void kLogregCost(float* probs, float* labels, float* maxProbs, float*
     if (tx < numCases) {
         const int label = int(labels[tx]);
         const float maxp = maxProbs[tx];
-        const float labelp = probs[label * numCases + tx];       
+        const float labelp = probs[label * numCases + tx];  
         labelLogProbs[tx] = __logf(labelp);
         
         /*

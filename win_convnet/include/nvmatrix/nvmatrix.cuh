@@ -236,6 +236,9 @@ public:
     void equals(NVMatrix& m, NVMatrix& target);
     void equals(NVMatrix& m);
 
+	void nan2base();
+	void nan2zero();
+
     void _checkBounds(int startRow, int endRow, int startCol, int endCol) const;
     NVMatrix& slice(int startRow, int endRow, int startCol, int endCol) const;
     void slice(int startRow, int endRow, int startCol, int endCol, NVMatrix& target) const;
@@ -377,7 +380,6 @@ public:
     NVMatrix& sum(int axis);
     void max(int axis, NVMatrix& target);
     NVMatrix& max(int axis);
-	NVMatrix& max_check(int axis);
     void min(int axis, NVMatrix& target);
     NVMatrix& min(int axis);
     float mean();

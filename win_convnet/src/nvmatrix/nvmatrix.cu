@@ -35,7 +35,6 @@
 #include <iostream>
 #include <algorithm>
 #include <typeinfo>
-#define USE_CUDA_NAN_INF
 #include <nvmatrix.cuh>
 #include <nvmatrix_operators.cuh>
 #include <map>
@@ -410,6 +409,15 @@ void NVMatrix::biggerThan(NVMatrix& b, NVMatrix& target) {
 void NVMatrix::biggerThan(NVMatrix& b) {
     biggerThan(b, *this);
 }
+
+void NVMatrix::nan2base() {
+	apply(NVMatrixOps::Nan2Base(), *this);
+}
+
+void NVMatrix::nan2zero() {
+	apply(NVMatrixOps::Nan2Zero(), *this);
+}
+
 
 void NVMatrix::equals(NVMatrix& b, NVMatrix& target) {
     applyBinary(NVMatrixBinaryOps::Equals(), b, target);
@@ -929,10 +937,6 @@ void NVMatrix::sum(int axis, NVMatrix& target) {
 
 void NVMatrix::min(int axis, NVMatrix& target) {
     _aggregate(axis, target, NVMatrixAggs::Min(), NVMatrixBinaryOps::Second());
-}
-
-NVMatrix& NVMatrix::max_check(int axis) {
-    return _aggregate(axis, NVMatrixAggs::Max_check(), NVMatrixBinaryOps::Second());
 }
 
 NVMatrix& NVMatrix::max(int axis) {

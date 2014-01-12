@@ -292,7 +292,7 @@ bool ConvNet::checkGradient(const string& name, float eps, Weights& weights) {
             fprop(PASS_GC);
             double err = getCostValue();
             numGrad(i,j) = (err - _baseErr) / (_data->getNumCases() * eps);
-            if (isnan(numGrad(i,j)) || isinf(numGrad(i,j))) {
+            if (isnan_host(numGrad(i,j)) || isinf_host(numGrad(i,j))) {
                 cout << "Numerical computation produced nan or inf when checking '" << name << "': " << numGrad(i,j) << endl;
                 cout << "Consider reducing the sizes of the weights or finite difference steps." << endl;
                 cout << "Exiting." << endl;

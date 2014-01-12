@@ -113,10 +113,6 @@ void Layer::fprop(NVMatrixV& v, PASS_TYPE passType) {
             fpropActs(i, _actsTarget >= 0 || i > 0, passType);
         }
     }
-
-	//printf(" _next.size() %i \n", _next.size());
-
-    	
     fpropNext(passType);
 }
 
@@ -591,7 +587,10 @@ SoftmaxLayer::SoftmaxLayer(ConvNet* convNet, PyObject* paramsDict) : Layer(convN
 
 void SoftmaxLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
     NVMatrix& input = *_inputs[0];
-    NVMatrix& max = input.max_check(1);
+
+	//input.nan2zero();//nan test
+
+    NVMatrix& max = input.max(1);
     input.addVector(max, -1, getActs());
     getActs().apply(NVMatrixOps::Exp());
     NVMatrix& sum = getActs().sum(1);
@@ -975,6 +974,9 @@ void LogregCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passTy
         NVMatrix& probs = *_inputs[1];
         int numCases = labels.getNumElements();
         NVMatrix& trueLabelLogProbs = getActs(), correctProbs;
+
+		//probs.nan2base();//nan test
+
         computeLogregCost(labels, probs, trueLabelLogProbs, correctProbs);
         _costv.clear();
         _costv.push_back(-trueLabelLogProbs.sum());
