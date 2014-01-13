@@ -552,6 +552,9 @@ __global__ void filterActs_YxX_sparse_random(float* images, float* filters, floa
 
 #define MAX_SHARED_MEM (48*1024)
 
+#define SHRED_MEM(numImgColors, filtersPerThread, imgsPerThread)\
+	4*(FILTER_THREADS*numImgColors)*(FILTER_THREADS*filtersPerThread + IMAGE_THREADS*imgsPerThread)
+
 /*
  * images:      (numImgColors, imgSizeY, imgSizeX, numImages) with stride given
  * filters:     (numFilterColors, filterPixels, numFilters)             if conv
@@ -604,10 +607,6 @@ __global__ void filterActs_YxX_sparse_random(float* images, float* filters, floa
     assert(filters.isContiguous());
     assert(targets.isContiguous());
     int imgsPerThread = numImages % 128 == 0 ? 4 : numImages % 64 == 0 ? 2 : 1;
-
-
-#define SHRED_MEM(numImgColors, filtersPerThread, imgsPerThread)\
-	4*(FILTER_THREADS*numImgColors)*(FILTER_THREADS*filtersPerThread + IMAGE_THREADS*imgsPerThread)
 
 	//nan test start
 	int filtersPerThread = (numFilters % 32 == 0)?8:4; 
@@ -1294,10 +1293,20 @@ void _filterActsSparse(NVMatrix& images, NVMatrix& filters, NVMatrix& targets, i
     assert(filters.isContiguous());
     assert(targets.isContiguous());
     int imgsPerThread = numImages % 128 == 0 ? 4 : numImages % 64 == 0 ? 2 : 1;
-    dim3 blocks = numFiltersPerGroup % 32 == 0 ? dim3(DIVUP(numImages, 32 * imgsPerThread), (numModules * numFilters) / (4 * 8))
-                                               : dim3(DIVUP(numImages, 32 * imgsPerThread), (numModules * numFilters) / (4 * 4));
-    dim3 threads(32, 4);
-    bool checkImgBounds = numImages % (32*imgsPerThread) != 0;
+
+	//nan test start
+	int filtersPerThread = (numFilters % 32 == 0)?8:4; 
+	//put it under define, for cards
+	int shared_mem_usage = SHRED_MEM(numImgColors, filtersPerThread, imgsPerThread);
+	if(shared_mem_usage > MAX_SHARED_MEM)
+		imgsPerThread /= 2;
+	shared_mem_usage = SHRED_MEM(numImgColors, filtersPerThread, imgsPerThread);
+	//nan test end
+
+    dim3 blocks = numFiltersPerGroup % 32 == 0 ? dim3(DIVUP(numImages, IMAGE_THREADS * imgsPerThread), (numModules * numFilters) / (FILTER_THREADS * 8))
+                                               : dim3(DIVUP(numImages, IMAGE_THREADS * imgsPerThread), (numModules * numFilters) / (FILTER_THREADS * 4));
+    dim3 threads(IMAGE_THREADS, FILTER_THREADS);
+    bool checkImgBounds = numImages % (IMAGE_THREADS*imgsPerThread) != 0;
     if (scaleTargets == 0) {
         targets.resize(numFilters * numModules, numImages);
     } else {
@@ -1309,44 +1318,44 @@ void _filterActsSparse(NVMatrix& images, NVMatrix& filters, NVMatrix& targets, i
         if (scaleTargets == 0) { // don't scale
             if (checkImgBounds) {
                 if (numFiltersPerGroup % 32 == 0) {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 4, 8, 2, false, true >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 4, 8, 2, false, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 4, 8, 2, false, true >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 4, 8, 2, false, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 } else {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 4, 4, 2, false, true >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 4, 4, 2, false, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 4, 4, 2, false, true >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 4, 4, 2, false, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 }
             } else {
                 if (numFiltersPerGroup % 32 == 0) {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 4, 8, 2, false, false >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 4, 8, 2, false, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 4, 8, 2, false, false >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 4, 8, 2, false, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 } else {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 4, 4, 2, false, false >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 4, 4, 2, false, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 4, 4, 2, false, false >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 4, 4, 2, false, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 }
             }
         } else { // do scale
             if (checkImgBounds) {
                 if (numFiltersPerGroup % 32 == 0) {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 4, 8, 2, false, true >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 4, 8, 2, true, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 4, 8, 2, false, true >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 4, 8, 2, true, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 } else {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 4, 4, 2, false, true >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 4, 4, 2, true, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 4, 4, 2, false, true >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 4, 4, 2, true, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 }
             } else {
                 if (numFiltersPerGroup % 32 == 0) {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 4, 8, 2, false, false >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 4, 8, 2, true, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 4, 8, 2, false, false >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 4, 8, 2, true, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 } else {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 4, 4, 2, false, false >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 4, 4, 2, true, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 4, 4, 2, false, false >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 4, 4, 2, true, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 }
             }
@@ -1355,44 +1364,44 @@ void _filterActsSparse(NVMatrix& images, NVMatrix& filters, NVMatrix& targets, i
         if (scaleTargets == 0) { // don't scale
             if (checkImgBounds) {
                 if (numFiltersPerGroup % 32 == 0) {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 2, 8, 2, false, true >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 2, 8, 2, false, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 2, 8, 2, false, true >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 2, 8, 2, false, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 } else {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 2, 4, 2, false, true >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 2, 4, 2, false, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 2, 4, 2, false, true >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 2, 4, 2, false, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 }
             } else {
                 if (numFiltersPerGroup % 32 == 0) {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 2, 8, 2, false, false >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 2, 8, 2, false, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 2, 8, 2, false, false >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 2, 8, 2, false, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 } else {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 2, 4, 2, false, false >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 2, 4, 2, false, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 2, 4, 2, false, false >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 2, 4, 2, false, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 }
             }
         } else { // do scale
             if (checkImgBounds) {
                 if (numFiltersPerGroup % 32 == 0) {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 2, 8, 2, false, true >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 2, 8, 2, true, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 2, 8, 2, false, true >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 2, 8, 2, true, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 } else {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 2, 4, 2, false, true >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 2, 4, 2, true, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 2, 4, 2, false, true >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 2, 4, 2, true, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 }
             } else {
                 if (numFiltersPerGroup % 32 == 0) {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 2, 8, 2, false, false >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 2, 8, 2, true, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 2, 8, 2, false, false >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 2, 8, 2, true, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 } else {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 2, 4, 2, false, false >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 2, 4, 2, true, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 2, 4, 2, false, false >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 2, 4, 2, true, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 }
             }
@@ -1401,44 +1410,44 @@ void _filterActsSparse(NVMatrix& images, NVMatrix& filters, NVMatrix& targets, i
         if (scaleTargets == 0) { // don't scale
             if (checkImgBounds) {
                 if (numFiltersPerGroup % 32 == 0) {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 1, 8, 2, false, true >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 1, 8, 2, false, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 1, 8, 2, false, true >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 1, 8, 2, false, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 } else {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 1, 4, 2, false, true >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 1, 4, 2, false, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 1, 4, 2, false, true >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 1, 4, 2, false, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 }
             } else {
                 if (numFiltersPerGroup % 32 == 0) {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 1, 8, 2, false, false >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 1, 8, 2, false, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 1, 8, 2, false, false >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 1, 8, 2, false, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 } else {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 1, 4, 2, false, false >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 1, 4, 2, false, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 1, 4, 2, false, false >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 1, 4, 2, false, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 }
             }
         } else { // do scale
             if (checkImgBounds) {
                 if (numFiltersPerGroup % 32 == 0) {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 1, 8, 2, false, true >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 1, 8, 2, true, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 1, 8, 2, false, true >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 1, 8, 2, true, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 } else {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 1, 4, 2, false, true >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 1, 4, 2, true, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 1, 4, 2, false, true >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 1, 4, 2, true, true > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 }
             } else {
                 if (numFiltersPerGroup % 32 == 0) {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 1, 8, 2, false, false >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 1, 8, 2, true, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 1, 8, 2, false, false >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 1, 8, 2, true, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 } else {
-                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< 4, 32, 1, 4, 2, false, false >, cudaFuncCachePreferShared);
-                    filterActs_YxX_sparse_random < 4, 32, 1, 4, 2, true, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
+                    cudaFuncSetCacheConfig(filterActs_YxX_sparse_random< FILTER_THREADS, IMAGE_THREADS, 1, 4, 2, false, false >, cudaFuncCachePreferShared);
+                    filterActs_YxX_sparse_random < FILTER_THREADS, IMAGE_THREADS, 1, 4, 2, true, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(), dColorIndices,
                                 numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, numFilterColors, numGroups, scaleTargets, scaleOutput, conv);
                 }
             }
