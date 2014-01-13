@@ -623,7 +623,7 @@ __global__ void filterActs_YxX_sparse_random(float* images, float* filters, floa
 
     dim3 blocks = numFiltersPerGroup % 32 == 0 ? dim3(DIVUP(numImages, IMAGE_THREADS * imgsPerThread), (numModules * numFilters) / (FILTER_THREADS * 8))
                                                : dim3(DIVUP(numImages, IMAGE_THREADS * imgsPerThread), (numModules * numFilters) / (FILTER_THREADS * 4));
-    dim3 threads(32, 4);
+    dim3 threads(IMAGE_THREADS, FILTER_THREADS);
     bool checkImgBounds = numImages % (IMAGE_THREADS*imgsPerThread) != 0;
     if (scaleTargets == 0) {
         targets.resize(numFilters * numModules, numImages);
