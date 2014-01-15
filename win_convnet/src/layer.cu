@@ -1021,8 +1021,11 @@ void ReweightLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
         NVMatrix& labels = *_inputs[0];
         NVMatrix& probs = *_inputs[1];
         int numCases = labels.getNumElements();
+
+		NVMatrix& imageWeights  = getActs();
+
 		//printf(" start reweight fprop idx %i  numCases %i\n", inpIdx, numCases);
-//        computeLogregCost(labels, probs, trueLabelLogProbs, correctProbs);
+        computeReweight(labels, probs, imageWeights);
 //        _costv.clear();
 //        _costv.push_back(-trueLabelLogProbs.sum());
     }

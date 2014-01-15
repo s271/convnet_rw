@@ -96,13 +96,7 @@ __global__ void conv_weight_acts_c(float* images, float* hidActs, float* targets
     float* shHidActLoad = &shHidActs[loadY][loadX];
 
     float prod[numColors][pixelsPerThread];
-    #pragma unroll
-    for (int c = 0; c < numColors; c++) {
-        #pragma unroll
-        for (int p = 0; p < pixelsPerThread; p++) {
-            prod[c][p] = 0;
-        }
-    }
+	memset(prod, 0, sizeof(prod));
     
     __shared__ int pxDivs[B_Y*pixelsPerThread];
     if (tidx < B_Y * pixelsPerThread) {
@@ -277,13 +271,8 @@ __global__ void conv_weight_acts_mc_mf(float* images, float* hidActs, float* tar
     float* shHidActLoad = &shHidActs[loadY][loadX];
     float* shImgLoad = &shImages[loadY][loadX];
     float prod[colorsPerThread][filtersPerThread];
-    #pragma unroll
-    for (int c = 0; c < colorsPerThread; c++) {
-        #pragma unroll
-        for (int f = 0; f < filtersPerThread; f++) {
-            prod[c][f] = 0;
-        }
-    }
+	memset(prod, 0, sizeof(prod));
+
     // This avoids doing a division in an inner loop
     __shared__ int pxDivs[B_Y];
     if (tidx < B_Y) {
@@ -458,13 +447,7 @@ __global__ void conv_weight_acts_mc_mf_rand(float* images, float* hidActs, float
     float* shHidActLoad = &shHidActs[loadY][loadX];
     float* shImgLoad = &shImages[loadY][loadX];
     float prod[colorsPerThread][filtersPerThread];
-    #pragma unroll
-    for (int c = 0; c < colorsPerThread; c++) {
-        #pragma unroll
-        for (int f = 0; f < filtersPerThread; f++) {
-            prod[c][f] = 0;
-        }
-    }
+	memset(prod, 0, sizeof(prod));
 
     if (tidx < B_Y) {
         pxDivs[tidx] = ((blockPixelOffset + tidx) / filterSize << 16) + ((blockPixelOffset + tidx) % filterSize);

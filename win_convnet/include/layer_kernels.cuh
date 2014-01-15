@@ -40,6 +40,8 @@ void computeLogregCost(NVMatrix& labels, NVMatrix& probs, NVMatrix& labelLogProb
 void computeLogregGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target, bool add, float coeff);
 void computeSoftmaxGrad(NVMatrix& acts, NVMatrix& actsGrad, NVMatrix& target, bool add);
 
+void computeReweight(NVMatrix& labels, NVMatrix& probs, NVMatrix& weights_out);
+
 // Numerical stability optimization: this routine combines computeLogregGrad with computeSoftmaxGrad
 // to avoi dividing and then multiplying by quantities that may be near zero.
 void computeLogregSoftmaxGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target, bool add, float coeff);
