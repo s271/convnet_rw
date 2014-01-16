@@ -363,6 +363,7 @@ void FCLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
 }
 
 void FCLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
+	//nan test failed here
     NVMatrix& weights_T = _weights[inpIdx].getW().getTranspose();
     _prev[inpIdx]->getActsGrad().addProduct(v, weights_T, scaleTargets, 1);
     delete &weights_T;
@@ -445,8 +446,6 @@ ConvLayer::ConvLayer(ConvNet* convNet, PyObject* paramsDict) : LocalLayer(convNe
 
 void ConvLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
-	//_inputs[inpIdx]->nan2zero();//nan test start ConvLayer::fpropActs seems not effective
-
 	//(*_weights[inpIdx]).nan2zero();//nan test - solution
 	
     if (_randSparse->at(inpIdx)) {
@@ -458,9 +457,7 @@ void ConvLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
                        _stride->at(inpIdx), _channels->at(inpIdx), _groups->at(inpIdx), scaleTargets, 1);
 		
     }
-
-	//getActs().nan2zero();//nan test seems effective 
-    
+   
     if (scaleTargets == 0) {
         if (_sharedBiases) {
             getActs().reshape(_numFilters, getActs().getNumElements() / _numFilters);
@@ -470,8 +467,6 @@ void ConvLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
             getActs().addVector(_biases->getW());
         }
     }
-
-	//getActs().nan2zero();//nan test seems effective
 }
 
 void ConvLayer::bpropBiases(NVMatrix& v, PASS_TYPE passType) {
@@ -506,6 +501,9 @@ void ConvLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType) {
         _weights[inpIdx].getGrad().addSum(_weightGradTmp, 0, scaleTargets, 1);
         _weights[inpIdx].getGrad().reshape(_filterChannels->at(inpIdx) * _filterPixels->at(inpIdx), _numFilters);
     }
+
+	_weights[inpIdx].getGrad().nan2zero();//nan test possibly effective
+
 }
 
 void ConvLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
