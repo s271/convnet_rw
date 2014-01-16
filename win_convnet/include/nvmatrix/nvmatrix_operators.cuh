@@ -111,7 +111,7 @@ public:
     class Nan2Base {
     public:
         __device__ inline float operator()(const float a) const {
-			return isnan(a) ? 1e-24 : a;
+			return isnan(a) ? 3e-28 : a;
         }
     };
 

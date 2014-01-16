@@ -218,7 +218,7 @@ class ShowConvNet(ConvNet):
                 pl.xticks([])
                 pl.yticks([])
                 img = data[0][img_idx,:,:,:]
-                pl.title('testtt')     
+                pl.title('test')     
                 pl.imshow(img, interpolation='nearest')
                            
                 
@@ -236,7 +236,6 @@ class ShowConvNet(ConvNet):
                 pl.yticks(ylocs + height/2, [l[1] for l in img_labels])
                 pl.xticks([width/2.0, width], ['50%', ''])
                 pl.ylim(0, ylocs[-1] + height*2)
-                #print ' r c %s' % r,c
     
     def do_write_features(self):
         if not os.path.exists(self.feature_path):

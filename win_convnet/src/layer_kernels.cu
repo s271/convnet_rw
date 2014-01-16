@@ -184,29 +184,6 @@ void computeEltwiseMaxGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& output,
     cutilCheckMsg("computeEltwiseMaxGrad: Kernel execution failed");
 }
 
-void computeReweight(NVMatrix& labels, NVMatrix& probs, NVMatrix& weights_out)
-{
-    int numCases = probs.getNumCols(); 
-    int numOut = probs.getNumRows(); 
-
-    assert(labels.getNumElements() == numCases);
-    assert(!labels.isTrans());
-    assert(!probs.isTrans());
-    assert(labels.isContiguous());
-    assert(probs.isContiguous());
-    
-    weights_out.resize(1, numCases);
-
-    dim3 threads(LOGREG_ERR_THREADS_X, 1);
-    dim3 blocks(DIVUP(numCases, LOGREG_ERR_THREADS_X), 1);
-    cudaFuncSetCacheConfig(kLogregCost, cudaFuncCachePreferL1);
-/*    kLogregCost<<<blocks, threads>>>(probs.getDevData(), labels.getDevData(), maxProbs.getDevData(),
-                                     labelLogProbs_out.getDevData(), correctProbs_out.getDevData(),
-                                     numCases, numOut);
- */  
-	cutilCheckMsg("computeReweight: Kernel execution failed");
-};
-
 /*
  * E = -log(y_t)
  * probs:           (numOut, numCases)

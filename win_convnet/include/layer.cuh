@@ -378,12 +378,5 @@ public:
     SumOfSquaresCostLayer(ConvNet* convNet, PyObject* paramsDict);
 };
 
-class ReweightLayer : public CostLayer {
-protected:
-    void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
-public:
-    ReweightLayer(ConvNet* convNet, PyObject* paramsDict);
-};
-
 #endif	/* LAYER_CUH */
 

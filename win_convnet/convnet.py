@@ -129,11 +129,8 @@ class ConvNet(IGPUModel):
             costs[errname] = [(v/num_cases) for v in costs[errname]]
             print "%s: " % errname,
             print ", ".join("%6f" % v for v in costs[errname]),
-            snan = sum(m.isnan(v) for v in costs[errname])
-            sinf = sum(m.isinf(v) for v in costs[errname])
             if sum(m.isnan(v) for v in costs[errname]) > 0 or sum(m.isinf(v) for v in costs[errname]):
                 print "^ got nan or inf!"
-                print " num_cases errname nan inf %s" % num_cases, errname, snan, sinf               
                 sys.exit(1)
         
     def print_train_results(self):

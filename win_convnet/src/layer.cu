@@ -963,8 +963,6 @@ CostLayer& CostLayer::makeCostLayer(ConvNet* convNet, string& type, PyObject* pa
         return *new LogregCostLayer(convNet, paramsDict);
     } else if (type == "cost.sum2") {
         return *new SumOfSquaresCostLayer(convNet, paramsDict);
-    } else if (type == "cost.reweight") {
-        return *new ReweightLayer(convNet, paramsDict);
     }
     throw string("Unknown cost layer type ") + type;
 }
@@ -1006,31 +1004,6 @@ void LogregCostLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PAS
         computeLogregGrad(labels, probs, target, scaleTargets == 1, _coeff);
     }
 }
-
-/* 
- * =====================
- * ReweightLayer
- * =====================
- */
-ReweightLayer::ReweightLayer(ConvNet* convNet, PyObject* paramsDict) : CostLayer(convNet, paramsDict, false)  {
-}
-
-void ReweightLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
-    // This layer uses its two inputs together
-    if (inpIdx == 0) {
-        NVMatrix& labels = *_inputs[0];
-        NVMatrix& probs = *_inputs[1];
-        int numCases = labels.getNumElements();
-
-		NVMatrix& imageWeights  = getActs();
-
-		//printf(" start reweight fprop idx %i  numCases %i\n", inpIdx, numCases);
-        computeReweight(labels, probs, imageWeights);
-//        _costv.clear();
-//        _costv.push_back(-trueLabelLogProbs.sum());
-    }
-}
-
 
 /* 
  * =====================

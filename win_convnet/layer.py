@@ -1097,25 +1097,6 @@ class LogregCostParser(CostParser):
         print "Initialized logistic regression cost '%s'" % name
         return dic
         
-class ReweightParser(CostParser):
-    def __init__(self):
-        CostParser.__init__(self, num_inputs=2)
-        
-    def parse(self, name, mcp, prev_layers, model):        
-        dic = CostParser.parse(self, name, mcp, prev_layers, model)
-        dic['requiresParams'] = False
-        
-        if dic['numInputs'][0] != 1: # first input must be labels
-            raise LayerParsingError("Layer '%s': dimensionality of first input must be 1" % name)
-        if prev_layers[dic['inputs'][1]]['type'] != 'softmax':
-            raise LayerParsingError("Layer '%s': second input must be softmax layer" % name)
-        if dic['numInputs'][1] != model.train_data_provider.get_num_classes():
-            raise LayerParsingError("Layer '%s': softmax input '%s' must produce %d outputs, because that is the number of classes in the dataset" \
-                                    % (name, prev_layers[dic['inputs'][1]]['name'], model.train_data_provider.get_num_classes()))
-        
-        print "Initialized image weights output for image reweight '%s'" % name
-        return dic        
-    
 class SumOfSquaresCostParser(CostParser):
     def __init__(self):
         CostParser.__init__(self, num_inputs=1)
@@ -1145,7 +1126,6 @@ layer_parsers = {'data': lambda : DataLayerParser(),
                  'rgb2lab': lambda : RGBToLABLayerParser(),
                  'rscale': lambda : RandomScaleLayerParser(),
                  'cost.logreg': lambda : LogregCostParser(),
-                 'cost.reweight': lambda : ReweightParser(), 
                  'cost.sum2': lambda : SumOfSquaresCostParser()}
  
 # All the neuron parsers
