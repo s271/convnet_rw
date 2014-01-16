@@ -447,7 +447,7 @@ void ConvLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
 	//_inputs[inpIdx]->nan2zero();//nan test start ConvLayer::fpropActs seems not effective
 
-	(*_weights[inpIdx]).nan2zero();//nan test
+	//(*_weights[inpIdx]).nan2zero();//nan test - solution
 	
     if (_randSparse->at(inpIdx)) {
         convFilterActsSparse(*_inputs[inpIdx], *_weights[inpIdx], getActs(), _filterConns->at(inpIdx).dFilterConns,
