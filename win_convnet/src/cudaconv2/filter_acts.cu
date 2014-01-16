@@ -615,9 +615,6 @@ __global__ void filterActs_YxX_sparse_random(float* images, float* filters, floa
 	if(shared_mem_usage > MAX_SHARED_MEM)
 		imgsPerThread /= 2;
 	shared_mem_usage = SHRED_MEM(numImgColors, filtersPerThread, imgsPerThread);
-	//if(shared_mem_usage >= MAX_SHARED_MEM)
-	//	imgsPerThread /= 2;
-	//shared_mem_usage = SHRED_MEM(numImgColors, filtersPerThread, imgsPerThread);
 	//nan test end
 
     dim3 blocks = numFiltersPerGroup % 32 == 0 ? dim3(DIVUP(numImages, IMAGE_THREADS * imgsPerThread), (numModules * numFilters) / (FILTER_THREADS * 8))
