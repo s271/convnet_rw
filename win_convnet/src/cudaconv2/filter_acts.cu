@@ -919,8 +919,8 @@ filterActs_YxX_color
                         }
                     } else {
                         if (numFilters % 32 == 0) {
-                            cudaFuncSetCacheConfig(filterActs_YxX_color< FILTER_THREADS, 32, 2, 8, 1, true, false >, cudaFuncCachePreferShared);
-                            filterActs_YxX_color < FILTER_THREADS, 32, 2, 8, 1, true, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(),
+                            cudaFuncSetCacheConfig(filterActs_YxX_color< FILTER_THREADS, IMAGE_THREADS, 2, 8, 1, true, false >, cudaFuncCachePreferShared);
+                            filterActs_YxX_color < FILTER_THREADS, IMAGE_THREADS, 2, 8, 1, true, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(),
                                         numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, scaleTargets, scaleOutput, conv);
                         } else {
                             cudaFuncSetCacheConfig(filterActs_YxX_color< FILTER_THREADS, IMAGE_THREADS, 2, 4, 1, true, false >, cudaFuncCachePreferShared);
@@ -1042,7 +1042,7 @@ filterActs_YxX_color
                             filterActs_YxX_color < FILTER_THREADS, IMAGE_THREADS, 1, 8, 1, false, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(),
                                         numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, scaleTargets, scaleOutput, conv);
                         } else {
-                            cudaFuncSetCacheConfig(filterActs_YxX_color< 4, IMAGE_THREADS, 1, 4, 1, false, false >, cudaFuncCachePreferShared);
+                            cudaFuncSetCacheConfig(filterActs_YxX_color< FILTER_THREADS, IMAGE_THREADS, 1, 4, 1, false, false >, cudaFuncCachePreferShared);
                             filterActs_YxX_color < FILTER_THREADS, IMAGE_THREADS, 1, 4, 1, false, false > <<<blocks, threads>>>(images.getDevData(), filters.getDevData(), targets.getDevData(),
                                         numImages, numFilters, imgSizeY, imgSizeX, filterSize, paddingStart, moduleStride, numModulesY, numModulesX, imgStride, scaleTargets, scaleOutput, conv);
                         }
