@@ -375,6 +375,14 @@ public:
     LogregCostLayer(ConvNet* convNet, PyObject* paramsDict);
 };
 
+class RLogCostLayer : public CostLayer {
+protected:
+    void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
+    void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
+public:
+    RLogCostLayer(ConvNet* convNet, PyObject* paramsDict);
+};
+
 class SumOfSquaresCostLayer : public CostLayer {
 protected:
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
@@ -382,6 +390,7 @@ protected:
 public:
     SumOfSquaresCostLayer(ConvNet* convNet, PyObject* paramsDict);
 };
+
 
 #endif	/* LAYER_CUH */
 
