@@ -41,7 +41,7 @@ using namespace std;
  * ConvNet
  * =======================
  */
-ConvNet::ConvNet(PyListObject* layerParams, int minibatchSize, int deviceID) : Thread(false),  _deviceID(deviceID), _data(NULL) {
+ConvNet::ConvNet(PyListObject* layerParams, int minibatchSize, int deviceID, bool fix_nan) : Thread(false),  _deviceID(deviceID), _data(NULL) {
     try {
         int numLayers = PyList_GET_SIZE(layerParams);
     
@@ -49,7 +49,7 @@ ConvNet::ConvNet(PyListObject* layerParams, int minibatchSize, int deviceID) : T
             PyObject* paramsDict = PyList_GET_ITEM(layerParams, i);
             string layerType = pyDictGetString(paramsDict, "type");
             
-            Layer* l = initLayer(layerType, paramsDict);
+            Layer* l = initLayer(layerType, paramsDict, fix_nan);
             // Connect backward links in graph for this layer
             intv* inputLayers = pyDictGetIntV(paramsDict, "inputs");
             if (inputLayers != NULL) {
@@ -83,7 +83,7 @@ ConvNet::ConvNet(PyListObject* layerParams, int minibatchSize, int deviceID) : T
 /*
  * Override this in derived classes
  */
-Layer* ConvNet::initLayer(string& layerType, PyObject* paramsDict) {
+Layer* ConvNet::initLayer(string& layerType, PyObject* paramsDict, bool fix_nan) {
     if (layerType == "fc") {
         _layers.push_back(new FCLayer(this, paramsDict));
     } else if (layerType == "conv") {
@@ -127,6 +127,8 @@ Layer* ConvNet::initLayer(string& layerType, PyObject* paramsDict) {
     } else {
         throw string("Unknown layer type ") + layerType;
     }
+
+	_layers.back()->SetNan2Zero(fix_nan);
 
     return _layers.back();
 }

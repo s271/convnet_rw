@@ -549,12 +549,6 @@ __global__ void filterActs_YxX_sparse_random(float* images, float* filters, floa
 #define FILTER_THREADS 4
 //B_X
 #define IMAGE_THREADS 32
-
-#define MAX_SHARED_MEM (48*1024)
-
-#define SHRED_MEM(numImgColors, filtersPerThread, imgsPerThread)\
-	4*(FILTER_THREADS*numImgColors)*(FILTER_THREADS*filtersPerThread + IMAGE_THREADS*imgsPerThread)
-
 /*
  * images:      (numImgColors, imgSizeY, imgSizeX, numImages) with stride given
  * filters:     (numFilterColors, filterPixels, numFilters)             if conv
@@ -607,15 +601,6 @@ __global__ void filterActs_YxX_sparse_random(float* images, float* filters, floa
     assert(filters.isContiguous());
     assert(targets.isContiguous());
     int imgsPerThread = numImages % 128 == 0 ? 4 : numImages % 64 == 0 ? 2 : 1;
-
-	//nan test start
-	int filtersPerThread = (numFilters % 32 == 0)?8:4; 
-	//put it under define, for cards
-	int shared_mem_usage = SHRED_MEM(numImgColors, filtersPerThread, imgsPerThread);
-	if(shared_mem_usage > MAX_SHARED_MEM)
-		imgsPerThread /= 2;
-	shared_mem_usage = SHRED_MEM(numImgColors, filtersPerThread, imgsPerThread);
-	//nan test end
 
     dim3 blocks = numFiltersPerGroup % 32 == 0 ? dim3(DIVUP(numImages, IMAGE_THREADS * imgsPerThread), (numModules * numFilters) / (FILTER_THREADS * 8))
                                                : dim3(DIVUP(numImages, IMAGE_THREADS * imgsPerThread), (numModules * numFilters) / (FILTER_THREADS * 4));
@@ -1290,15 +1275,6 @@ void _filterActsSparse(NVMatrix& images, NVMatrix& filters, NVMatrix& targets, i
     assert(filters.isContiguous());
     assert(targets.isContiguous());
     int imgsPerThread = numImages % 128 == 0 ? 4 : numImages % 64 == 0 ? 2 : 1;
-
-	//nan test start
-	int filtersPerThread = (numFilters % 32 == 0)?8:4; 
-	//put it under define, for cards
-	int shared_mem_usage = SHRED_MEM(numImgColors, filtersPerThread, imgsPerThread);
-	if(shared_mem_usage > MAX_SHARED_MEM)
-		imgsPerThread /= 2;
-	shared_mem_usage = SHRED_MEM(numImgColors, filtersPerThread, imgsPerThread);
-	//nan test end
 
     dim3 blocks = numFiltersPerGroup % 32 == 0 ? dim3(DIVUP(numImages, IMAGE_THREADS * imgsPerThread), (numModules * numFilters) / (FILTER_THREADS * 8))
                                                : dim3(DIVUP(numImages, IMAGE_THREADS * imgsPerThread), (numModules * numFilters) / (FILTER_THREADS * 4));

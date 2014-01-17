@@ -54,6 +54,8 @@ Layer::Layer(ConvNet* convNet, PyObject* paramsDict, bool trans) :
     _conserveMem = pyDictGetInt(paramsDict, "conserveMem");
     _outputs = _actsTarget < 0 ? new NVMatrix() : NULL;
     _actsGrad = _actsGradTarget < 0 ? new NVMatrix() : NULL;
+
+	nan2Zero = false;
 }
 
 void Layer::fpropNext(PASS_TYPE passType) {
@@ -363,7 +365,6 @@ void FCLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
 }
 
 void FCLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
-	//nan test failed here
     NVMatrix& weights_T = _weights[inpIdx].getW().getTranspose();
     _prev[inpIdx]->getActsGrad().addProduct(v, weights_T, scaleTargets, 1);
     delete &weights_T;
@@ -446,7 +447,7 @@ ConvLayer::ConvLayer(ConvNet* convNet, PyObject* paramsDict) : LocalLayer(convNe
 
 void ConvLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
-	//(*_weights[inpIdx]).nan2zero();//nan test - solution
+	//(*_weights[inpIdx]).nan2zero();//nan fix possible placement
 	
     if (_randSparse->at(inpIdx)) {
         convFilterActsSparse(*_inputs[inpIdx], *_weights[inpIdx], getActs(), _filterConns->at(inpIdx).dFilterConns,
@@ -502,7 +503,10 @@ void ConvLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType) {
         _weights[inpIdx].getGrad().reshape(_filterChannels->at(inpIdx) * _filterPixels->at(inpIdx), _numFilters);
     }
 
-	_weights[inpIdx].getGrad().nan2zero();//nan test possibly effective
+	if(nan2Zero) {
+		//printf("nan fix \n");
+		_weights[inpIdx].getGrad().nan2zero();//nan fix  
+	}
 
 }
 
@@ -595,8 +599,6 @@ SoftmaxLayer::SoftmaxLayer(ConvNet* convNet, PyObject* paramsDict) : Layer(convN
 
 void SoftmaxLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
     NVMatrix& input = *_inputs[0];
-
-	//input.nan2zero();//nan test
 
     NVMatrix& max = input.max(1);
     input.addVector(max, -1, getActs());
@@ -980,8 +982,6 @@ void LogregCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passTy
         NVMatrix& probs = *_inputs[1];
         int numCases = labels.getNumElements();
         NVMatrix& trueLabelLogProbs = getActs(), correctProbs;
-
-		//probs.nan2base();//nan test
 
         computeLogregCost(labels, probs, trueLabelLogProbs, correctProbs);
         _costv.clear();
