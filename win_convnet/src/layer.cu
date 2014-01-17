@@ -25,7 +25,7 @@
  */
 #include <cutil_inline.h>
 #include <iostream>
-#define USE_CUDA_NAN_INF
+
 #include <layer_kernels.cuh>
 #include <layer.cuh>
 #include <data.cuh>
@@ -456,7 +456,6 @@ void ConvLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
     } else {
         convFilterActs(*_inputs[inpIdx], *_weights[inpIdx], getActs(), _imgSize->at(inpIdx), _modulesX, _modulesX, _padding->at(inpIdx),
                        _stride->at(inpIdx), _channels->at(inpIdx), _groups->at(inpIdx), scaleTargets, 1);
-		
     }
    
     if (scaleTargets == 0) {
@@ -504,7 +503,6 @@ void ConvLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType) {
     }
 
 	if(nan2Zero) {
-		//printf("nan fix \n");
 		_weights[inpIdx].getGrad().nan2zero();//nan fix  
 	}
 
