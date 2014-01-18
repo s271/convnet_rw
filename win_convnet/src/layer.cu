@@ -610,12 +610,17 @@ void SoftmaxLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType)
 
 void SoftmaxLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
     assert(inpIdx == 0);
-    bool doLogregGrad = _next.size() == 1 && ( _next[0]->getType() == "cost.logreg" || _next[0]->getType() == "cost.rlog");
+    bool doLogregGrad = _next.size() == 1 && ( _next[0]->getType() == "cost.logreg");
+	bool doRLogGrad = _next.size() == 1 && ( _next[0]->getType() == "cost.rlog" );
     if (doLogregGrad) {
         NVMatrix& labels = _next[0]->getPrev()[0]->getActs();
         float gradCoeff = dynamic_cast<CostLayer*>(_next[0])->getCoeff();
         computeLogregSoftmaxGrad(labels, getActs(), _prev[0]->getActsGrad(), scaleTargets == 1, gradCoeff);
-    } else {
+    } else if (doRLogGrad) {
+        NVMatrix& labels = _next[0]->getPrev()[0]->getActs();
+        float gradCoeff = dynamic_cast<CostLayer*>(_next[0])->getCoeff();
+        computeRLogSoftmaxGrad(labels, getActs(), _prev[0]->getActsGrad(), scaleTargets == 1, gradCoeff);
+	} else {
         computeSoftmaxGrad(getActs(), v, _prev[0]->getActsGrad(), scaleTargets == 1);
     }
 }
