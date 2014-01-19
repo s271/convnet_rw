@@ -285,7 +285,7 @@
 			/>
 			<Tool
 				Name="Cudart Build Rule"
-				AdditionalOptions=""
+				AdditionalOptions="--ftz=true"
 				Include="include;include/common;include/nvmatrix;include/cudaconv2;./;../../../common/inc;../../../../shared/inc;LIBS/include;$(PYTHONPATH)/include;$(PYTHONPATH)/Lib/site-packages/numpy/core/include/numpy"
 				Arch1="21"
 				Arch2="0"

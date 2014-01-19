@@ -83,16 +83,24 @@ TrainingWorker::TrainingWorker(ConvNet& convNet, CPUData& data, bool test)
     : DataWorker(convNet, data), _test(test) {
 }
 
+int gmini = -1;//temp
+int train = 0;//temp
+
 // Need to setData here (as opposed to the constructor) because the constructor executes in
 // the original CPU thread, which is not the one with GPU access.
 void TrainingWorker::run() {
     _dp->setData(*_data);
     Cost& batchCost = *new Cost(0);
     for (int i = 0; i < _dp->getNumMinibatches(); i++) {
+
+//printf("-------minibatch %i test %i ----------\n", i, _test);//temp
+gmini = i;//temp;
+train = 0;//temp
         _convNet->fprop(i, _test ? PASS_TEST : PASS_TRAIN);
         _convNet->getCost(batchCost);
         
         if (!_test) {
+train = 1;//temp
             _convNet->bprop(PASS_TRAIN);
             _convNet->updateWeights();
         }
@@ -193,6 +201,7 @@ void FeatureWorker::run() {
     Layer& ftrLayer = _convNet->getLayer(_layerIdx);
     Cost& batchCost = *new Cost(0);
     for (int i = 0; i < _dp->getNumMinibatches(); i++) {
+
         _convNet->fprop(i, PASS_TEST);
         _convNet->getCost(batchCost);
         Matrix& miniFtrs = _ftrs->sliceRows(i * _dp->getMinibatchSize(),

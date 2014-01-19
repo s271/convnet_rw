@@ -352,6 +352,11 @@ Weights& WeightLayer::getWeights(int idx) {
  * FCLayer
  * =======================
  */
+extern  int gmini;//temp
+int show_mini =  0;//temp
+extern int train;//temp
+//#define show_mini gmini
+
 FCLayer::FCLayer(ConvNet* convNet, PyObject* paramsDict) : WeightLayer(convNet, paramsDict, true, false) {
     _wStep = 0.1;
     _bStep = 0.01;
@@ -361,12 +366,38 @@ void FCLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
     getActs().addProduct(*_inputs[inpIdx], *_weights[inpIdx], scaleTargets, 1);
     if (scaleTargets == 0) {
         getActs().addVector(_biases->getW());
+
+
+
+	float sum = (*_weights[inpIdx]).sum()/(*_weights[inpIdx]).getNumElements();//temp
+	float suma = getActs().sum()/getActs().getNumElements();//temp
+	if(gmini == show_mini || isnan_host(sum))
+		if(_name == "fc10"  && train==0)
+			printf("FCLayer::fpropActs  %s weight avg  %e act avg %e \n", _name.c_str(), sum, suma);//temp
+		if(isnan_host(sum))
+		{
+			printf("FCLayer::fpropActs  %s weight avg  %e act avg %e \n", _name.c_str(), sum, suma);//temp
+			exit(-1);
+		}
     }
 }
 
 void FCLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
     NVMatrix& weights_T = _weights[inpIdx].getW().getTranspose();
     _prev[inpIdx]->getActsGrad().addProduct(v, weights_T, scaleTargets, 1);
+
+
+	float sum = (_weights[inpIdx].getW()).sum()/(_weights[inpIdx].getW()).getNumElements();//temp
+	float suma = _prev[inpIdx]->getActsGrad().sum()/_prev[inpIdx]->getActsGrad().getNumElements();//temp
+	if(gmini == show_mini || isnan_host(sum))
+		if(_name == "fc10" && train==0)
+			printf("FCLayer::bpropActs %s act grad sum %e w sum %e \n",  _name.c_str(), suma, sum);//temp
+		if(isnan_host(sum))
+		{	
+			printf("FCLayer::bpropActs %s act grad sum %e w sum %e \n",  _name.c_str(), suma, sum);//temp
+			exit(-1);
+		}
+
     delete &weights_T;
 }
 
@@ -608,6 +639,8 @@ void SoftmaxLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType)
     delete &sum;
 }
 
+extern float avg_log;
+
 void SoftmaxLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
     assert(inpIdx == 0);
     bool doLogregGrad = _next.size() == 1 && ( _next[0]->getType() == "cost.logreg");
@@ -619,7 +652,13 @@ void SoftmaxLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_T
     } else if (doRLogGrad) {
         NVMatrix& labels = _next[0]->getPrev()[0]->getActs();
         float gradCoeff = dynamic_cast<CostLayer*>(_next[0])->getCoeff();
-        computeRLogSoftmaxGrad(labels, getActs(), _prev[0]->getActsGrad(), scaleTargets == 1, gradCoeff);
+        computeRLogSoftmaxGrad(labels, getActs(), _prev[0]->getActsGrad(), scaleTargets == 1, gradCoeff, avg_log);
+
+		float sum = _prev[0]->getActsGrad().sum()/_prev[0]->getActsGrad().getNumElements();
+		if(gmini==show_mini)
+			printf("SoftmaxLayer::bpropActs sum %f \n",  sum);//temp
+
+
 	} else {
         computeSoftmaxGrad(getActs(), v, _prev[0]->getActsGrad(), scaleTargets == 1);
     }
@@ -1016,6 +1055,9 @@ void LogregCostLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PAS
 RLogCostLayer::RLogCostLayer(ConvNet* convNet, PyObject* paramsDict) : CostLayer(convNet, paramsDict, false) {
 }
 
+
+float avg_log = 2.2;//temp
+
 void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
     // This layer uses its two inputs together
     if (inpIdx == 0) {
@@ -1026,8 +1068,18 @@ void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
 
         computeLogregCost(labels, probs, trueLabelLogProbs, correctProbs);
         _costv.clear();
-        _costv.push_back(-trueLabelLogProbs.sum());
+		float sum = -trueLabelLogProbs.sum();
+        _costv.push_back(sum);
         _costv.push_back(numCases - correctProbs.sum());
+
+		avg_log = sum/numCases;//temp
+		if(gmini == show_mini || isnan_host(sum))
+		printf("\n RLogCostLayer::fpropActs avg_log %f \n",  avg_log);//temp
+		if(isnan_host(avg_log) || isinf_host(avg_log))
+		{
+			printf("\n RLogCostLayer::fpropActs avg_log %f \n",  avg_log);//temp
+			exit(-1);
+		}
     }
 }
 

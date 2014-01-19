@@ -148,11 +148,11 @@ class ConvNet(IGPUModel):
         for i,l in enumerate(self.layers): # This is kind of hacky but will do for now.
             if 'weights' in l:
                 if type(l['weights']) == n.ndarray:
-                    print "%sLayer '%s' weights: %e [%e]" % (NL, l['name'], n.mean(n.abs(l['weights'])), n.mean(n.abs(l['weightsInc']))),
+                    print "%sLayer '%s' weights: %e [%e] sum %e" % (NL, l['name'], n.mean(n.abs(l['weights'])), n.mean(n.abs(l['weightsInc'])), n.sum(l['biases'])),
                 elif type(l['weights']) == list:
                     print ""
-                    print NL.join("Layer '%s' weights[%d]: %e [%e]" % (l['name'], i, n.mean(n.abs(w)), n.mean(n.abs(wi))) for i,(w,wi) in enumerate(zip(l['weights'],l['weightsInc']))),
-                print "%sLayer '%s' biases: %e [%e]" % (NL, l['name'], n.mean(n.abs(l['biases'])), n.mean(n.abs(l['biasesInc']))),
+                    print NL.join("Layer '%s' weights[%d]: %e [%e] sum %e" % (l['name'], i, n.mean(n.abs(w)), n.mean(n.abs(wi)), n.sum(l['biases'])) for i,(w,wi) in enumerate(zip(l['weights'],l['weightsInc']))),
+                print "%sLayer '%s' biases: %e [%e] sum %e" % (NL, l['name'], n.mean(n.abs(l['biases'])), n.mean(n.abs(l['biasesInc'])), n.sum(l['biases'])),
         print ""
         
     def conditional_save(self):

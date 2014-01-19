@@ -152,22 +152,38 @@ __global__ void kLogregSoftmaxGrad(float* y_l, float* labels, float* dE_dx_l, co
 
 template <bool add>
 __global__ void kRLogSoftmaxGrad(float* y_l, float* labels, float* dE_dx_l, const int numCases,
-                                 const int numOut, const float gradCoeff) {
+                                 const int numOut, const float gradCoeff, const float avg_log) {
     const int tx = blockIdx.x * LOGREG_GRAD_THREADS_X + threadIdx.x;
     const int ty = blockIdx.y * LOGREG_GRAD_THREADS_Y + threadIdx.y;
     const int tidx = ty * numCases + tx;
 
 #define LN_HALF 0.69315
 
-	const float invAvgLog = 1.f/(-__logf(1.f/numCases) - LN_HALF);
+	const float cutoff_error = -__logf(1.f/numCases);
+	const float avg_err = avg_log;
+	const float inv_c = 1.f/(cutoff_error - avg_err);
+
+	//const float invCutoff = 1.f/cutoff_error;
     
     if (ty < numOut && tx < numCases) {
         const int label = int(labels[tx]);
+
 		float p =  y_l[tidx];
-		float err = invAvgLog*fmaxf(-__logf(p) - LN_HALF, .01);
-		float err2 = err*err;
-		err2 *= err;
-        float v = gradCoeff * ((label == ty) - p);
+
+		//float err = invCutoff*fmaxf(-__logf(p) - LN_HALF, 0);
+		//float w =  fmaxf(1 - err, 0);
+		//w *= w;
+		//w =  4*fmaxf(w, .2);
+
+		//float w = 1;
+		//float err = invCutoff*fmax(-__logf(p) - LN_HALF, 0);
+		//if(err > cutoff_error) w = 0;
+		//float w = (err > 0 && (err >=  avg_err || err > cutoff_error))?0:1;
+	
+		float err = -__logf(p);
+		float w = fmaxf(cutoff_error - err, 0)*inv_c;
+
+        float v = gradCoeff * ((label == ty) - p)*w;
         if (add) {
             dE_dx_l[tidx] += v;
         } else {
@@ -314,7 +330,7 @@ void computeLogregSoftmaxGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& targe
     cutilCheckMsg("computeLogregSoftmaxGrad: Kernel execution failed");
 }
 
-void computeRLogSoftmaxGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target, bool add, float coeff) {
+void computeRLogSoftmaxGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target, bool add, float coeff, float avg_log) {
     int numCases = probs.getLeadingDim(); 
     int numOut = probs.getFollowingDim(); 
     assert(labels.getNumElements() == numCases);
@@ -328,10 +344,10 @@ void computeRLogSoftmaxGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target,
     if (!add) {
         target.resize(probs);
         kRLogSoftmaxGrad<false><<<blocks, threads>>>(probs.getDevData(), labels.getDevData(), target.getDevData(),
-                                                     numCases, numOut, coeff);
+                                                     numCases, numOut, coeff, avg_log);
     } else {
         kRLogSoftmaxGrad<true><<<blocks, threads>>>(probs.getDevData(), labels.getDevData(), target.getDevData(),
-                                                     numCases, numOut, coeff);
+                                                     numCases, numOut, coeff, avg_log);
     }
 
     cutilCheckMsg("computeRLogSoftmaxGrad: Kernel execution failed");
