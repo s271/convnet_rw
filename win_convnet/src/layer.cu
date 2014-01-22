@@ -69,7 +69,7 @@ void Layer::truncBwdActs() {
     if (_conserveMem && _actsGradTarget < 0) { 
         getActsGrad().truncate();
     }
-    if (_conserveMem) {
+    if (_conserveMem && _name != "cost.rlog") {
         getActs().truncate();
     }
 }
