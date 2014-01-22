@@ -151,7 +151,7 @@ __global__ void kLogregSoftmaxGrad(float* y_l, float* labels, float* dE_dx_l, co
 }
 
 template <bool add>
-__global__ void kRLogSoftmaxGrad(float* y_l, float* labels, float* dE_dx_l, const int numCases,
+__global__ void kRLogSoftmaxGrad(float* y_l, float* labels, float* dE_dx_l, float* trueLabelLogprob, const int numCases,
                                  const int numOut, const float gradCoeff, const float avg_log) {
     const int tx = blockIdx.x * LOGREG_GRAD_THREADS_X + threadIdx.x;
     const int ty = blockIdx.y * LOGREG_GRAD_THREADS_Y + threadIdx.y;
@@ -180,7 +180,7 @@ __global__ void kRLogSoftmaxGrad(float* y_l, float* labels, float* dE_dx_l, cons
 		//if(err > cutoff_error) w = 0;
 		//float w = (err > 0 && (err >=  avg_err || err > cutoff_error))?0:1;
 	
-		float err = -__logf(p);
+		float err = trueLabelLogprob[tx];
 		float w = fmaxf(cutoff_error - err, 0)*inv_c;
 
         float v = gradCoeff * ((label == ty) - p)*w;
@@ -330,7 +330,7 @@ void computeLogregSoftmaxGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& targe
     cutilCheckMsg("computeLogregSoftmaxGrad: Kernel execution failed");
 }
 
-void computeRLogSoftmaxGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target, bool add, float coeff, float avg_log) {
+void computeRLogSoftmaxGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target, NVMatrix& trueLabelLogprob, bool add, float coeff, float avg_log) {
     int numCases = probs.getLeadingDim(); 
     int numOut = probs.getFollowingDim(); 
     assert(labels.getNumElements() == numCases);
@@ -338,15 +338,19 @@ void computeRLogSoftmaxGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target,
     assert(target.isContiguous());
     assert(labels.isContiguous());
     assert(probs.isTrans());
+	assert(trueLabelLogprob.isSameDims(labels));
+
+	if(!trueLabelLogprob.isSameDims(labels))
+		WARN("trueLabelLogprob dimension is wrong in computeRLogSoftmaxGrad!");
     
     dim3 threads(LOGREG_GRAD_THREADS_X, LOGREG_GRAD_THREADS_Y);
     dim3 blocks(DIVUP(numCases, LOGREG_GRAD_THREADS_X), DIVUP(numOut, LOGREG_GRAD_THREADS_Y));
     if (!add) {
         target.resize(probs);
-        kRLogSoftmaxGrad<false><<<blocks, threads>>>(probs.getDevData(), labels.getDevData(), target.getDevData(),
+        kRLogSoftmaxGrad<false><<<blocks, threads>>>(probs.getDevData(), labels.getDevData(), target.getDevData(), trueLabelLogprob.getDevData(),
                                                      numCases, numOut, coeff, avg_log);
     } else {
-        kRLogSoftmaxGrad<true><<<blocks, threads>>>(probs.getDevData(), labels.getDevData(), target.getDevData(),
+        kRLogSoftmaxGrad<true><<<blocks, threads>>>(probs.getDevData(), labels.getDevData(), target.getDevData(), trueLabelLogprob.getDevData(),
                                                      numCases, numOut, coeff, avg_log);
     }
 

@@ -352,10 +352,12 @@ Weights& WeightLayer::getWeights(int idx) {
  * FCLayer
  * =======================
  */
-extern  int gmini;//temp
-int show_mini =  0;//temp
 extern int train;//temp
+extern  int gmini;//temp
+extern  int gmini_max;//temp
 //#define show_mini gmini
+#define show_mini (gmini_max-1)
+//#define show_mini 1
 
 FCLayer::FCLayer(ConvNet* convNet, PyObject* paramsDict) : WeightLayer(convNet, paramsDict, true, false) {
     _wStep = 0.1;
@@ -372,8 +374,14 @@ void FCLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
 	float sum = (*_weights[inpIdx]).sum()/(*_weights[inpIdx]).getNumElements();//temp
 	float suma = getActs().sum()/getActs().getNumElements();//temp
 	if(gmini == show_mini || isnan_host(sum))
-		if(_name == "fc10"  && train==0)
+		if(train==0)//&& _name == "fc10")
+		{
 			printf("FCLayer::fpropActs  %s weight avg  %e act avg %e \n", _name.c_str(), sum, suma);//temp
+			//printf("FCLayer::fpropActs  %s  weight %i %i act %i %i  \n", _name.c_str(),
+			//	(*_weights[inpIdx]).getNumRows(), (*_weights[inpIdx]).getNumCols(),
+			//	getActs().getNumRows(), getActs().getNumCols());//temp
+		}
+
 		if(isnan_host(sum))
 		{
 			printf("FCLayer::fpropActs  %s weight avg  %e act avg %e \n", _name.c_str(), sum, suma);//temp
@@ -390,8 +398,15 @@ void FCLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE p
 	float sum = (_weights[inpIdx].getW()).sum()/(_weights[inpIdx].getW()).getNumElements();//temp
 	float suma = _prev[inpIdx]->getActsGrad().sum()/_prev[inpIdx]->getActsGrad().getNumElements();//temp
 	if(gmini == show_mini || isnan_host(sum))
-		if(_name == "fc10" && train==0)
+		//if( _name == "fc10")
+		{
 			printf("FCLayer::bpropActs %s act grad sum %e w sum %e \n",  _name.c_str(), suma, sum);//temp
+			//printf("FCLayer::bpropActs  %s  weight %i %i grad prev %i %i  \n", _name.c_str(),
+			//		(_weights[inpIdx].getW()).getNumRows(), (_weights[inpIdx].getW()).getNumCols(),
+			//		_prev[inpIdx]->getActsGrad().getNumRows(), _prev[inpIdx]->getActsGrad().getNumCols());//temp
+		}
+
+
 		if(isnan_host(sum))
 		{	
 			printf("FCLayer::bpropActs %s act grad sum %e w sum %e \n",  _name.c_str(), suma, sum);//temp
@@ -652,11 +667,20 @@ void SoftmaxLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_T
     } else if (doRLogGrad) {
         NVMatrix& labels = _next[0]->getPrev()[0]->getActs();
         float gradCoeff = dynamic_cast<CostLayer*>(_next[0])->getCoeff();
-        computeRLogSoftmaxGrad(labels, getActs(), _prev[0]->getActsGrad(), scaleTargets == 1, gradCoeff, avg_log);
+		NVMatrix& trueLabelLogprob = _next[0]->getActs();
+        computeRLogSoftmaxGrad(labels, getActs(), _prev[0]->getActsGrad(), trueLabelLogprob, scaleTargets == 1, gradCoeff, avg_log);
 
-		float sum = _prev[0]->getActsGrad().sum()/_prev[0]->getActsGrad().getNumElements();
-		if(gmini==show_mini)
-			printf("SoftmaxLayer::bpropActs sum %f \n",  sum);//temp
+		float sum = _prev[0]->getActsGrad().sum();
+		if(gmini==show_mini || isnan_host(sum))
+		{	
+			//printf("SoftmaxLayer act  %i %i prev grad %i %i  \n", getActs().getNumRows(), getActs().getNumCols(),
+			//	_prev[0]->getActsGrad().getNumRows(), _prev[0]->getActsGrad().getNumCols());//temp
+
+			printf("SoftmaxLayer::bpropActs grad sum %e \n",  sum);//temp
+			if(isnan_host(sum))
+				exit(-1);
+
+		}
 
 
 	} else {

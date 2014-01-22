@@ -1,0 +1,17 @@
+mini 512, last
+fc10 w 64 x 10 grad prev 512 x 64
+fc10 act 272 x 10
+fc64 w 576 x 64 gard prev 512 x 576
+fc64 act 272 x 64
+
+mini 128 first
+
+fc10 w 64 x 10 grad prev 128 x 64
+act 128 x 10
+
+
+fc64 576 64 grad prev 128 576
+128 64
+
+softmax prev grad 128 x 10 
+act 128 x 10

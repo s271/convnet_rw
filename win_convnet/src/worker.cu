@@ -84,6 +84,7 @@ TrainingWorker::TrainingWorker(ConvNet& convNet, CPUData& data, bool test)
 }
 
 int gmini = -1;//temp
+int gmini_max = -1;
 int train = 0;//temp
 
 // Need to setData here (as opposed to the constructor) because the constructor executes in
@@ -95,6 +96,7 @@ void TrainingWorker::run() {
 
 //printf("-------minibatch %i test %i ----------\n", i, _test);//temp
 gmini = i;//temp;
+gmini_max = _dp->getNumMinibatches();
 train = 0;//temp
         _convNet->fprop(i, _test ? PASS_TEST : PASS_TRAIN);
         _convNet->getCost(batchCost);
