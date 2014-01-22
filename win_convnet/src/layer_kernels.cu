@@ -161,7 +161,8 @@ __global__ void kRLogSoftmaxGrad(float* y_l, float* labels, float* dE_dx_l, floa
 
 	const float cutoff_error = -__logf(1.f/numCases);
 	const float avg_err = avg_log;
-	const float inv_c = 1.f/(cutoff_error - avg_err);
+	const float inv_c = 1.f/(cutoff_error - LN_HALF);
+	const float wstep =  __expf(-(2. - avg_log)*1.5);
 
 	//const float invCutoff = 1.f/cutoff_error;
     
@@ -179,9 +180,16 @@ __global__ void kRLogSoftmaxGrad(float* y_l, float* labels, float* dE_dx_l, floa
 		//float err = invCutoff*fmax(-__logf(p) - LN_HALF, 0);
 		//if(err > cutoff_error) w = 0;
 		//float w = (err > 0 && (err >=  avg_err || err > cutoff_error))?0:1;
-	
-		float err = trueLabelLogprob[tx];
-		float w = fmaxf(cutoff_error - err, 0)*inv_c;
+
+		//float w = fmaxf(cutoff_error - err, 0)*inv_c;
+		float logprob = trueLabelLogprob[tx];
+		//float logprob = __logf(y_l[ label * numCases + tx]);
+
+		float err = fmaxf(logprob - LN_HALF, 0)*inv_c;
+		err *= err*err;
+		float w = wstep;
+		if(avg_log <= 1.4)
+			w = (err < cutoff_error) ? .01f/(.01 + err*err):0;
 
         float v = gradCoeff * ((label == ty) - p)*w;
         if (add) {
