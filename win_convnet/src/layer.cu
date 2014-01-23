@@ -69,7 +69,7 @@ void Layer::truncBwdActs() {
     if (_conserveMem && _actsGradTarget < 0) { 
         getActsGrad().truncate();
     }
-    if (_conserveMem && _name != "cost.rlog") {
+    if (_conserveMem) {
         getActs().truncate();
     }
 }
@@ -649,8 +649,6 @@ void SoftmaxLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType)
     delete &sum;
 }
 
-extern float avg_log;
-
 void SoftmaxLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
     assert(inpIdx == 0);
     bool doLogregGrad = _next.size() == 1 && ( _next[0]->getType() == "cost.logreg");
@@ -662,8 +660,9 @@ void SoftmaxLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_T
     } else if (doRLogGrad) {
         NVMatrix& labels = _next[0]->getPrev()[0]->getActs();
         float gradCoeff = dynamic_cast<CostLayer*>(_next[0])->getCoeff();
-		NVMatrix& trueLabelLogprob = _next[0]->getActs();
-        computeRLogSoftmaxGrad(labels, getActs(), _prev[0]->getActsGrad(), trueLabelLogprob, scaleTargets == 1, gradCoeff, avg_log);
+		NVMatrix* probWeights = dynamic_cast<RLogCostLayer*>(_next[0])->GetProbWeights();
+
+        computeRLogSoftmaxGrad(labels, getActs(), _prev[0]->getActsGrad(), *probWeights, scaleTargets == 1, gradCoeff);
 
 		//float sum = _prev[0]->getActsGrad().sum();
 		//if(gmini==show_mini || isnan_host(sum))
@@ -1071,8 +1070,13 @@ void LogregCostLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PAS
 RLogCostLayer::RLogCostLayer(ConvNet* convNet, PyObject* paramsDict) : CostLayer(convNet, paramsDict, false) {
 }
 
+void RLogCostLayer::SetCoeff(float newCoeff) {
+	_coeff = newCoeff;
+}
 
-float avg_log = 2.3;//temp
+NVMatrix* RLogCostLayer::GetProbWeights(){
+	return &_probWeights;
+};
 
 void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
     // This layer uses its two inputs together
@@ -1082,13 +1086,18 @@ void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
         int numCases = labels.getNumElements();
         NVMatrix& trueLabelLogProbs = getActs(), correctProbs;
 
-        computeLogregCost(labels, probs, trueLabelLogProbs, correctProbs);
+		_probWeights.resize(labels);
+
+        computeRLogCost(labels, probs, trueLabelLogProbs, correctProbs, _probWeights);
         _costv.clear();
 		float sum = -trueLabelLogProbs.sum();
         _costv.push_back(sum);
         _costv.push_back(numCases - correctProbs.sum());
 
-		avg_log = sum/numCases;//temp
+		float avg_log = sum/numCases;
+		//exp(-(2. - avg_log)*1.5); //(1.8, 2)  //(avg_log > .8f)?1:.1f;
+		SetCoeff(exp(-(2. - avg_log)*1.5));
+
 		//if(gmini == show_mini || isnan_host(sum))
 		//printf("\n RLogCostLayer::fpropActs avg_log %f \n",  avg_log);//temp
 		//if(isnan_host(avg_log) || isinf_host(avg_log))
@@ -1108,7 +1117,7 @@ void RLogCostLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_
     // the entire gradient computation to avoid multiplying and dividing by a near-zero quantity.
     bool doWork = _prev[1]->getNext().size() > 1 || _prev[1]->getType() != "softmax";
     if (doWork) {
-        computeLogregGrad(labels, probs, target, scaleTargets == 1, _coeff);
+       // computeRLogGrad(labels, probs, target, scaleTargets == 1, _coeff);
     }
 }
 

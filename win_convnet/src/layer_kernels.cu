@@ -72,6 +72,42 @@ __global__ void kLogregCost(float* probs, float* labels, float* maxProbs, float*
     }
 }
 
+__global__ void kRLogCost(float* probs, float* labels, float* maxProbs, float* labelLogProbs, float* correctProbs,
+						  float* probWeights, const int numCases, const int numOut) {
+    const int tx = blockIdx.x * LOGREG_ERR_THREADS_X + threadIdx.x;
+
+    if (tx < numCases) {
+        const int label = int(labels[tx]);
+        const float maxp = maxProbs[tx];
+        const float labelp = probs[label * numCases + tx];  
+		float logprob = __logf(labelp);
+        labelLogProbs[tx] = logprob;
+		probWeights[tx] = 1;//err =  log(maxp) - logprob
+        
+        /*
+         * Compute the probability of guessing the correct case if you take the most-probable label.
+         * 
+         * This is done like this:
+         * 
+         * - If the most probable label is not equal to the true label, then the probability is zero.
+         * - Otherwise, the probability is 1 / (number of labels whose probability is equal to the maximum).
+         * 
+         * This is certainly overkill -- in practice, it's just about impossible for two labels to get assigned
+         * maximum probability. But it's a safety measure to prevent over-estimating your accuracy.
+         * Though it could never happen in reality. Well it could. But it wouldn't. Cool?
+         */
+        if (labelp != maxp) {
+            correctProbs[tx] = 0;
+        } else {
+            int numMax = 0;
+            for (int i = 0; i < numOut; i++) {
+                numMax += probs[i * numCases + tx] == maxp;
+            }
+            correctProbs[tx] = 1.0f / float(numMax);
+        }
+    }
+}
+
 /*
  * E = -log(y_t)
  * y_l:     (numOut, numCases)
@@ -151,25 +187,26 @@ __global__ void kLogregSoftmaxGrad(float* y_l, float* labels, float* dE_dx_l, co
 }
 
 template <bool add>
-__global__ void kRLogSoftmaxGrad(float* y_l, float* labels, float* dE_dx_l, float* trueLabelLogprob, const int numCases,
-                                 const int numOut, const float gradCoeff, const float avg_log) {
+__global__ void kRLogSoftmaxGrad(float* y_l, float* labels, float* dE_dx_l, float* probWeights, const int numCases,
+                                 const int numOut, const float gradCoeff) {
     const int tx = blockIdx.x * LOGREG_GRAD_THREADS_X + threadIdx.x;
     const int ty = blockIdx.y * LOGREG_GRAD_THREADS_Y + threadIdx.y;
     const int tidx = ty * numCases + tx;
 
-#define LN_HALF 0.69315
+//#define LN_HALF 0.69315
 
-	const float cutoff_error = -__logf(1.f/numCases);
-	const float avg_err = avg_log;
-	const float inv_c = 1.f/(cutoff_error - LN_HALF);
-	const float wstep =  __expf(-(2. - avg_log)*1.5);
-
+	//const float cutoff_error = -__logf(1.f/numCases);
+	//const float avg_err = avg_log;
+	//const float inv_c = 1.f/(cutoff_error - LN_HALF);
+	//const float wstep = __expf(-(2. - avg_log)*1.5); //(1.8, 2)  //(avg_log > .8f)?1:.1f;
+	
 	//const float invCutoff = 1.f/cutoff_error;
     
     if (ty < numOut && tx < numCases) {
         const int label = int(labels[tx]);
 
 		float p =  y_l[tidx];
+		float w = probWeights[tx];
 
 		//float err = invCutoff*fmaxf(-__logf(p) - LN_HALF, 0);
 		//float w =  fmaxf(1 - err, 0);
@@ -182,14 +219,13 @@ __global__ void kRLogSoftmaxGrad(float* y_l, float* labels, float* dE_dx_l, floa
 		//float w = (err > 0 && (err >=  avg_err || err > cutoff_error))?0:1;
 
 		//float w = fmaxf(cutoff_error - err, 0)*inv_c;
-		float logprob = trueLabelLogprob[tx];
-		//float logprob = __logf(y_l[ label * numCases + tx]);
+		//float logprob = trueLabelLogprob[tx];
 
-		float err = fmaxf(logprob - LN_HALF, 0)*inv_c;
-		err *= err*err;
-		float w = wstep;
-		if(avg_log <= 1.4)
-			w = (err < cutoff_error) ? .01f/(.01 + err*err):0;
+		//float err = fmaxf(logprob - LN_HALF, 0)*inv_c;
+		//err *= err*err;
+		//float w = wstep;
+		//if(avg_log <= 1.4)
+		//	w = (err < cutoff_error) ? .01f/(.01 + err*err):0; //^6 or ^9 - same result
 
         float v = gradCoeff * ((label == ty) - p)*w;
         if (add) {
@@ -293,6 +329,31 @@ void computeLogregGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target, bool
     cutilCheckMsg("computeLogregGrad: Kernel execution failed");
 }
 
+void computeRLogCost(NVMatrix& labels, NVMatrix& probs, NVMatrix& labelLogProbs_out, NVMatrix& correctProbs_out, NVMatrix& probWeights_out) {
+    int numCases = probs.getNumCols(); 
+    int numOut = probs.getNumRows(); 
+
+    assert(labels.getNumElements() == numCases);
+    assert(!labels.isTrans());
+    assert(!probs.isTrans());
+    assert(labels.isContiguous());
+    assert(probs.isContiguous());
+    
+    NVMatrix& maxProbs = probs.max(0);
+    
+    labelLogProbs_out.resize(1, numCases);
+    correctProbs_out.resize(1, numCases);
+    dim3 threads(LOGREG_ERR_THREADS_X, 1);
+    dim3 blocks(DIVUP(numCases, LOGREG_ERR_THREADS_X), 1);
+    cudaFuncSetCacheConfig(kRLogCost, cudaFuncCachePreferL1);
+    kRLogCost<<<blocks, threads>>>(probs.getDevData(), labels.getDevData(), maxProbs.getDevData(),
+                                     labelLogProbs_out.getDevData(), correctProbs_out.getDevData(),
+									 probWeights_out.getDevData(), numCases, numOut);
+    cutilCheckMsg("computeRLogCost: Kernel execution failed");
+
+    delete &maxProbs;
+}
+
 void computeSoftmaxGrad(NVMatrix& acts, NVMatrix& actsGrad, NVMatrix& target, bool add) {
     int numCases = acts.getLeadingDim();
     int numOut = acts.getFollowingDim();
@@ -338,7 +399,7 @@ void computeLogregSoftmaxGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& targe
     cutilCheckMsg("computeLogregSoftmaxGrad: Kernel execution failed");
 }
 
-void computeRLogSoftmaxGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target, NVMatrix& trueLabelLogprob, bool add, float coeff, float avg_log) {
+void computeRLogSoftmaxGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target, NVMatrix& probWeights, bool add, float coeff) {
     int numCases = probs.getLeadingDim(); 
     int numOut = probs.getFollowingDim(); 
     assert(labels.getNumElements() == numCases);
@@ -346,20 +407,21 @@ void computeRLogSoftmaxGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target,
     assert(target.isContiguous());
     assert(labels.isContiguous());
     assert(probs.isTrans());
-	assert(trueLabelLogprob.isSameDims(labels));
 
-	if(!trueLabelLogprob.isSameDims(labels))
-		WARN("trueLabelLogprob dimension is wrong in computeRLogSoftmaxGrad!");
+	if(!labels.isSameDims(probWeights)) {
+		printf("computeRLogSoftmaxGrad - probWeights dimesions are wrong! \n");
+		exit(EXIT_FAILURE);
+	}
     
     dim3 threads(LOGREG_GRAD_THREADS_X, LOGREG_GRAD_THREADS_Y);
     dim3 blocks(DIVUP(numCases, LOGREG_GRAD_THREADS_X), DIVUP(numOut, LOGREG_GRAD_THREADS_Y));
     if (!add) {
         target.resize(probs);
-        kRLogSoftmaxGrad<false><<<blocks, threads>>>(probs.getDevData(), labels.getDevData(), target.getDevData(), trueLabelLogprob.getDevData(),
-                                                     numCases, numOut, coeff, avg_log);
+        kRLogSoftmaxGrad<false><<<blocks, threads>>>(probs.getDevData(), labels.getDevData(), target.getDevData(), probWeights.getDevData(),
+                                                     numCases, numOut, coeff);
     } else {
-        kRLogSoftmaxGrad<true><<<blocks, threads>>>(probs.getDevData(), labels.getDevData(), target.getDevData(), trueLabelLogprob.getDevData(),
-                                                     numCases, numOut, coeff, avg_log);
+        kRLogSoftmaxGrad<true><<<blocks, threads>>>(probs.getDevData(), labels.getDevData(), target.getDevData(), probWeights.getDevData(),
+                                                     numCases, numOut, coeff);
     }
 
     cutilCheckMsg("computeRLogSoftmaxGrad: Kernel execution failed");

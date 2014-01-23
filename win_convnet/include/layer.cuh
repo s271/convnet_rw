@@ -379,8 +379,11 @@ class RLogCostLayer : public CostLayer {
 protected:
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
+	NVMatrix _probWeights;
 public:
     RLogCostLayer(ConvNet* convNet, PyObject* paramsDict);
+	void SetCoeff(float newCoeff);
+	NVMatrix* GetProbWeights();
 };
 
 class SumOfSquaresCostLayer : public CostLayer {
