@@ -135,6 +135,33 @@ __global__ void kLogregCostGrad(float* y_l, float* labels, float* dE_dy_l, const
 }
 
 /*
+ * E = -log(y_t)
+ * y_l:     (numOut, numCases)
+ * labels:  (1, numCases)
+ * 
+ * dE_dy_l: (numOut, numCases)
+ */
+template <bool add>
+__global__ void kRLogCostGrad(float* y_l, float* labels, float* dE_dy_l, float* weights, const int numCases,
+                                 const int numOut, const float gradCoeff) {
+    const int tx = blockIdx.x * LOGREG_GRAD_THREADS_X + threadIdx.x;
+    const int ty = blockIdx.y * LOGREG_GRAD_THREADS_Y + threadIdx.y;
+    const int tidx = ty * numCases + tx;
+    
+    if (ty < numOut && tx < numCases) {
+        const int label = int(labels[tx]);
+		const float w = weights[tx];
+        float v = w*gradCoeff * (label == ty);
+        v = __fdividef(v, y_l[tidx]);
+        if (add) {
+            dE_dy_l[tidx] += v;
+        } else {
+            dE_dy_l[tidx] = v;
+        }
+    }
+}
+
+/*
  * dE_dy_l: (numOut, numCases)
  * y_l:     (numOut, numCases)
  * 
@@ -352,6 +379,30 @@ void computeRLogCost(NVMatrix& labels, NVMatrix& probs, NVMatrix& labelLogProbs_
     cutilCheckMsg("computeRLogCost: Kernel execution failed");
 
     delete &maxProbs;
+}
+
+void computeRLogGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target, NVMatrix& probWeights, bool add, float coeff) {
+    int numCases = probs.getLeadingDim(); 
+    int numOut = probs.getFollowingDim(); 
+    assert(labels.getNumElements() == numCases);
+    assert(probs.isContiguous());
+    assert(target.isContiguous());
+    assert(labels.isContiguous());
+    assert(!labels.isTrans());
+    assert(!probs.isTrans());
+    
+    dim3 threads(LOGREG_GRAD_THREADS_X, LOGREG_GRAD_THREADS_Y);
+    dim3 blocks(DIVUP(numCases, LOGREG_GRAD_THREADS_X), DIVUP(numOut, LOGREG_GRAD_THREADS_Y));
+    if (!add) {
+        target.resize(probs);
+        kRLogCostGrad<false><<<blocks, threads>>>(probs.getDevData(), labels.getDevData(), target.getDevData(), probWeights.getDevData(),
+                                                     numCases, numOut, coeff);
+    } else {
+        kRLogCostGrad<true><<<blocks, threads>>>(probs.getDevData(), labels.getDevData(), target.getDevData(), probWeights.getDevData(),
+                                                     numCases, numOut, coeff);
+    }
+
+    cutilCheckMsg("computeLogregGrad: Kernel execution failed");
 }
 
 void computeSoftmaxGrad(NVMatrix& acts, NVMatrix& actsGrad, NVMatrix& target, bool add) {

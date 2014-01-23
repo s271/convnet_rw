@@ -1117,7 +1117,7 @@ void RLogCostLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_
     // the entire gradient computation to avoid multiplying and dividing by a near-zero quantity.
     bool doWork = _prev[1]->getNext().size() > 1 || _prev[1]->getType() != "softmax";
     if (doWork) {
-       // computeRLogGrad(labels, probs, target, scaleTargets == 1, _coeff);
+       computeRLogGrad(labels, probs, target, _probWeights, scaleTargets == 1, _coeff);
     }
 }
 
