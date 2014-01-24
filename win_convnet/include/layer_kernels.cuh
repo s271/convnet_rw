@@ -39,7 +39,9 @@
 void computeLogregCost(NVMatrix& labels, NVMatrix& probs, NVMatrix& labelLogProbs_out, NVMatrix& correctProbs_out);
 void computeLogregGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target, bool add, float coeff);
 
-void computeRLogCost(NVMatrix& labels, NVMatrix& probs, NVMatrix& labelLogProbs_out, NVMatrix& correctProbs_out, NVMatrix& probWeights_out, float scaleParam);
+void computeRLogCost(NVMatrix& labels, NVMatrix& probs,
+					 NVMatrix& labelLogProbs_out, NVMatrix& correctProbs_out, NVMatrix& probWeights_out,
+					 float scaleParam, int rnd);
 void computeRLogGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target,  NVMatrix& probWeights, bool add, float coeff);
 
 void computeSoftmaxGrad(NVMatrix& acts, NVMatrix& actsGrad, NVMatrix& target, bool add);

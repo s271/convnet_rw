@@ -73,8 +73,9 @@ __global__ void kLogregCost(float* probs, float* labels, float* maxProbs, float*
 }
 
 __global__ void kRLogCost(float* probs, float* labels, float* maxProbs, float* labelLogProbs, float* correctProbs,
-						  float* probWeights, float scaleParam, const int numCases, const int numOut) {
+						  float* probWeights, float scaleParam, const int rnd, const int numCases, const int numOut) {
     const int tx = blockIdx.x * LOGREG_ERR_THREADS_X + threadIdx.x;
+#define LN2 .69315
 
     if (tx < numCases) {
         const int label = int(labels[tx]);
@@ -83,7 +84,11 @@ __global__ void kRLogCost(float* probs, float* labels, float* maxProbs, float* l
 		float logprob = __logf(labelp);
         labelLogProbs[tx] = logprob;
 		float err =  scaleParam*(__logf(maxp) - logprob);
-		probWeights[tx] = 1./(1 + err*err);
+		//float w = 1./(1 + err*err);
+		//int rind = tx + rnd + (tx+rnd/2)/2 + (tx + rnd/4)/4;
+		//if((tx+rnd +tx/2)%3 == 0)
+		//	w = 1;
+		probWeights[tx] = (__logf(maxp) - logprob);//w;
         
         /*
          * Compute the probability of guessing the correct case if you take the most-probable label.
@@ -225,7 +230,7 @@ __global__ void kRLogSoftmaxGrad(float* y_l, float* labels, float* dE_dx_l, floa
         const int label = int(labels[tx]);
 
 		float p =  y_l[tidx];
-		float w = probWeights[tx];
+		float w = 1;//probWeights[tx];
 
         float v = gradCoeff * ((label == ty) - p)*w;
         if (add) {
@@ -329,7 +334,9 @@ void computeLogregGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target, bool
     cutilCheckMsg("computeLogregGrad: Kernel execution failed");
 }
 
-void computeRLogCost(NVMatrix& labels, NVMatrix& probs, NVMatrix& labelLogProbs_out, NVMatrix& correctProbs_out, NVMatrix& probWeights_out, float scaleParam) {
+void computeRLogCost(NVMatrix& labels, NVMatrix& probs,
+					 NVMatrix& labelLogProbs_out, NVMatrix& correctProbs_out, NVMatrix& probWeights_out,
+					 float scaleParam, int rnd) {
     int numCases = probs.getNumCols(); 
     int numOut = probs.getNumRows(); 
 
@@ -348,7 +355,7 @@ void computeRLogCost(NVMatrix& labels, NVMatrix& probs, NVMatrix& labelLogProbs_
     cudaFuncSetCacheConfig(kRLogCost, cudaFuncCachePreferL1);
     kRLogCost<<<blocks, threads>>>(probs.getDevData(), labels.getDevData(), maxProbs.getDevData(),
                                      labelLogProbs_out.getDevData(), correctProbs_out.getDevData(),
-									 probWeights_out.getDevData(), scaleParam, numCases, numOut);
+									 probWeights_out.getDevData(), scaleParam, rnd, numCases, numOut);
     cutilCheckMsg("computeRLogCost: Kernel execution failed");
 
     delete &maxProbs;

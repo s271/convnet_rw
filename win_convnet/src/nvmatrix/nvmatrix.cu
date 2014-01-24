@@ -185,7 +185,7 @@ NVMatrix& NVMatrix::copy() const {
     copy(*c);
     return *c;
 }
-/*
+
 void NVMatrix::rightMult(const NVMatrix &b, float scaleAB, NVMatrix &target) const {
     assert(isContiguous() && b.isContiguous() && target.isContiguous());
 //    assert(&target != &b);
@@ -202,27 +202,6 @@ void NVMatrix::rightMult(const NVMatrix &b, float scaleAB, NVMatrix &target) con
     cublasSgemm(getTransChar(), b.getTransChar(), _numRows, b.getNumCols(), _numCols,
                 scaleAB, _devData, getLeadingDim(), b.getDevData(), b.getLeadingDim(),
                 0, target.getDevData(), getNumRows());
-    checkCublasError("cublasSgemm failed");
-//    cudaThreadSynchronize();
-}
-*/
-void NVMatrix::rightMult(const NVMatrix &b, float scaleAB, NVMatrix &target) const {
-    assert(isContiguous() && b.isContiguous() && target.isContiguous());
-//    assert(&target != &b);
-    assert(_numCols == b.getNumRows());
-    if(&target != this) {
-        target.resize(_numRows, b.getNumCols());
-        //target.setTrans(true); // default column major
-    }
-    assert(target.getNumRows() == _numRows);
-    assert(target.getNumCols() == b.getNumCols());
-    if(_numRows % 64 != 0 || _numCols % 64 != 0 || b.getNumCols() % 64 != 0) {
-        WARN("Matrix dimensions not divisible by 64 -- cublasSgemm performance may suffer.");
-    }
-    cublasSgemm(getTransChar(), b.getTransChar(), _numRows, b.getNumCols(), _numCols,
-                scaleAB, _devData, getLeadingDim(), b.getDevData(), b.getLeadingDim(),
-                0, target.getDevData(), getNumRows());
-    target.setTrans(true); // added isTrans specification
     checkCublasError("cublasSgemm failed");
 //    cudaThreadSynchronize();
 }
