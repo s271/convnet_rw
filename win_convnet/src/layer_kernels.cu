@@ -84,11 +84,11 @@ __global__ void kRLogCost(float* probs, float* labels, float* maxProbs, float* l
 		float logprob = __logf(labelp);
         labelLogProbs[tx] = logprob;
 		float err =  scaleParam*(__logf(maxp) - logprob);
-		//float w = 1./(1 + err*err);
+		float w = 1./(1 + err*err);
 		//int rind = tx + rnd + (tx+rnd/2)/2 + (tx + rnd/4)/4;
 		//if((tx+rnd +tx/2)%3 == 0)
 		//	w = 1;
-		probWeights[tx] = (__logf(maxp) - logprob);//w;
+		probWeights[tx] = w;
         
         /*
          * Compute the probability of guessing the correct case if you take the most-probable label.
@@ -230,7 +230,7 @@ __global__ void kRLogSoftmaxGrad(float* y_l, float* labels, float* dE_dx_l, floa
         const int label = int(labels[tx]);
 
 		float p =  y_l[tidx];
-		float w = 1;//probWeights[tx];
+		float w = probWeights[tx];
 
         float v = gradCoeff * ((label == ty) - p)*w;
         if (add) {

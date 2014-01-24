@@ -1091,7 +1091,7 @@ void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
 
 		float scaleParam = 0;
 
-		//if(_avg_log < 1.2) scaleParam = 4;
+		if(_avg_log < 1.) scaleParam = 10;
 
         computeRLogCost(labels, probs, trueLabelLogProbs, correctProbs, _probWeights, scaleParam, rand());
         _costv.clear();
@@ -1100,20 +1100,20 @@ void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
         _costv.push_back(numCases - correctProbs.sum());
 
 		_avg_log = sum/numCases;
-		float avg_err = _probWeights.sum()/numCases;
+		float sumw = _probWeights.sum();
+		float avg_w = sumw/numCases;
 		//float step = (_avg_log > 1.2f)?1:.1f;
 
 		//exp(-(2. - avg_log)*1.5); //(1.8, 2)  //(avg_log > .8f)?1:.1f;
-		float step = max(_avg_log*_avg_log, .1f);
+		float step = _avg_log*_avg_log;
 
-		//float sumw = _probWeights.sum();
 		//_wScale = 1.f/sumw;
 		//if(scaleParam > 0) step*_wScale;
 
 		SetCoeff(step);
 
 		if(gmini == show_mini || isnan_host(sum))
-			printf("\n RLogCostLayer::fpropActs avg err %f \n",  avg_err);//temp
+			printf("\n RLogCostLayer::fpropActs avg w %f \n",  avg_w);//temp
 		
 		if(gmini == show_mini || isnan_host(sum))
 			printf("\n RLogCostLayer::fpropActs avg_log %f \n",  _avg_log);//temp
