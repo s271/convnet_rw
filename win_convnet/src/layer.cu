@@ -1106,7 +1106,7 @@ void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
 		//float step = (_avg_log > 1.2f)?1:.1f;
 
 		//exp(-(2. - avg_log)*1.5); //(1.8, 2)  //(avg_log > .8f)?1:.1f;
-		float step = _avg_log*_avg_log;
+		float step = 1;//_avg_log*_avg_log;
 
 		//_wScale = 1.f/sumw;
 		//if(scaleParam > 0) 

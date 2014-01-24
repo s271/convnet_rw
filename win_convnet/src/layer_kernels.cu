@@ -84,7 +84,7 @@ __global__ void kRLogCost(float* probs, float* labels, float* maxProbs, float* l
 		float logprob = __logf(labelp);
         labelLogProbs[tx] = logprob;
 		float err =  scaleParam*(__logf(maxp) - logprob);
-		float w = fmaxf(1 - err, .1);
+		float w = rsqrt(-logprob + .001);//fmaxf(1 - err, .1);
 		//int rind = tx + rnd + (tx*tx+rnd/2)/2 + (tx*tx*tx + rnd/4)/4;
 		//if(scaleParam > 0)
 		//	w *= (rind%4)*.25 + .25;
