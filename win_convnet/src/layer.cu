@@ -1067,7 +1067,7 @@ void LogregCostLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PAS
  * RLogCostLayer
  * =====================
  */
-RLogCostLayer::RLogCostLayer(ConvNet* convNet, PyObject* paramsDict) : CostLayer(convNet, paramsDict, false) {
+RLogCostLayer::RLogCostLayer(ConvNet* convNet, PyObject* paramsDict) : CostLayer(convNet, paramsDict, false), _avg_log(2.3) {
 }
 
 void RLogCostLayer::SetCoeff(float newCoeff) {
@@ -1088,15 +1088,19 @@ void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
 
 		_probWeights.resize(labels);
 
-        computeRLogCost(labels, probs, trueLabelLogProbs, correctProbs, _probWeights);
+		float scaleParam = 0;
+		if(_avg_log < 1.4) scaleParam = 1;
+		if(_avg_log < 1.2) scaleParam = 5;
+
+        computeRLogCost(labels, probs, trueLabelLogProbs, correctProbs, _probWeights, scaleParam);
         _costv.clear();
 		float sum = -trueLabelLogProbs.sum();
         _costv.push_back(sum);
         _costv.push_back(numCases - correctProbs.sum());
 
-		float avg_log = sum/numCases;
+		_avg_log = sum/numCases;
 		//exp(-(2. - avg_log)*1.5); //(1.8, 2)  //(avg_log > .8f)?1:.1f;
-		SetCoeff(exp(-(2. - avg_log)*1.5));
+		SetCoeff(exp(-(2. - _avg_log)*1.5));
 
 		//if(gmini == show_mini || isnan_host(sum))
 		//printf("\n RLogCostLayer::fpropActs avg_log %f \n",  avg_log);//temp

@@ -380,6 +380,7 @@ protected:
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
 	NVMatrix _probWeights;
+	float _avg_log;
 public:
     RLogCostLayer(ConvNet* convNet, PyObject* paramsDict);
 	void SetCoeff(float newCoeff);

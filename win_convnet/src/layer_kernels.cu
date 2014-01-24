@@ -73,7 +73,7 @@ __global__ void kLogregCost(float* probs, float* labels, float* maxProbs, float*
 }
 
 __global__ void kRLogCost(float* probs, float* labels, float* maxProbs, float* labelLogProbs, float* correctProbs,
-						  float* probWeights, const int numCases, const int numOut) {
+						  float* probWeights, float scaleParam, const int numCases, const int numOut) {
     const int tx = blockIdx.x * LOGREG_ERR_THREADS_X + threadIdx.x;
 
     if (tx < numCases) {
@@ -82,7 +82,8 @@ __global__ void kRLogCost(float* probs, float* labels, float* maxProbs, float* l
         const float labelp = probs[label * numCases + tx];  
 		float logprob = __logf(labelp);
         labelLogProbs[tx] = logprob;
-		probWeights[tx] = 1;//err =  log(maxp) - logprob
+		float err =  scaleParam*(__logf(maxp) - logprob);
+		probWeights[tx] = 1./(1 + err*err);
         
         /*
          * Compute the probability of guessing the correct case if you take the most-probable label.
@@ -219,40 +220,12 @@ __global__ void kRLogSoftmaxGrad(float* y_l, float* labels, float* dE_dx_l, floa
     const int tx = blockIdx.x * LOGREG_GRAD_THREADS_X + threadIdx.x;
     const int ty = blockIdx.y * LOGREG_GRAD_THREADS_Y + threadIdx.y;
     const int tidx = ty * numCases + tx;
-
-//#define LN_HALF 0.69315
-
-	//const float cutoff_error = -__logf(1.f/numCases);
-	//const float avg_err = avg_log;
-	//const float inv_c = 1.f/(cutoff_error - LN_HALF);
-	//const float wstep = __expf(-(2. - avg_log)*1.5); //(1.8, 2)  //(avg_log > .8f)?1:.1f;
-	
-	//const float invCutoff = 1.f/cutoff_error;
     
     if (ty < numOut && tx < numCases) {
         const int label = int(labels[tx]);
 
 		float p =  y_l[tidx];
 		float w = probWeights[tx];
-
-		//float err = invCutoff*fmaxf(-__logf(p) - LN_HALF, 0);
-		//float w =  fmaxf(1 - err, 0);
-		//w *= w;
-		//w =  4*fmaxf(w, .2);
-
-		//float w = 1;
-		//float err = invCutoff*fmax(-__logf(p) - LN_HALF, 0);
-		//if(err > cutoff_error) w = 0;
-		//float w = (err > 0 && (err >=  avg_err || err > cutoff_error))?0:1;
-
-		//float w = fmaxf(cutoff_error - err, 0)*inv_c;
-		//float logprob = trueLabelLogprob[tx];
-
-		//float err = fmaxf(logprob - LN_HALF, 0)*inv_c;
-		//err *= err*err;
-		//float w = wstep;
-		//if(avg_log <= 1.4)
-		//	w = (err < cutoff_error) ? .01f/(.01 + err*err):0; //^6 or ^9 - same result
 
         float v = gradCoeff * ((label == ty) - p)*w;
         if (add) {
@@ -356,7 +329,7 @@ void computeLogregGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target, bool
     cutilCheckMsg("computeLogregGrad: Kernel execution failed");
 }
 
-void computeRLogCost(NVMatrix& labels, NVMatrix& probs, NVMatrix& labelLogProbs_out, NVMatrix& correctProbs_out, NVMatrix& probWeights_out) {
+void computeRLogCost(NVMatrix& labels, NVMatrix& probs, NVMatrix& labelLogProbs_out, NVMatrix& correctProbs_out, NVMatrix& probWeights_out, float scaleParam) {
     int numCases = probs.getNumCols(); 
     int numOut = probs.getNumRows(); 
 
@@ -375,7 +348,7 @@ void computeRLogCost(NVMatrix& labels, NVMatrix& probs, NVMatrix& labelLogProbs_
     cudaFuncSetCacheConfig(kRLogCost, cudaFuncCachePreferL1);
     kRLogCost<<<blocks, threads>>>(probs.getDevData(), labels.getDevData(), maxProbs.getDevData(),
                                      labelLogProbs_out.getDevData(), correctProbs_out.getDevData(),
-									 probWeights_out.getDevData(), numCases, numOut);
+									 probWeights_out.getDevData(), scaleParam, numCases, numOut);
     cutilCheckMsg("computeRLogCost: Kernel execution failed");
 
     delete &maxProbs;
