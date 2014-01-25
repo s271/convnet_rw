@@ -1089,7 +1089,8 @@ void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
 
 		_probWeights.resize(labels);
 
-		float p_pow = -.3;
+		float p_pow = -.2;
+		float s_pow = 2.;
 
         computeRLogCost(labels, probs, trueLabelLogProbs, correctProbs, _probWeights, p_pow);
         _costv.clear();
@@ -1098,11 +1099,9 @@ void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
         _costv.push_back(numCases - correctProbs.sum());
 
 		_avg_log = sum/numCases;
-;
 		//float step = (_avg_log > 1.2f)?1:.1f;
-
 		//exp(-(2. - avg_log)*1.5); //(1.8, 2)  //(avg_log > .8f)?1:.1f;
-		float step = 1;//_avg_log*_avg_log;
+		float step = fminf(pow(_avg_log, s_pow), 1);
 
 		SetCoeff(step);
 
