@@ -1091,10 +1091,11 @@ void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
 
 		float scaleParam = 0;
 
-		if(_avg_log < 1.2) scaleParam = 4;
+		//if(_avg_log < 1.2) scaleParam = 4;
 		//if(_avg_log < .85) scaleParam = 1;
+		float p_pow = -.3;
 
-        computeRLogCost(labels, probs, trueLabelLogProbs, correctProbs, _probWeights, scaleParam, rand());
+        computeRLogCost(labels, probs, trueLabelLogProbs, correctProbs, _probWeights, scaleParam, p_pow);
         _costv.clear();
 		float sum = -trueLabelLogProbs.sum();
         _costv.push_back(sum);
