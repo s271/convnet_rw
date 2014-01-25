@@ -1089,35 +1089,23 @@ void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
 
 		_probWeights.resize(labels);
 
-		float scaleParam = 0;
-
-		//if(_avg_log < 1.2) scaleParam = 4;
-		//if(_avg_log < .85) scaleParam = 1;
 		float p_pow = -.3;
 
-        computeRLogCost(labels, probs, trueLabelLogProbs, correctProbs, _probWeights, scaleParam, p_pow);
+        computeRLogCost(labels, probs, trueLabelLogProbs, correctProbs, _probWeights, p_pow);
         _costv.clear();
 		float sum = -trueLabelLogProbs.sum();
         _costv.push_back(sum);
         _costv.push_back(numCases - correctProbs.sum());
 
 		_avg_log = sum/numCases;
-		//float sumw = _probWeights.sum();
-		//float avg_w = sumw/numCases;
+;
 		//float step = (_avg_log > 1.2f)?1:.1f;
 
 		//exp(-(2. - avg_log)*1.5); //(1.8, 2)  //(avg_log > .8f)?1:.1f;
 		float step = 1;//_avg_log*_avg_log;
 
-		//_wScale = 1.f/sumw;
-		//if(scaleParam > 0) 
-		//	step *= _wScale;
-
 		SetCoeff(step);
 
-		//if(gmini == show_mini || isnan_host(sum))
-		//	printf("\n RLogCostLayer::fpropActs avg w %f \n",  avg_w);//temp
-		
 		if(gmini == show_mini || isnan_host(sum))
 			printf("\n RLogCostLayer::fpropActs avg_log %f \n",  _avg_log);//temp
 
@@ -1134,6 +1122,7 @@ void RLogCostLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_
     NVMatrix& labels = _prev[0]->getActs();
     NVMatrix& probs = _prev[1]->getActs();
     NVMatrix& target = _prev[1]->getActsGrad();
+
     // Numerical stability optimization: if the layer below me is a softmax layer, let it handle
     // the entire gradient computation to avoid multiplying and dividing by a near-zero quantity.
     bool doWork = _prev[1]->getNext().size() > 1 || _prev[1]->getType() != "softmax";
