@@ -86,7 +86,7 @@ __global__ void kRLogCost(float* probs, float* labels, float* maxProbs, float* l
 		float w = __powf(-logprob + .001, p_pow);
 //debug
 		int rind = 7919*(tx + rnd) + 7907;
-		if(rnd%2 == 0)
+		if(rnd%3 == 0)
 			w = 1;
 		probWeights[tx] = w;
         
