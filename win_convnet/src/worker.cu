@@ -79,8 +79,8 @@ DataWorker::~DataWorker() {
  * TrainingWorker
  * ====================
  */
-TrainingWorker::TrainingWorker(ConvNet& convNet, CPUData& data, bool test) 
-    : DataWorker(convNet, data), _test(test) {
+TrainingWorker::TrainingWorker(ConvNet& convNet, CPUData& data, bool test, int epoch) 
+    : DataWorker(convNet, data), _test(test), _epoch(epoch) {
 }
 
 int gmini = -1;//temp
@@ -91,6 +91,7 @@ int train = 0;//temp
 // the original CPU thread, which is not the one with GPU access.
 void TrainingWorker::run() {
     _dp->setData(*_data);
+
     Cost& batchCost = *new Cost(0);
     for (int i = 0; i < _dp->getNumMinibatches(); i++) {
 

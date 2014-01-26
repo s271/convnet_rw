@@ -93,6 +93,7 @@ PyObject* initModel(PyObject *self, PyObject *args) {
 /*
  * Starts training/testing on the given batch (asynchronous -- returns immediately).
  */
+
 PyObject* startBatch(PyObject *self, PyObject *args) {
     assert(model != NULL);
     PyListObject* data;
@@ -106,7 +107,7 @@ PyObject* startBatch(PyObject *self, PyObject *args) {
     }
 
     MatrixV& mvec = *getMatrixV((PyObject*)data); 
-    TrainingWorker* wr = new TrainingWorker(*model, *new CPUData(mvec), test);
+    TrainingWorker* wr = new TrainingWorker(*model, *new CPUData(mvec), test, epoch);
     model->getWorkerQueue().enqueue(wr);
     return Py_BuildValue("i", 0);
 }
