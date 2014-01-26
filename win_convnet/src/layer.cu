@@ -1089,8 +1089,8 @@ void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
 
 		_probWeights.resize(labels);
 
-		float p_pow = -.1;//-.5; //-.7 to -.2 -tested range, about the same as 0
-		float s_pow = 1.2;
+		float p_pow = -.7;//-.7 to -.2 -tested range, about the same as 0
+		float s_pow = 2;
 
         computeRLogCost(labels, probs, trueLabelLogProbs, correctProbs, _probWeights, p_pow);
         _costv.clear();

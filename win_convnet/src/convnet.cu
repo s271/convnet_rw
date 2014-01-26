@@ -131,6 +131,8 @@ Layer* ConvNet::initLayer(string& layerType, PyObject* paramsDict, bool fix_nan)
 	_layers.back()->SetNan2Zero(fix_nan);
 
     return _layers.back();
+	//debug
+	srand(5);
 }
 
 /*
