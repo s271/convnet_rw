@@ -108,14 +108,14 @@ class ConvNet(IGPUModel):
             raise DataProviderException("All matrices returned by data provider must consist of single-precision floats.")
         return batch_data
 
-    def start_batch(self, batch_data, train=True):
+    def start_batch(self, batch_data, epoch, train=True):
         data = batch_data[2]
         if self.check_grads:
             self.libmodel.checkGradients(data)
         elif not train and self.multiview_test:
             self.libmodel.startMultiviewTest(data, self.train_data_provider.num_views, self.logreg_idx)
         else:
-            self.libmodel.startBatch(data, not train)
+            self.libmodel.startBatch(data, epoch, not train)
         
     def print_iteration(self):
         print "%d.%d..." % (self.epoch, self.batchnum),

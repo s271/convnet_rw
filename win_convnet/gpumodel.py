@@ -140,7 +140,7 @@ class IGPUModel:
             sys.stdout.flush()
             
             compute_time_py = time()
-            self.start_batch(data)
+            self.start_batch(data, self.epoch, True)
             
             # load the next batch while the current one is computing
             next_data = self.get_next_batch()
@@ -181,7 +181,7 @@ class IGPUModel:
         return batch_data[0], batch_data[1], batch_data[2]['data']
     
     def start_batch(self, batch_data, train=True):
-        self.libmodel.startBatch(batch_data[2], not train)
+        self.libmodel.startBatch(batch_data[2], self.epoch, not train)
     
     def finish_batch(self):
         return self.libmodel.finishBatch()
@@ -224,7 +224,7 @@ class IGPUModel:
         test_outputs = []
         while True:
             data = next_data
-            self.start_batch(data, train=False)
+            self.start_batch(data, 0, train=False)
             load_next = not self.test_one and data[1] < self.test_batch_range[-1]
             if load_next: # load next batch
                 next_data = self.get_next_batch(train=False)
