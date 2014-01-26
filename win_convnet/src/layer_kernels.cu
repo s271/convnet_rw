@@ -75,7 +75,6 @@ __global__ void kLogregCost(float* probs, float* labels, float* maxProbs, float*
 __global__ void kRLogCost(float* probs, float* labels, float* maxProbs, float* labelLogProbs, float* correctProbs,
 						  float* probWeights, const float p_pow, const int numCases, const int numOut) {
     const int tx = blockIdx.x * LOGREG_ERR_THREADS_X + threadIdx.x;
-#define LN2 .69315
 
     if (tx < numCases) {
         const int label = int(labels[tx]);
@@ -83,8 +82,7 @@ __global__ void kRLogCost(float* probs, float* labels, float* maxProbs, float* l
         const float labelp = probs[label * numCases + tx];  
 		float logprob = __logf(labelp);
         labelLogProbs[tx] = logprob;
-		//float err =  (__logf(maxp) - logprob);
-		//float w = rsqrt(-logprob + .001);
+		//float err =  fmaxf(__logf(maxp) - logprob, 0);
 		float w = __powf(-logprob + .001, p_pow);
 		probWeights[tx] = w;
         
