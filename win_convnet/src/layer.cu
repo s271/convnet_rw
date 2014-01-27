@@ -55,7 +55,7 @@ Layer::Layer(ConvNet* convNet, PyObject* paramsDict, bool trans) :
     _outputs = _actsTarget < 0 ? new NVMatrix() : NULL;
     _actsGrad = _actsGradTarget < 0 ? new NVMatrix() : NULL;
 
-	nan2Zero = false;
+	_nan2Zero = false;
 }
 
 void Layer::fpropNext(PASS_TYPE passType) {
@@ -543,7 +543,7 @@ void ConvLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType) {
         _weights[inpIdx].getGrad().reshape(_filterChannels->at(inpIdx) * _filterPixels->at(inpIdx), _numFilters);
     }
 
-	if(nan2Zero) {
+	if(_nan2Zero) {
 		_weights[inpIdx].getGrad().nan2zero();//nan fix  
 	}
 
@@ -1090,7 +1090,7 @@ void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
 		_probWeights.resize(labels);
 
 		float p_pow = -.7;//-.7 to -.2 -tested range, about the same as 0
-		float s_pow = 2.5;
+		float s_pow = 3.;//3.//2.5;
 
         computeRLogCost(labels, probs, trueLabelLogProbs, correctProbs, _probWeights, p_pow);
         _costv.clear();
@@ -1102,10 +1102,13 @@ void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
 		//float step = (_avg_log > 1.2f)?1:.1f;
 		float step =  fminf(pow(_avg_log, s_pow), 1);
 
+		//float epoch_eff = max(_convNet->getEpoch()-4, 1);
+		//float step = powf(epoch_eff, -.8);
+
 		SetCoeff(step);
 
 		if(gmini == show_mini || isnan_host(sum))
-			printf("\n RLogCostLayer::fpropActs avg_log %f \n",  _avg_log);//temp
+			printf("\n RLogCostLayer::fpropActs avg_log %f step %f \n",  _avg_log, step);//temp
 
 		//if(isnan_host(avg_log) || isinf_host(avg_log))
 		//{

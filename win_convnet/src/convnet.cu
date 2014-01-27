@@ -205,6 +205,14 @@ int ConvNet::getNumLayers() {
     return _layers.size();
 }
 
+void ConvNet::setEpoch(int epoch) {
+	_epoch = epoch;
+}
+
+int ConvNet::getEpoch() {
+	return _epoch;
+}
+
 void ConvNet::bprop(PASS_TYPE passType) {
     for (int i = 0; i < _costs.size(); i++) {
         _costs[i]->bprop(passType);

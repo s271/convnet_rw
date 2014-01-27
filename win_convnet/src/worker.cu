@@ -91,15 +91,30 @@ int train = 0;//temp
 // the original CPU thread, which is not the one with GPU access.
 void TrainingWorker::run() {
     _dp->setData(*_data);
+	_convNet->setEpoch(_epoch);
 
     Cost& batchCost = *new Cost(0);
-    for (int i = 0; i < _dp->getNumMinibatches(); i++) {
+
+	vector<int> shaffle;
+	for (int i = 0; i < _dp->getNumMinibatches(); i++)
+		shaffle.push_back(i);
+
+    for (int i=0; i<_dp->getNumMinibatches(); i++) {
+        int r = rand()%_dp->getNumMinibatches();  
+        int temp = shaffle[i];
+		shaffle[i] = shaffle[r];
+		shaffle[r] = temp;
+    }
+
+    for (int ki = 0; ki < _dp->getNumMinibatches(); ki++) {
+		int mini_ind = shaffle[ki];
 
 //printf("-------minibatch %i test %i ----------\n", i, _test);//temp
-gmini = i;//temp;
+gmini = mini_ind;//temp;
 gmini_max = _dp->getNumMinibatches();
 train = 0;//temp
-        _convNet->fprop(i, _test ? PASS_TEST : PASS_TRAIN);
+
+        _convNet->fprop(mini_ind, _test ? PASS_TEST : PASS_TRAIN);
         _convNet->getCost(batchCost);
         
         if (!_test) {

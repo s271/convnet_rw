@@ -63,6 +63,9 @@ protected:
     int _numFailures;
     int _numTests;
     double _baseErr;
+
+	//for step
+	int _epoch;
     
     virtual Layer* initLayer(string& layerType, PyObject* paramsDict, bool fix_nan);
     void initCuda();
@@ -81,6 +84,9 @@ public:
     void updateWeights();
     void reset();
     int getNumLayers();
+
+	void setEpoch(int epoch);
+	int getEpoch();
     
     void bprop(PASS_TYPE passType);
     void fprop(PASS_TYPE passType);

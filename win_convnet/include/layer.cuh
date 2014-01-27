@@ -51,7 +51,7 @@ protected:
     ConvNet* _convNet;
     std::vector<Layer*> _prev, _next;
     int _rcvdFInputs, _rcvdBInputs;
-	bool nan2Zero; //nan fix  
+	bool _nan2Zero; //nan fix  
     
     NVMatrixV _inputs;
     NVMatrix *_outputs; // TODO: make this a pointer so you can reuse previous layers' matrices
@@ -108,7 +108,7 @@ public:
     }
 
 	void SetNan2Zero(bool fix_nan) {
-		nan2Zero = fix_nan;
+		_nan2Zero = fix_nan;
 	}
 };
 
