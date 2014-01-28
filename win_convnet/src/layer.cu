@@ -1099,8 +1099,9 @@ void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
         _costv.push_back(numCases - correctProbs.sum());
 
 		_avg_log = sum/numCases;
-		//float step = (_avg_log > 1.2f)?1:.1f;
-		float step =  fminf(pow(_avg_log, s_pow), 1);
+
+		float step = fminf(pow(_avg_log, s_pow), 1);
+			//fmaxf(fminf(pow(_avg_log, s_pow), 1),.001);
 
 		//float epoch_eff = max(_convNet->getEpoch()-4, 1);
 		//float step = powf(epoch_eff, -.8);
