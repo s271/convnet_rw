@@ -217,11 +217,13 @@ class ShowConvNet(ConvNet):
                 pl.subplot(NUM_ROWS*2, NUM_COLS, r * 2 * NUM_COLS + c + 1)
                 pl.xticks([])
                 pl.yticks([])
-                img = data[0][img_idx,:,:,:]
-                pl.title('test')     
+ 				#pl.title('test')   
+                try:
+                	img = data[0][img_idx,:,:,:]
+                except IndexError:
+                    # maybe greyscale?
+                    img = data[0][img_idx,:,:]
                 pl.imshow(img, interpolation='nearest')
-                           
-                
                 true_label = int(data[1][0,img_idx])
 
                 img_labels = sorted(zip(preds[img_idx,:], label_names), key=lambda x: x[0])[-NUM_TOP_CLASSES:]
