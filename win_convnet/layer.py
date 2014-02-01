@@ -651,6 +651,8 @@ class WeightLayerParser(LayerWithInputParser):
         dic['momB'] = mcp.safe_get_float(name, 'momB')
         dic['wc'] = mcp.safe_get_float_list(name, 'wc')
         
+        dic['renorm'] = mcp.safe_get_float(name, 'renorm', default=0.0)         
+        
         self.verify_num_params(['epsW', 'momW', 'wc'])
         
         dic['gradConsumer'] = dic['epsB'] > 0 or any(w > 0 for w in dic['epsW'])

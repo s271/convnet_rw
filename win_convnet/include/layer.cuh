@@ -64,7 +64,7 @@ protected:
 
     NVMatrix _dropout_mask;
     float _dropout;
-    
+  
     void fpropNext(PASS_TYPE passType);
     virtual void truncBwdActs(); 
     virtual void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) = 0;
@@ -131,7 +131,8 @@ protected:
     WeightList _weights;
     Weights *_biases;
     float _wStep, _bStep;
-    
+	float _renorm;
+   
     void bpropCommon(NVMatrix& v, PASS_TYPE passType);
     virtual void bpropBiases(NVMatrix& v, PASS_TYPE passType) = 0;
     virtual void bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType) = 0;

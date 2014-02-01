@@ -42,7 +42,7 @@ using namespace std;
  */
 
 Layer::Layer(ConvNet* convNet, PyObject* paramsDict, bool trans) : 
-             _convNet(convNet),  _trans(trans) {
+             _convNet(convNet),  _trans(trans), _dropout(0){
     _name = pyDictGetString(paramsDict, "name");
     _type = pyDictGetString(paramsDict, "type");
     
@@ -292,6 +292,8 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
     floatv& epsW = *pyDictGetFloatV(paramsDict, "epsW");
     float epsB = pyDictGetFloat(paramsDict, "epsB");
     floatv& wc = *pyDictGetFloatV(paramsDict, "wc");
+
+	_renorm = pyDictGetFloat(paramsDict, "renorm");
     
     // Source layers for shared weights
     intv& weightSourceLayerIndices = *pyDictGetIntV(paramsDict, "weightSourceLayerIndices");
@@ -343,6 +345,28 @@ void WeightLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType) {
 void WeightLayer::updateWeights() {
     _weights.update();
     _biases->update();
+ 
+	if(_renorm > 0)
+	{
+		float layerNorm2 = 0;
+		int size = 0;
+		for (int i = 0; i < _weights.getSize(); i++) {
+			float norm2 =  _weights[i].getW().norm2();
+			layerNorm2 += norm2;
+			size += _weights[i].getW().getNumElements();
+        }
+	
+		float layerNorm = sqrtf(layerNorm2/size);
+
+		if(layerNorm > _renorm)
+		{	
+			float renormScale = _renorm/layerNorm;
+
+			for (int i = 0; i < _weights.getSize(); i++) {
+					_weights[i].getW().scale(renormScale);
+			}
+		}
+	}    
 }
 
 void WeightLayer::copyToCPU() {

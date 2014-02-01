@@ -144,15 +144,14 @@ class ConvNet(IGPUModel):
         print "======================Test output======================"
         self.print_costs(self.test_outputs[-1])
         print ""
-        print "-------------------------------------------------------", 
+        print "-------------------------------------------------------" 
         for i,l in enumerate(self.layers): # This is kind of hacky but will do for now.
             if 'weights' in l:
                 if type(l['weights']) == n.ndarray:
-                    print "%sLayer '%s' weights: %e [%e]" % (NL, l['name'], n.mean(n.abs(l['weights'])), n.mean(n.abs(l['weightsInc']))),
+                    print "%sLayer '%s' weights: %e [%e] L2 norm/sqrt(size) %e" % (NL, l['name'], n.mean(n.abs(l['weights'])), n.mean(n.abs(l['weightsInc'])), n.linalg.norm(l['weights'])/sqrt(l['weights'].size))
                 elif type(l['weights']) == list:
-                    print ""
-                    print NL.join("Layer '%s' weights[%d]: %e [%e]" % (l['name'], i, n.mean(n.abs(w)), n.mean(n.abs(wi))) for i,(w,wi) in enumerate(zip(l['weights'],l['weightsInc']))),
-                print "%sLayer '%s' biases: %e [%e]" % (NL, l['name'], n.mean(n.abs(l['biases'])), n.mean(n.abs(l['biasesInc']))),
+                    print NL.join("Layer '%s' weights[%d]: %e [%e] L2 norm/sqrt(size) %e" % (l['name'], i, n.mean(n.abs(w)), n.mean(n.abs(wi)), n.linalg.norm(w)/sqrt(w.size)) for i,(w,wi) in enumerate(zip(l['weights'],l['weightsInc']))),
+                print "%sLayer '%s' biases: %e [%e]" % (NL, l['name'], n.mean(n.abs(l['biases'])), n.mean(n.abs(l['biasesInc'])))
         print ""
         
     def conditional_save(self):
