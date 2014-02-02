@@ -11,9 +11,9 @@ This option add unary operation wich replace NaN values with zeros in gradients 
 
 3. New cost layer: L_p-normed logistic regression - [rlog] 
 [rlog] examples at layer-params-80sec_w.cfg and layers-80sec_w.cfg 
-new parameters for [rlog] layer: 
-lp_norm 
-l_decay 
+new parameters for [rlog] layer:  
+lp_norm   
+l_decay   
 cost function for rlog is sum ||log(p)||^lp_norm 
 each minibatch gardient has adaptive step 
 step = min(coeff, (average log(p) over minibatch)^l_decay)  instead of coeff
