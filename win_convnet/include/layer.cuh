@@ -382,6 +382,9 @@ public:
 
 class RLogCostLayer : public CostLayer {
 protected:
+	float _lp_norm;
+	float _l_decay;
+	float _init_coeff;
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
 	NVMatrix _probWeights;

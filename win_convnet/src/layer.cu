@@ -1109,6 +1109,9 @@ void LogregCostLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PAS
  */
 RLogCostLayer::RLogCostLayer(ConvNet* convNet, PyObject* paramsDict) : CostLayer(convNet, paramsDict, false),
 _avg_log(2.3), _wScale(1) {
+	_lp_norm = pyDictGetFloat(paramsDict, "lp_norm");
+	_l_decay = pyDictGetFloat(paramsDict, "l_decay");
+	_init_coeff = _coeff;
 }
 
 void RLogCostLayer::SetCoeff(float newCoeff) {
@@ -1129,8 +1132,7 @@ void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
 
 		_probWeights.resize(labels);
 
-		float p_pow = -.7; //to -.2 -tested range, about the same as 0
-		float s_pow = 3; //from linear search s_pow = 2-p_pow
+		float p_pow = _lp_norm-1;
 
         computeRLogCost(labels, probs, trueLabelLogProbs, correctProbs, _probWeights, p_pow);
         _costv.clear();
@@ -1140,16 +1142,13 @@ void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
 
 		_avg_log = sum/numCases;
 
-		float step = fminf(pow(_avg_log, s_pow), 3);
-			//fmaxf(fminf(pow(_avg_log, s_pow), 1),.001);
-
-		//float epoch_eff = max(_convNet->getEpoch()-4, 1);
-		//float step = powf(epoch_eff, -.8);
-
+		float step = fminf(pow(_avg_log, _l_decay), _init_coeff);
 		SetCoeff(step);
 
 		if(gmini == show_mini || isnan_host(sum))
+		{
 			printf("\n RLogCostLayer::fpropActs avg_log %f step %f \n",  _avg_log, step);//temp
+		}
 
 		//if(isnan_host(avg_log) || isinf_host(avg_log))
 		//{

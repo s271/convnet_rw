@@ -1090,6 +1090,8 @@ class CostParser(LayerWithInputParser):
 
         dic, name = self.dic, self.dic['name']
         dic['coeff'] = mcp.safe_get_float(name, 'coeff')
+        dic['lp_norm'] = mcp.safe_get_float(name, 'lp_norm')
+        dic['l_decay'] = mcp.safe_get_float(name, 'l_decay')
             
 class LogregCostParser(CostParser):
     def __init__(self):
