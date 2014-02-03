@@ -221,6 +221,18 @@ public:
             return a > scalar ? a : scalar;
         }
     };
+
+    class Shrink {
+    private:
+        const float invLamda;
+    public:
+        Shrink(const float _invLambda) : invLamda(_invLambda) {
+        }
+        __device__ inline float operator()(const float a) const {
+			return ((a > 0) - (a < 0))*fmaxf(fabsf(a) - invLamda, 0);
+        }
+    };
+
 };
 
 class NVMatrixBinaryOps {

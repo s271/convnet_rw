@@ -56,7 +56,7 @@ Layer::Layer(ConvNet* convNet, PyObject* paramsDict, bool trans) :
     _actsGrad = _actsGradTarget < 0 ? new NVMatrix() : NULL;
 
     _dropout = pyDictGetFloat(paramsDict, "dropout");
-    _dropout_mask = new NVMatrix();
+    //_dropout_mask = new NVMatrix(); error?
 
 	_nan2Zero = false;
 }
@@ -293,6 +293,8 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
     float epsB = pyDictGetFloat(paramsDict, "epsB");
     floatv& wc = *pyDictGetFloatV(paramsDict, "wc");
 
+	float muL1 = pyDictGetFloat(paramsDict, "muL1");
+
 	_renorm = pyDictGetFloat(paramsDict, "renorm");
     
     // Source layers for shared weights
@@ -310,11 +312,11 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
             Weights* srcWeights = &srcLayer.getWeights(matrixIdx);
             _weights.addWeights(*new Weights(*srcWeights, epsW[i]));
         } else {
-            _weights.addWeights(*new Weights(*hWeights[i], *hWeightsInc[i], epsW[i], wc[i], momW[i], useGrad));
+            _weights.addWeights(*new Weights(*hWeights[i], *hWeightsInc[i], epsW[i], wc[i], momW[i], muL1, useGrad));
         }
     }
     
-    _biases = new Weights(hBiases, hBiasesInc, epsB, 0, momB, true);
+    _biases = new Weights(hBiases, hBiasesInc, epsB, 0, momB, 0, true);
 
     // Epsilons for finite-difference gradient checking operation
     _wStep = 0.001;

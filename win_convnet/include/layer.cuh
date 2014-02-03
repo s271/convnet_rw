@@ -62,6 +62,7 @@ protected:
     int _actsTarget, _actsGradTarget;
     std::string _name, _type;
 
+	//move to weights
     NVMatrix _dropout_mask;
     float _dropout;
   

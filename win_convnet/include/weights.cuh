@@ -42,8 +42,13 @@ class Weights {
 private:
     Matrix* _hWeights, *_hWeightsInc;
     NVMatrix* _weights, *_weightsInc, *_weightsGrad;
-    
+
     float _epsW, _wc, _mom;
+
+//sparse
+	NVMatrix* _shrinkedWeights;
+	float _muL1;
+
     bool _onGPU, _useGrad;
     int _numUpdates;
     static bool _autoCopyToGPU;
@@ -56,20 +61,21 @@ public:
         return getW();
     }
     
-    Weights(Weights& srcWeights, float epsW) : _srcWeights(&srcWeights), _epsW(epsW), _wc(0), _onGPU(false), _numUpdates(0),
-                                               _weights(NULL), _weightsInc(NULL), _weightsGrad(NULL){
+    Weights(Weights& srcWeights, float epsW) : _srcWeights(&srcWeights), _epsW(epsW), _wc(0), _muL1(0), _onGPU(false), _numUpdates(0),
+                                               _weights(NULL), _weightsInc(NULL), _weightsGrad(NULL), _shrinkedWeights(NULL){
         _hWeights = &srcWeights.getCPUW();
         _hWeightsInc = &srcWeights.getCPUWInc();
         _mom = srcWeights.getMom();
-        _useGrad = srcWeights.isUseGrad();   
+        _useGrad = srcWeights.isUseGrad();  
+
         if (_autoCopyToGPU) {
             copyToGPU();
         }
     }
     
-    Weights(Matrix& hWeights, Matrix& hWeightsInc, float epsW, float wc, float mom, bool useGrad)
+    Weights(Matrix& hWeights, Matrix& hWeightsInc, float epsW, float wc, float mom, float muL1, bool useGrad)
         : _srcWeights(NULL), _hWeights(&hWeights), _hWeightsInc(&hWeightsInc), _numUpdates(0),
-          _epsW(epsW), _wc(wc), _mom(mom), _useGrad(useGrad), _onGPU(false), _weights(NULL),
+          _epsW(epsW), _wc(wc), _mom(mom), _muL1(muL1), _useGrad(useGrad), _onGPU(false), _weights(NULL),
           _weightsInc(NULL), _weightsGrad(NULL) {
         if (_autoCopyToGPU) {
             copyToGPU();
@@ -79,6 +85,8 @@ public:
     ~Weights() {
         delete _hWeights;
         delete _hWeightsInc;
+		if(_shrinkedWeights)
+			delete _shrinkedWeights;
         if (_srcWeights == NULL) {
             delete _weights;
             delete _weightsInc;
@@ -143,6 +151,7 @@ public:
             _weightsInc = _srcWeights->_weightsInc;
             _weightsGrad = _srcWeights->_weightsGrad;
         }
+		_shrinkedWeights = new NVMatrix();
         _onGPU = true;
     }
     
@@ -154,8 +163,16 @@ public:
             if (_useGrad) {
                 _weightsInc->add(*_weightsGrad, _mom, 1);
             }
-            if (_wc > 0) {
-                _weightsInc->add(*_weights, -_wc * _epsW);
+            if (_wc > 0 || _muL1 > 0) {
+				float lambda = _wc * _epsW;
+
+				if(_muL1)
+				{
+					//get shrinked weights
+					_weightsInc->add(*_shrinkedWeights, _muL1);
+				}
+
+                _weightsInc->add(*_weights, -lambda);
             }
             _weights->add(*_weightsInc);
             _numUpdates = 0;
