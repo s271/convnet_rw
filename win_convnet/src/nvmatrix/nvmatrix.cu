@@ -876,6 +876,10 @@ void NVMatrix::pow(float p, NVMatrix& target) {
     apply(NVMatrixOps::Pow(p), target);
 }
 
+void NVMatrix::shrink(float scalar, NVMatrix& target) {
+    apply(NVMatrixOps::Shrink(1.f/scalar), target);
+}
+
 void NVMatrix::pow(float p) {
     pow(p, *this);
 }

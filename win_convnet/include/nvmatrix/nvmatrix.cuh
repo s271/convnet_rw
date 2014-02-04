@@ -408,6 +408,7 @@ public:
     void pow(float p);
     void scale(float _scale);
     void scale(float _scale, NVMatrix& target);
+	void shrink(float lambda, NVMatrix& target);
 
     float dotProduct(NVMatrix& b);
 

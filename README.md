@@ -23,6 +23,16 @@ renorm
 If (L2 norm of weight layer)/sqrt(layer size) is more than renorm 
 layer elementwise multiplied on renom/((L2 norm of weight layer)/sqrt(layer size) )
 
+5. L1  regularizer for weight layer
+muL1  
+Weight deecay wc treated as L2 regularizwer. For i'th layer cost function  
+L_old(w) = L(w_..., w_i) + wc*w_i^2  
+replaced with  
+L_1(w) = L(w_..., w_i) + muL1*||w||_1  
+wich implemented using slack variable u  
+L_1(w, u) = L(w_..., w_i) + wc*(w_i - u)^2 + wc*muL1*||u||_1
+Coordinate descent applied to L by w,u 
+ 
 
 Requirements:
 --------------

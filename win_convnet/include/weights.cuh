@@ -152,6 +152,7 @@ public:
             _weightsGrad = _srcWeights->_weightsGrad;
         }
 		_shrinkedWeights = new NVMatrix();
+		_shrinkedWeights->resize(*_weights);
         _onGPU = true;
     }
     
@@ -164,15 +165,15 @@ public:
                 _weightsInc->add(*_weightsGrad, _mom, 1);
             }
             if (_wc > 0 || _muL1 > 0) {
-				float lambda = _wc * _epsW;
 
 				if(_muL1)
 				{
 					//get shrinked weights
+					_weights->shrink(_wc/_muL1, *_shrinkedWeights);
 					_weightsInc->add(*_shrinkedWeights, _muL1);
 				}
 
-                _weightsInc->add(*_weights, -lambda);
+                _weightsInc->add(*_weights, -_wc * _epsW);
             }
             _weights->add(*_weightsInc);
             _numUpdates = 0;
