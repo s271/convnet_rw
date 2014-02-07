@@ -83,7 +83,7 @@ __global__ void kRLogCost(float* probs, float* labels, float* maxProbs, float* l
 		float logprob = __logf(labelp);
         labelLogProbs[tx] = logprob;
 		//float err =  fmaxf(__logf(maxp) - logprob, 0);
-		float w = __powf(-logprob + .001, p_pow);
+		float w = __powf(-logprob + 1e-6, p_pow);//*.6/(.6 + err);
 
 		probWeights[tx] = w;
         

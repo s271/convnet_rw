@@ -61,8 +61,8 @@ class ConvNet(IGPUModel):
         
         logreg_name = self.op.get_value('logreg_name')
         if logreg_name:
-            self.logreg_idx = self.get_layer_idx(logreg_name, check_type='cost.logreg')
-        
+            #self.logreg_idx = self.get_layer_idx(logreg_name, check_type='cost.logreg')
+            self.logreg_idx = self.get_layer_idx(logreg_name)        
         # Convert convolutional layers to local
         if len(self.op.get_value('conv_to_local')) > 0:
             for i, layer in enumerate(ms['layers']):

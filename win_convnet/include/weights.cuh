@@ -169,8 +169,8 @@ public:
 				if(_muL1)
 				{
 					//get shrinked weights
-					_weights->shrink(_wc/_muL1, *_shrinkedWeights);
-					_weightsInc->add(*_shrinkedWeights, _muL1);
+					_weights->shrink(1.f/_muL1, *_shrinkedWeights);
+					_weightsInc->add(*_shrinkedWeights, _wc*_epsW);
 				}
 
                 _weightsInc->add(*_weights, -_wc * _epsW);

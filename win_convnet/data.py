@@ -216,6 +216,13 @@ class LabeledMemoryDataProvider(LabeledDataProvider):
         self.advance_batch()
         bidx = batchnum - self.batch_range[0]
         return epoch, batchnum, self.data_dic[bidx]
+        
+    def set_batch(self, idx):
+        epoch, batchnum = self.curr_epoch, self.curr_batchnum
+        self.batch_idx = idx
+        self.curr_batchnum = self.batch_range[self.batch_idx]
+        bidx = batchnum - self.batch_range[0]
+        return epoch, batchnum, self.data_dic[bidx]        
     
 dp_types = {"default": "The default data provider; loads one batch into memory at a time",
             "memory": "Loads the entire dataset into memory",

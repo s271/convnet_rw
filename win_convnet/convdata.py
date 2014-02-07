@@ -44,6 +44,10 @@ class CIFARDataProvider(LabeledMemoryDataProvider):
         epoch, batchnum, datadic = LabeledMemoryDataProvider.get_next_batch(self)
         return epoch, batchnum, [datadic['data'], datadic['labels']]
         
+    def set_batch(self, idx):
+        epoch, batchnum, datadic = LabeledMemoryDataProvider.set_batch(self, idx)
+        return epoch, batchnum, [datadic['data'], datadic['labels']]        
+        
     def get_filenames(self):
         epoch, batchnum, datadic = LabeledMemoryDataProvider.get_next_batch(self)
         return datadic['filenames'] 
@@ -89,6 +93,16 @@ class CroppedCIFARDataProvider(LabeledMemoryDataProvider):
         cropped -= self.data_mean
         self.batches_generated += 1
         return epoch, batchnum, [cropped, datadic['labels']]
+        
+    def set_batch(self, idx):
+        epoch, batchnum, datadic = LabeledMemoryDataProvider.set_batch(self, idx) 
+
+        cropped = self.cropped_data[self.batches_generated % 2]
+
+        self.__trim_borders(datadic['data'], cropped)
+        cropped -= self.data_mean
+        self.batches_generated += 1
+        return epoch, batchnum, [cropped, datadic['labels']]         
         
     def get_filenames(self):
         epoch, batchnum, datadic = LabeledMemoryDataProvider.get_next_batch(self)
