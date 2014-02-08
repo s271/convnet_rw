@@ -121,6 +121,29 @@ class IGPUModel:
             self.print_test_results()
             sys.exit(0)
         self.train()
+        
+    def batch_script(self, count, idx_range, epoch):
+        learning_step = 2*idx_range #learning_step runs per batch
+        step_epoch_size = learning_step/idx_range     
+        step_epoch_range = step_epoch_size*idx_range*(idx_range+1)/2  
+
+        if epoch >= step_epoch_range:
+            idx = count%idx_range
+        else:
+            crange = 1
+            isum = 1
+
+            while isum < epoch:
+                isum += step_epoch_size*crange*(crange+1)/2 #is it correct???
+                crange += 1
+            idx = count%crange
+            print "*step_epoch_range %d crange %d count %d idx %d" %(step_epoch_range, crange, count, idx)
+        
+       
+        if count > 0 and (count%idx_range == 0) :
+            epoch += 1                       
+      
+        return idx, epoch
     
     def train(self):
         print "========================="
@@ -132,11 +155,13 @@ class IGPUModel:
         print "Current time: %s" % asctime(localtime())
         print "Saving checkpoints to %s" % os.path.join(self.save_path, self.save_file)
         print "========================="
-        next_data = self.get_next_batch()
-        
-        dp = self.train_data_provider
+        #next_data = self.get_next_batch()
+        dp = self.train_data_provider     
         idx=0;
         idx_range = len(dp.batch_range)
+        count = 0
+        next_data = self.set_batch(idx) 
+        self.epoch, self.batchnum = next_data[0], next_data[1]       
         while self.epoch <= self.num_epochs:
             data = next_data
             self.epoch, self.batchnum = data[0], data[1]
@@ -148,22 +173,22 @@ class IGPUModel:
             
             # load the next batch while the current one is computing
             #next_data = self.get_next_batch()
-            
-            next_data = self.set_batch(idx)                      
 #debug            
- #           print "*** batch_idx %d batch_range %s epoch %d" % (dp.batch_idx, dp.batch_range, self.epoch)
- #           print "*** curr_batchnum %d epoch_dp %s " % (dp.curr_batchnum, dp.curr_epoch)
+           #len(self.train_batch_range) * (self.epoch - 1) + self.batchnum - self.train_batch_range[0] + 1
+            print "*** train_batch_range %s epoch %d " % (self.train_batch_range, self.epoch)
+            print "*** batch_idx %d batches done %d" % (dp.batch_idx, self.get_num_batches_done_nodr(count%idx_range))
+            print "**** curr_batchnum %d epoch_dp %s " % (dp.curr_batchnum, dp.curr_epoch)
 #debug         
-            idx = (idx+1)%idx_range
-            if dp.batch_idx == 0: 
-                dp.curr_epoch += 1            
-            
-            
+            count += 1  
+            idx, dp.curr_epoch = self.batch_script(count, idx_range, self.epoch)          
+            next_data = self.set_batch(idx)    
+               
             batch_output = self.finish_batch()
             self.train_outputs += [batch_output]
             self.print_train_results()
 
-            if self.get_num_batches_done() % self.testing_freq == 0:
+            #if self.get_num_batches_done() % self.testing_freq == 0:
+            if self.get_num_batches_done_nodr(count%idx_range) % self.testing_freq == 0:
                 self.sync_with_host()
                 self.test_outputs += [self.get_test_error()]
                 self.print_test_results()
@@ -195,7 +220,10 @@ class IGPUModel:
         dp = self.train_data_provider
         if not train:
             dp = self.test_data_provider
-        return self.parse_batch_data(dp.set_batch(idx), train=train)        
+        return self.parse_batch_data(dp.set_batch(idx), train=train) 
+        
+    def get_num_batches_done_nodr(self, count_done):
+        return len(self.train_batch_range) * (self.epoch - 1) + count_done        
     
     def parse_batch_data(self, batch_data, train=True):
         return batch_data[0], batch_data[1], batch_data[2]['data']
