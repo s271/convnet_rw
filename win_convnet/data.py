@@ -218,9 +218,9 @@ class LabeledMemoryDataProvider(LabeledDataProvider):
         return epoch, batchnum, self.data_dic[bidx]
         
     def set_batch(self, idx):
-        epoch, batchnum = self.curr_epoch, self.curr_batchnum
         self.batch_idx = idx
         self.curr_batchnum = self.batch_range[self.batch_idx]
+        epoch, batchnum = self.curr_epoch, self.curr_batchnum
         bidx = batchnum - self.batch_range[0]
         return epoch, batchnum, self.data_dic[bidx]        
     

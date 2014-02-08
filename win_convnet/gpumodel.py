@@ -131,7 +131,7 @@ class IGPUModel:
             idx = count%idx_range
         else:
             crange = 1
-            isum = 1
+            isum = 2
 
             while isum < epoch:
                 isum += step_epoch_size*crange*(crange+1)/2 #is it correct???
@@ -155,7 +155,7 @@ class IGPUModel:
         print "Current time: %s" % asctime(localtime())
         print "Saving checkpoints to %s" % os.path.join(self.save_path, self.save_file)
         print "========================="
-        #next_data = self.get_next_batch()
+
         dp = self.train_data_provider     
         idx=0;
         idx_range = len(dp.batch_range)
@@ -163,22 +163,23 @@ class IGPUModel:
         next_data = self.set_batch(idx) 
         self.epoch, self.batchnum = next_data[0], next_data[1]       
         while self.epoch <= self.num_epochs:
-            data = next_data
-            self.epoch, self.batchnum = data[0], data[1]
+            self.epoch, self.batchnum = next_data[0], next_data[1]
+            print "--- self batchnum %d dp cb %d next_data[1] %d " % (self.batchnum, dp.curr_batchnum, next_data[1])
             self.print_iteration()
-            sys.stdout.flush()
-            
-            compute_time_py = time()
-            self.start_batch(data, self.epoch, True)
-            
-            # load the next batch while the current one is computing
-            #next_data = self.get_next_batch()
 #debug            
            #len(self.train_batch_range) * (self.epoch - 1) + self.batchnum - self.train_batch_range[0] + 1
             print "*** train_batch_range %s epoch %d " % (self.train_batch_range, self.epoch)
             print "*** batch_idx %d batches done %d" % (dp.batch_idx, self.get_num_batches_done_nodr(count%idx_range))
             print "**** curr_batchnum %d epoch_dp %s " % (dp.curr_batchnum, dp.curr_epoch)
-#debug         
+#debug            
+            sys.stdout.flush()
+            
+            compute_time_py = time()
+            self.start_batch(next_data, self.epoch, True)
+            
+            # load the next batch while the current one is computing
+            #next_data = self.get_next_batch()
+         
             count += 1  
             idx, dp.curr_epoch = self.batch_script(count, idx_range, self.epoch)          
             next_data = self.set_batch(idx)    
