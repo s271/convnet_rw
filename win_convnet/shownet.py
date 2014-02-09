@@ -105,6 +105,23 @@ class ShowConvNet(ConvNet):
 #        pl.ylabel(self.show_cost)
         pl.title(self.show_cost)
         
+        import pickle 
+        nbe = [numbatches, numepochs]
+  
+        with open('nbe.pickle', 'wb') as f:
+            pickle.dump(nbe, f)        
+        with open('test.pickle', 'wb') as f:
+            pickle.dump(test_errors, f)
+        with open('train.pickle', 'wb') as f:
+            pickle.dump(train_errors, f)            
+        """        
+        with open('nbe_base.pickle', 'wb') as f:
+            pickle.dump(nbe, f)        
+        with open('test_base.pickle', 'wb') as f:
+            pickle.dump(test_errors, f)
+        with open('train_base.pickle', 'wb') as f:
+            pickle.dump(train_errors, f)  
+        """    
     def make_filter_fig(self, filters, filter_start, fignum, _title, num_filters, combine_chans):
         FILTERS_PER_ROW = 16
         MAX_ROWS = 16

@@ -86,6 +86,7 @@ TrainingWorker::TrainingWorker(ConvNet& convNet, CPUData& data, bool test, int e
 int gmini = -1;//temp
 int gmini_max = -1;
 int train = 0;//temp
+int gepoch =0;
 
 // Need to setData here (as opposed to the constructor) because the constructor executes in
 // the original CPU thread, which is not the one with GPU access.
@@ -113,7 +114,7 @@ void TrainingWorker::run() {
 gmini = mini_ind;//temp;
 gmini_max = _dp->getNumMinibatches();
 train = 0;//temp
-
+gepoch = _convNet->getEpoch();
         _convNet->fprop(mini_ind, _test ? PASS_TEST : PASS_TRAIN);
         _convNet->getCost(batchCost);
         

@@ -73,7 +73,7 @@ __global__ void kLogregCost(float* probs, float* labels, float* maxProbs, float*
 }
 
 __global__ void kRLogCost(float* probs, float* labels, float* maxProbs, float* labelLogProbs, float* correctProbs,
-						  float* probWeights, const float p_pow, const int numCases, const int numOut, int rnd) {
+						  float* probWeights, const float p_pow, const int numCases, const int numOut, const int flag) {
     const int tx = blockIdx.x * LOGREG_ERR_THREADS_X + threadIdx.x;
 
     if (tx < numCases) {
@@ -331,11 +331,18 @@ void computeLogregGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target, bool
     cutilCheckMsg("computeLogregGrad: Kernel execution failed");
 }
 
+extern int gepoch;//debug
+
 void computeRLogCost(NVMatrix& labels, NVMatrix& probs,
 					 NVMatrix& labelLogProbs_out, NVMatrix& correctProbs_out, NVMatrix& probWeights_out,
 					 float p_pow) {
     int numCases = probs.getNumCols(); 
     int numOut = probs.getNumRows(); 
+
+//debug
+	int flag = 0;
+//	if(gepoch > 100)
+//		flag = 1;
 
     assert(labels.getNumElements() == numCases);
     assert(!labels.isTrans());
@@ -352,7 +359,7 @@ void computeRLogCost(NVMatrix& labels, NVMatrix& probs,
     cudaFuncSetCacheConfig(kRLogCost, cudaFuncCachePreferL1);
     kRLogCost<<<blocks, threads>>>(probs.getDevData(), labels.getDevData(), maxProbs.getDevData(),
                                      labelLogProbs_out.getDevData(), correctProbs_out.getDevData(),
-									 probWeights_out.getDevData(), p_pow, numCases, numOut, rand());
+									 probWeights_out.getDevData(), p_pow, numCases, numOut, flag);
     cutilCheckMsg("computeRLogCost: Kernel execution failed");
 
     delete &maxProbs;

@@ -123,7 +123,7 @@ class IGPUModel:
         self.train()
         
     def batch_script(self, count, idx_range, epoch):
-        learning_step = 2*idx_range #learning_step runs per batch
+        learning_step = 3*idx_range #learning_step runs per batch
         step_epoch_size = learning_step/idx_range     
         step_epoch_range = step_epoch_size*idx_range*(idx_range+1)/2  
 
@@ -131,14 +131,13 @@ class IGPUModel:
             idx = count%idx_range
         else:
             crange = 1
-            isum = 2
+            isum = step_epoch_size
 
             while isum < epoch:
                 isum += step_epoch_size*crange*(crange+1)/2 #is it correct???
                 crange += 1
-            idx = count%crange
-            print "*step_epoch_range %d crange %d count %d idx %d" %(step_epoch_range, crange, count, idx)
-        
+            idx = count%crange   
+            print "** crange %d isum %d idx %d " % (crange, isum, idx)
        
         if count > 0 and (count%idx_range == 0) :
             epoch += 1                       
@@ -164,13 +163,11 @@ class IGPUModel:
         self.epoch, self.batchnum = next_data[0], next_data[1]       
         while self.epoch <= self.num_epochs:
             self.epoch, self.batchnum = next_data[0], next_data[1]
-            print "--- self batchnum %d dp cb %d next_data[1] %d " % (self.batchnum, dp.curr_batchnum, next_data[1])
             self.print_iteration()
 #debug            
-           #len(self.train_batch_range) * (self.epoch - 1) + self.batchnum - self.train_batch_range[0] + 1
-            print "*** train_batch_range %s epoch %d " % (self.train_batch_range, self.epoch)
-            print "*** batch_idx %d batches done %d" % (dp.batch_idx, self.get_num_batches_done_nodr(count%idx_range))
-            print "**** curr_batchnum %d epoch_dp %s " % (dp.curr_batchnum, dp.curr_epoch)
+#            print "** train_batch_range %s epoch %d " % (self.train_batch_range, self.epoch)
+#            print "*** batch_idx %d batches done %d" % (dp.batch_idx, self.get_num_batches_done_nodr(count%idx_range))
+#            print "**** curr_batchnum %d epoch_dp %s " % (dp.curr_batchnum, dp.curr_epoch)
 #debug            
             sys.stdout.flush()
             

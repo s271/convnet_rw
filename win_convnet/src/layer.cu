@@ -1123,7 +1123,7 @@ void RLogCostLayer::SetCoeff(float newCoeff) {
 NVMatrix* RLogCostLayer::GetProbWeights(){
 	return &_probWeights;
 };
-
+extern int gepoch;
 void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
     // This layer uses its two inputs together
     if (inpIdx == 0) {
@@ -1143,6 +1143,10 @@ void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
         _costv.push_back(numCases - correctProbs.sum());
 
 		_avg_log = sum/numCases;
+
+		//float step = _init_coeff;
+		//if(gepoch > 150)
+		//	step = _init_coeff*.1;
 
 		float step = fminf(pow(_avg_log, _l_decay), _init_coeff);
 		SetCoeff(step);
