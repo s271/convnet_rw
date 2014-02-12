@@ -46,7 +46,6 @@ private:
     float _epsW, _wc, _mom;
 
 //sparse
-	NVMatrix* _shrinkedWeights;
 	float _muL1;
 
     bool _onGPU, _useGrad;
@@ -62,7 +61,7 @@ public:
     }
     
     Weights(Weights& srcWeights, float epsW) : _srcWeights(&srcWeights), _epsW(epsW), _wc(0), _muL1(0), _onGPU(false), _numUpdates(0),
-                                               _weights(NULL), _weightsInc(NULL), _weightsGrad(NULL), _shrinkedWeights(NULL){
+                                               _weights(NULL), _weightsInc(NULL), _weightsGrad(NULL) {
         _hWeights = &srcWeights.getCPUW();
         _hWeightsInc = &srcWeights.getCPUWInc();
         _mom = srcWeights.getMom();
@@ -85,8 +84,6 @@ public:
     ~Weights() {
         delete _hWeights;
         delete _hWeightsInc;
-		if(_shrinkedWeights)
-			delete _shrinkedWeights;
         if (_srcWeights == NULL) {
             delete _weights;
             delete _weightsInc;
@@ -151,8 +148,7 @@ public:
             _weightsInc = _srcWeights->_weightsInc;
             _weightsGrad = _srcWeights->_weightsGrad;
         }
-		_shrinkedWeights = new NVMatrix();
-		_shrinkedWeights->resize(*_weights);
+
         _onGPU = true;
     }
     
@@ -164,18 +160,33 @@ public:
             if (_useGrad) {
                 _weightsInc->add(*_weightsGrad, _mom, 1);
             }
-            if (_wc > 0 || _muL1 > 0) {
 
-				if(_muL1)
-				{
-					//get shrinked weights
-					_weights->shrink(1.f/_muL1, *_shrinkedWeights);
-					_weightsInc->add(*_shrinkedWeights, _wc*_epsW);
-				}
-
-                _weightsInc->add(*_weights, -_wc * _epsW);
+            if (_wc > 0 && _muL1 == 0) {
+                _weightsInc->add(*_weights, -_wc * _epsW);			
             }
+
+			//if (_muL1 > 0) 
+			//{
+			//	_weightsInc->softGradAdd(*_weights, 1, _muL1, -_wc * _epsW);
+			//}
+
             _weights->add(*_weightsInc);
+
+
+			if (_muL1 > 0) 
+			{
+				_weights->shrink(1.f/_muL1);			
+				float norm2 =  _weights->norm2();
+				int size = _weights->getNumElements();
+				float norm = sqrtf(norm2/size);
+				float rminscale = 1e-4;
+				if(norm < rminscale)
+				{
+					float renormScale = rminscale/norm;
+					_weights->scale(renormScale);
+				}
+			}
+
             _numUpdates = 0;
         }
     }

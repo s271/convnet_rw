@@ -601,6 +601,14 @@ void NVMatrix::add(NVMatrix& b, float scaleA, float scaleB, NVMatrix& target) {
     }
 }
 
+void NVMatrix::softGradAdd(NVMatrix& b, float scaleL2, float scaleL1, float scaleB, NVMatrix& target) {
+        applyBinary(NVMatrixBinaryOps::SoftGradAdd(scaleL2, scaleL1, scaleB), b, target);
+}
+
+void NVMatrix::softGradAdd(NVMatrix& b, float scaleL2, float scaleL1, float scaleB) {
+        applyBinary(NVMatrixBinaryOps::SoftGradAdd(scaleL2, scaleL1, scaleB), b, *this);
+}
+
 void NVMatrix::add(NVMatrix& b, float scaleB, NVMatrix& target) {
     add(b, 1, scaleB, target);
 }
@@ -882,6 +890,10 @@ void NVMatrix::shrink(float scalar, NVMatrix& target) {
 
 void NVMatrix::pow(float p) {
     pow(p, *this);
+}
+
+void NVMatrix::shrink(float scalar) {
+    shrink(scalar, *this);
 }
 
 void NVMatrix::scale(float _scale) {

@@ -283,6 +283,19 @@ public:
         }
     };
 
+    class SoftGradAdd {
+    private:
+        const float scaleL2, scaleL1, scaleB;
+    public:
+        SoftGradAdd(const float _scaleL2, const float _scaleL1, const float _scaleB) : scaleL2(_scaleL2), scaleL1(_scaleL1), scaleB(_scaleB) {
+        }
+        __device__ inline float operator()(const float a, const float b) const {
+			float sign_b = (b > 0) - (b < 0);
+			float abs_b = sign_b*b;
+            return a  + scaleB*((scaleL2 + (abs_b < scaleL1))*b + (abs_b > scaleL1)*sign_b*scaleL1);
+        }
+    };
+
     class Add {
     public:
         __device__ inline float operator()(const float a, const float b) const {

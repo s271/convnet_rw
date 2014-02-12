@@ -137,7 +137,7 @@ class IGPUModel:
                 isum += step_epoch_size*crange*(crange+1)/2 #is it correct???
                 crange += 1
             idx = count%crange   
-            print "** crange %d isum %d idx %d " % (crange, isum, idx)
+            #print "** crange %d isum %d idx %d " % (crange, isum, idx)
        
         if count > 0 and (count%idx_range == 0) :
             epoch += 1                       
@@ -154,28 +154,26 @@ class IGPUModel:
         print "Current time: %s" % asctime(localtime())
         print "Saving checkpoints to %s" % os.path.join(self.save_path, self.save_file)
         print "========================="
-
+#
         dp = self.train_data_provider     
         idx=0;
         idx_range = len(dp.batch_range)
         count = 0
         next_data = self.set_batch(idx) 
         self.epoch, self.batchnum = next_data[0], next_data[1]       
+#
+        #next_data = self.get_next_batch()
         while self.epoch <= self.num_epochs:
             self.epoch, self.batchnum = next_data[0], next_data[1]
             self.print_iteration()
-#debug            
-#            print "** train_batch_range %s epoch %d " % (self.train_batch_range, self.epoch)
-#            print "*** batch_idx %d batches done %d" % (dp.batch_idx, self.get_num_batches_done_nodr(count%idx_range))
-#            print "**** curr_batchnum %d epoch_dp %s " % (dp.curr_batchnum, dp.curr_epoch)
-#debug            
+            
             sys.stdout.flush()
             
             compute_time_py = time()
             self.start_batch(next_data, self.epoch, True)
             
-            # load the next batch while the current one is computing
-            #next_data = self.get_next_batch()
+            #load the next batch while the current one is computing
+            #next_data = self.get_next_batch() #
          
             count += 1  
             idx, dp.curr_epoch = self.batch_script(count, idx_range, self.epoch)          
@@ -185,7 +183,7 @@ class IGPUModel:
             self.train_outputs += [batch_output]
             self.print_train_results()
 
-            #if self.get_num_batches_done() % self.testing_freq == 0:
+            #if self.get_num_batches_done() % self.testing_freq == 0: #
             if self.get_num_batches_done_nodr(count%idx_range) % self.testing_freq == 0:
                 self.sync_with_host()
                 self.test_outputs += [self.get_test_error()]
