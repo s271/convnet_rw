@@ -100,6 +100,8 @@ Layer* ConvNet::initLayer(string& layerType, PyObject* paramsDict, bool fix_nan)
         _layers.push_back(new ContrastNormLayer(this, paramsDict));
     } else if (layerType == "softmax") {
         _layers.push_back(new SoftmaxLayer(this, paramsDict));
+    } else if (layerType == "l2svm") {
+        _layers.push_back(new L2SVMLayer(this, paramsDict));
     } else if (layerType == "eltsum") {
         _layers.push_back(new EltwiseSumLayer(this, paramsDict));
     } else if (layerType == "eltmax") {

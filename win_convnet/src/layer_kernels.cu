@@ -72,6 +72,30 @@ __global__ void kLogregCost(float* probs, float* labels, float* maxProbs, float*
     }
 }
 
+__global__ void kL2SVMCost(float* acts, float* labels, float* maxActs, float* acts_out, float* correctPreds,
+                            const int numCases, const int numOut) {
+    const int tx = blockIdx.x * LOGREG_ERR_THREADS_X + threadIdx.x;
+
+    if (tx < numCases) {
+        const int label = int(labels[tx]);
+        const float maxp = maxActs[tx];
+        const float labelp = acts[label * numCases + tx];  
+        acts_out[tx] = (labelp);
+
+        if (labelp != maxp) {
+            correctPreds[tx] = 0;
+        } else {
+            int numMax = 0;
+            for (int i = 0; i < numOut; i++) {
+                numMax += acts[i * numCases + tx] == maxp;
+            }
+            correctPreds[tx] = 1.0f / float(numMax);
+        }
+    }
+}
+
+
+
 __global__ void kRLogCost(float* probs, float* labels, float* maxProbs, float* labelLogProbs, float* correctProbs,
 						  float* probWeights, const float p_pow, const int numCases, const int numOut, const int flag) {
     const int tx = blockIdx.x * LOGREG_ERR_THREADS_X + threadIdx.x;
@@ -191,6 +215,27 @@ __global__ void kSoftmaxGrad(float* dE_dy_l, float* y_l, float* dE_dx_l, const i
     }
 }
 
+
+template <bool add>
+__global__ void kL2SVMGrad(float* y_l, float* labels, float* dE_dx_l, const int numCases,
+                                 const int numOut, const float gradCoeff) {
+    const int tx = blockIdx.x * LOGREG_GRAD_THREADS_X + threadIdx.x;
+    const int ty = blockIdx.y * LOGREG_GRAD_THREADS_Y + threadIdx.y;
+    const int tidx = ty * numCases + tx;
+    
+    if (ty < numOut && tx < numCases) {
+        const int label = int(labels[tx]);
+		float t = (label == ty)?1:-1;
+		//y_l = w*act_prev
+        float v = gradCoeff * t*(1 - t*y_l[tidx] > 0); //sign???
+        if (add) {
+            dE_dx_l[tidx] += v;
+        } else {
+            dE_dx_l[tidx] = v;
+        }
+    }
+}
+
 /*
  * E = -log(y_t)
  * y_l:     (numOut, numCases)
@@ -271,6 +316,33 @@ void computeEltwiseMaxGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& output,
     
     cutilCheckMsg("computeEltwiseMaxGrad: Kernel execution failed");
 }
+
+void computeL2SVMCost(NVMatrix& labels, NVMatrix& act_prev, NVMatrix& act_out, NVMatrix& correctPreds_out)
+{
+    int numCases = act_prev.getNumCols(); 
+    int numOut = act_prev.getNumRows(); 
+
+    assert(labels.getNumElements() == numCases);
+    assert(!labels.isTrans());
+    assert(!act_prev.isTrans());
+    assert(labels.isContiguous());
+    assert(act_prev.isContiguous());
+    
+    NVMatrix& maxActs = act_prev.max(0);
+    
+    act_out.resize(1, numCases);
+    correctPreds_out.resize(1, numCases);
+    dim3 threads(LOGREG_ERR_THREADS_X, 1);
+    dim3 blocks(DIVUP(numCases, LOGREG_ERR_THREADS_X), 1);
+    cudaFuncSetCacheConfig(kL2SVMCost, cudaFuncCachePreferL1);
+
+    kL2SVMCost<<<blocks, threads>>>(act_prev.getDevData(), labels.getDevData(), maxActs.getDevData(),
+                                    act_out.getDevData(), correctPreds_out.getDevData(),
+                                    numCases, numOut);
+    cutilCheckMsg("computeL2SVMCost: Kernel execution failed");
+
+    delete &maxActs;
+};
 
 /*
  * E = -log(y_t)
@@ -388,6 +460,29 @@ void computeRLogGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target, NVMatr
 
     cutilCheckMsg("computeLogregGrad: Kernel execution failed");
 }
+
+void computeL2SVMGrad(NVMatrix& labels, NVMatrix& acts, NVMatrix& target, bool add, float coeff)
+{
+    int numCases = acts.getLeadingDim(); 
+    int numOut = acts.getFollowingDim(); 
+    assert(labels.getNumElements() == numCases);
+    assert(acts.isContiguous());
+    assert(target.isContiguous());
+    assert(labels.isContiguous());
+    assert(acts.isTrans());
+    
+    dim3 threads(LOGREG_GRAD_THREADS_X, LOGREG_GRAD_THREADS_Y);
+    dim3 blocks(DIVUP(numCases, LOGREG_GRAD_THREADS_X), DIVUP(numOut, LOGREG_GRAD_THREADS_Y));
+    if (!add) {
+        target.resize(acts);
+        kL2SVMGrad<false><<<blocks, threads>>>(acts.getDevData(), labels.getDevData(), target.getDevData(),
+                                                     numCases, numOut, coeff);
+    } else {
+        kL2SVMGrad<true><<<blocks, threads>>>(acts.getDevData(), labels.getDevData(), target.getDevData(),
+                                                     numCases, numOut, coeff);
+    }
+
+};
 
 void computeSoftmaxGrad(NVMatrix& acts, NVMatrix& actsGrad, NVMatrix& target, bool add) {
     int numCases = acts.getLeadingDim();

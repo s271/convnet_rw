@@ -141,6 +141,7 @@ void Layer::bprop(PASS_TYPE passType) {
 }
 
 void Layer::bprop(NVMatrix& v, PASS_TYPE passType) {
+	//v = getActsGrad() from next
     v.transpose(_trans);
     for (int i = 0; i < _prev.size(); i++) {
         _prev[i]->getActs().transpose(_trans);
@@ -413,45 +414,13 @@ void FCLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
     getActs().addProduct(*_inputs[inpIdx], *_weights[inpIdx], scaleTargets, 1);
     if (scaleTargets == 0) {
         getActs().addVector(_biases->getW());
-
-	//float sum = (*_weights[inpIdx]).sum()/(*_weights[inpIdx]).getNumElements();//temp
-	//float suma = getActs().sum()/getActs().getNumElements();//temp
-	//if(gmini == show_mini || isnan_host(sum))
-	//	if(train==0)//&& _name == "fc10")
-	//	{
-	//		printf("FCLayer::fpropActs  %s weight avg  %e act avg %e \n", _name.c_str(), sum, suma);//temp
-	//		//printf("FCLayer::fpropActs  %s  weight %i %i act %i %i  \n", _name.c_str(),
-	//		//	(*_weights[inpIdx]).getNumRows(), (*_weights[inpIdx]).getNumCols(),
-	//		//	getActs().getNumRows(), getActs().getNumCols());//temp
-	//	}
-
-	//	if(isnan_host(sum))
-	//	{
-	//		printf("FCLayer::fpropActs  %s weight avg  %e act avg %e \n", _name.c_str(), sum, suma);//temp
-	//		exit(-1);
-	//	}
     }
 }
 
 void FCLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
+	//v = getActsGrad() from next
     NVMatrix& weights_T = _weights[inpIdx].getW().getTranspose();
     _prev[inpIdx]->getActsGrad().addProduct(v, weights_T, scaleTargets, 1);
-
-	//float sum = (_weights[inpIdx].getW()).sum()/(_weights[inpIdx].getW()).getNumElements();//temp
-	//float suma = _prev[inpIdx]->getActsGrad().sum()/_prev[inpIdx]->getActsGrad().getNumElements();//temp
-	//if(gmini == show_mini || isnan_host(sum))
-	//	//if( _name == "fc10")
-	//	{
-	//		printf("FCLayer::bpropActs %s act grad sum %e w sum %e \n",  _name.c_str(), suma, sum);//temp
-	//		//printf("FCLayer::bpropActs  %s  weight %i %i grad prev %i %i  \n", _name.c_str(),
-	//		//		(_weights[inpIdx].getW()).getNumRows(), (_weights[inpIdx].getW()).getNumCols(),
-	//		//		_prev[inpIdx]->getActsGrad().getNumRows(), _prev[inpIdx]->getActsGrad().getNumCols());//temp
-	//	}
-	//	if(isnan_host(sum))
-	//	{	
-	//		printf("FCLayer::bpropActs %s act grad sum %e w sum %e \n",  _name.c_str(), suma, sum);//temp
-	//		exit(-1);
-	//	}
 
     delete &weights_T;
 }
@@ -463,12 +432,15 @@ void FCLayer::bpropBiases(NVMatrix& v, PASS_TYPE passType) {
 }
 
 void FCLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType) {
+	//v = getActsGrad() from next
+
     int numCases = v.getNumRows();
 
     NVMatrix& prevActs_T = _prev[inpIdx]->getActs().getTranspose();
     float scaleInc = (_weights[inpIdx].getNumUpdates() == 0 && passType != PASS_GC) * _weights[inpIdx].getMom();
     float scaleGrad = passType == PASS_GC ? 1 : _weights[inpIdx].getEps() / numCases;
     
+	// Df_next(sum f_prew_k*w_k)/Dw_i = (Df_next(x)/Dx)*f_prev_i
     _weights[inpIdx].getInc().addProduct(prevActs_T, v, scaleInc, scaleGrad);
     
     delete &prevActs_T;
@@ -706,19 +678,31 @@ void SoftmaxLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_T
 
         computeRLogSoftmaxGrad(labels, getActs(), _prev[0]->getActsGrad(), *probWeights, scaleTargets == 1, gradCoeff);
 
-		//float sum = _prev[0]->getActsGrad().sum();
-		//if(gmini==show_mini || isnan_host(sum))
-		//{	
-		//	//printf("SoftmaxLayer act  %i %i prev grad %i %i  \n", getActs().getNumRows(), getActs().getNumCols(),
-		//	//	_prev[0]->getActsGrad().getNumRows(), _prev[0]->getActsGrad().getNumCols());//temp
-		//	printf("SoftmaxLayer::bpropActs grad sum %e \n",  sum);//temp
-		//	if(isnan_host(sum))
-		//		exit(-1);
-		//}
-
 	} else {
         computeSoftmaxGrad(getActs(), v, _prev[0]->getActsGrad(), scaleTargets == 1);
     }
+}
+
+/* 
+ * =======================
+ * L2SVMLayer
+ * =======================
+ */
+
+L2SVMLayer::L2SVMLayer(ConvNet* convNet, PyObject* paramsDict) : Layer(convNet, paramsDict, true) {
+}
+
+void L2SVMLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
+    NVMatrix& input = *_inputs[0];
+    input.copy(getActs());
+}
+
+void L2SVMLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
+    assert(inpIdx == 0);
+
+    NVMatrix& labels = _next[0]->getPrev()[0]->getActs();
+    float gradCoeff = dynamic_cast<CostLayer*>(_next[0])->getCoeff();
+    computeL2SVMGrad(labels, getActs(), _prev[0]->getActsGrad(), scaleTargets == 1, gradCoeff);
 }
 
 /* 
@@ -1064,6 +1048,8 @@ CostLayer& CostLayer::makeCostLayer(ConvNet* convNet, string& type, PyObject* pa
         return *new SumOfSquaresCostLayer(convNet, paramsDict);
     } else if (type == "cost.rlog") {
         return *new RLogCostLayer(convNet, paramsDict);
+    } else if (type == "cost.l2svm") {
+        return *new L2SVMCostLayer(convNet, paramsDict);
     }
     throw string("Unknown cost layer type ") + type;
 }
@@ -1102,6 +1088,36 @@ void LogregCostLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PAS
     if (doWork) {
         computeLogregGrad(labels, probs, target, scaleTargets == 1, _coeff);
     }
+}
+
+
+/* 
+ * =====================
+ * L2SVMCostLayer
+ * =====================
+ */
+L2SVMCostLayer::L2SVMCostLayer(ConvNet* convNet, PyObject* paramsDict) : CostLayer(convNet, paramsDict, false) {
+}
+
+void L2SVMCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
+    // This layer uses its two inputs together
+    if (inpIdx == 0) {
+        NVMatrix& labels = *_inputs[0];
+        NVMatrix& acts_prev = *_inputs[1];
+        int numCases = labels.getNumElements();
+        NVMatrix& acts = getActs(), correctPreds;
+
+		computeL2SVMCost(labels, acts_prev, acts, correctPreds);
+        _costv.clear();
+        _costv.push_back(acts.sum());//should be max(1-t*act_prev, 0) instead
+		_costv.push_back(numCases - correctPreds.sum());
+    }
+
+}
+
+void L2SVMCostLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
+	//v = getActsGrad() from next - not needed, no next
+    assert(inpIdx == 1);
 }
 
 /* 
@@ -1155,12 +1171,6 @@ void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
 		{
 			printf("\n RLogCostLayer::fpropActs avg_log %f step %f \n",  _avg_log, step);//temp
 		}
-
-		//if(isnan_host(avg_log) || isinf_host(avg_log))
-		//{
-		//	printf("\n RLogCostLayer::fpropActs avg_log %f \n",  avg_log);//temp
-		//	exit(-1);
-		//}
     }
 }
 

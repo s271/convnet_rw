@@ -161,6 +161,7 @@
 				OutputFile="$(OutDir)\win_convnet\$(ProjectName).pyd"
 				LinkIncremental="2"
 				AdditionalLibraryDirectories="&quot;$(CUDA_PATH)/lib/$(PlatformName)&quot;;&quot;$(PYTHONPATH)\libs&quot;;LIBS"
+				IgnoreDefaultLibraryNames=""
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				TargetMachine="17"
