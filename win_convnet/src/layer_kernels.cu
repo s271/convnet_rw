@@ -78,16 +78,17 @@ __global__ void kL2SVMCost(float* acts, float* labels, float* maxActs, float* ac
 
     if (tx < numCases) {
         const int label = int(labels[tx]);
-        const float maxp = maxActs[tx];
-        const float labelp = acts[label * numCases + tx];  
-        acts_out[tx] = (labelp);
+        const float max_svm = maxActs[tx];
+        const float svm_value = acts[label * numCases + tx];  
+		const float max_val = fmaxf(1-svm_value, 0);
+        acts_out[tx] = max_val*max_val;
 
-        if (labelp != maxp) {
+        if (svm_value != max_svm) {
             correctPreds[tx] = 0;
         } else {
             int numMax = 0;
             for (int i = 0; i < numOut; i++) {
-                numMax += acts[i * numCases + tx] == maxp;
+                numMax += acts[i * numCases + tx] == max_svm;
             }
             correctPreds[tx] = 1.0f / float(numMax);
         }
@@ -227,7 +228,9 @@ __global__ void kL2SVMGrad(float* y_l, float* labels, float* dE_dx_l, const int 
         const int label = int(labels[tx]);
 		float t = (label == ty)?1:-1;
 		//y_l = w*act_prev
-        float v = gradCoeff * t*(1 - t*y_l[tidx] > 0); //sign???
+        //float v = gradCoeff*t*(1 - t*y_l[tidx] > 0); //-grad, because we are adding it and minimize
+		float max_val = fmaxf(1 - t*y_l[tidx], 0);
+		float v = gradCoeff*t*max_val; //-grad, because we are adding it and minimize
         if (add) {
             dE_dx_l[tidx] += v;
         } else {

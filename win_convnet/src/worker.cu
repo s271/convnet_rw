@@ -107,8 +107,8 @@ void TrainingWorker::run() {
 		shaffle[r] = temp;
     }
 
-	 for (int ki = 0; ki < 1; ki++) {
-   // for (int ki = 0; ki < _dp->getNumMinibatches(); ki++) {
+	// for (int ki = 0; ki < 1; ki++) {
+    for (int ki = 0; ki < _dp->getNumMinibatches(); ki++) {
 		int mini_ind = shaffle[ki];
 
 //printf("-------minibatch %i test %i ----------\n", i, _test);//temp

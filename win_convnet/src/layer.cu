@@ -88,11 +88,11 @@ void Layer::fprop(PASS_TYPE passType) {
     }
 }
 
-void Layer::fprop(NVMatrix& v, PASS_TYPE passType) {
-    NVMatrixV vl;
-    vl.push_back(&v);
-    fprop(vl, passType);
-}
+//void Layer::fprop(NVMatrix& v, PASS_TYPE passType) {
+//    NVMatrixV vl;
+//    vl.push_back(&v);
+//    fprop(vl, passType);
+//}
 
 void Layer::fprop(NVMatrixV& v, PASS_TYPE passType) {
     assert(v.size() == _prev.size());
@@ -653,12 +653,20 @@ SoftmaxLayer::SoftmaxLayer(ConvNet* convNet, PyObject* paramsDict) : Layer(convN
 void SoftmaxLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
     NVMatrix& input = *_inputs[0];
 
+	//debug
+	//printf(" input getNumRows %i getNumCols %i getStride %i getLeadingDim %i isTrans %i isView %i \n",
+	//	input.getNumRows(), input.getNumCols(), input.getStride(), input.getLeadingDim(), input.isTrans(), input.isView());
+
+
     NVMatrix& max = input.max(1);
     input.addVector(max, -1, getActs());
     getActs().apply(NVMatrixOps::Exp());
     NVMatrix& sum = getActs().sum(1);
     getActs().eltwiseDivideByVector(sum);
-    
+//debug
+//	printf(" getActs getNumRows %i getNumCols %i getStride %i getLeadingDim %i isTrans %i isView %i \n",
+//		getActs().getNumRows(), getActs().getNumCols(), getActs().getStride(), getActs().getLeadingDim(), getActs().isTrans(), getActs().isView());
+
     delete &max;
     delete &sum;
 }
@@ -695,6 +703,13 @@ L2SVMLayer::L2SVMLayer(ConvNet* convNet, PyObject* paramsDict) : Layer(convNet, 
 void L2SVMLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
     NVMatrix& input = *_inputs[0];
     input.copy(getActs());
+	//debug
+//	printf(" input getNumRows %i getNumCols %i getStride %i getLeadingDim %i isTrans %i isView %i \n",
+//		input.getNumRows(), input.getNumCols(), input.getStride(), input.getLeadingDim(), input.isTrans(), input.isView());
+//debug
+//	printf(" getActs getNumRows %i getNumCols %i getStride %i getLeadingDim %i isTrans %i isView %i \n",
+//		getActs().getNumRows(), getActs().getNumCols(), getActs().getStride(), getActs().getLeadingDim(), getActs().isTrans(), getActs().isView());
+
 }
 
 void L2SVMLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {

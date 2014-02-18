@@ -123,7 +123,7 @@ class IGPUModel:
         self.train()
         
     def batch_script(self, count, idx_range, epoch):
-        learning_step = 3*idx_range #learning_step runs per batch
+        learning_step = 5*idx_range #learning_step runs per batch
         step_epoch_size = learning_step/idx_range     
         step_epoch_range = step_epoch_size*idx_range*(idx_range+1)/2  
 
