@@ -43,10 +43,12 @@ private:
     Matrix* _hWeights, *_hWeightsInc;
     NVMatrix* _weights, *_weightsInc, *_weightsGrad;
 
-    float _epsW, _wc, _mom;
+    float _epsW, _epsWinit, _wc, _mom;
 
 //sparse
 	float _muL1;
+
+	float _renorm;
 
     bool _onGPU, _useGrad;
     int _numUpdates;
@@ -60,7 +62,7 @@ public:
         return getW();
     }
     
-    Weights(Weights& srcWeights, float epsW) : _srcWeights(&srcWeights), _epsW(epsW), _wc(0), _muL1(0), _onGPU(false), _numUpdates(0),
+    Weights(Weights& srcWeights, float epsW) : _srcWeights(&srcWeights), _epsW(epsW), _epsWinit(epsW), _wc(0), _muL1(0), _renorm(0), _onGPU(false), _numUpdates(0),
                                                _weights(NULL), _weightsInc(NULL), _weightsGrad(NULL) {
         _hWeights = &srcWeights.getCPUW();
         _hWeightsInc = &srcWeights.getCPUWInc();
@@ -72,9 +74,9 @@ public:
         }
     }
     
-    Weights(Matrix& hWeights, Matrix& hWeightsInc, float epsW, float wc, float mom, float muL1, bool useGrad)
+    Weights(Matrix& hWeights, Matrix& hWeightsInc, float epsW, float wc, float mom, float muL1, float renorm, bool useGrad)
         : _srcWeights(NULL), _hWeights(&hWeights), _hWeightsInc(&hWeightsInc), _numUpdates(0),
-          _epsW(epsW), _wc(wc), _mom(mom), _muL1(muL1), _useGrad(useGrad), _onGPU(false), _weights(NULL),
+          _epsW(epsW), _epsWinit(epsW),_wc(wc), _mom(mom), _muL1(muL1), _renorm(renorm), _useGrad(useGrad), _onGPU(false), _weights(NULL),
           _weightsInc(NULL), _weightsGrad(NULL) {
         if (_autoCopyToGPU) {
             copyToGPU();
@@ -187,7 +189,23 @@ public:
 				}
 			}
 
-            _numUpdates = 0;
+			_numUpdates = 0;
+
+			if(_renorm > 0)
+			{
+
+				float norm2 =  _weights->norm2();
+				int size = _weights->getNumElements();
+			
+				float layerNorm = sqrtf(norm2/size);
+
+				if(layerNorm > _renorm)
+				{	
+					float renormScale = _renorm/layerNorm;
+					_weights->scale(renormScale);
+				}
+			}
+
         }
     }
     
@@ -211,6 +229,14 @@ public:
     
     float getEps() const {
         return _epsW;
+    }
+
+    float getEpsInit() const {
+        return _epsWinit;
+    }
+
+    void setEps(float epsW)  {
+        _epsW = epsW;
     }
     
     float getMom() const {

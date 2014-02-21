@@ -93,6 +93,18 @@ void Layer::fprop(PASS_TYPE passType) {
 //    vl.push_back(&v);
 //    fprop(vl, passType);
 //}
+void Layer::setParam(int epoch)
+{
+	setCommon(epoch);
+
+	setParamNext(epoch);
+}
+
+void Layer::setParamNext(int epoch) {
+    for (int i = 0; i < _next.size(); i++) {
+        _next[i]->setParam(epoch);
+    }
+}
 
 void Layer::fprop(NVMatrixV& v, PASS_TYPE passType) {
     assert(v.size() == _prev.size());
@@ -105,9 +117,6 @@ void Layer::fprop(NVMatrixV& v, PASS_TYPE passType) {
     }
     getActs().transpose(_trans);
 
-	//printf(" fprop %s _actsTarget %i _prev.size %i \n", _name.c_str(), _actsTarget, _prev.size());
-
-    
     // First do fprop on the input whose acts matrix I'm sharing, if any
     if (_actsTarget >= 0) {
         fpropActs(_actsTarget, 0, passType);
@@ -313,11 +322,11 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
             Weights* srcWeights = &srcLayer.getWeights(matrixIdx);
             _weights.addWeights(*new Weights(*srcWeights, epsW[i]));
         } else {
-            _weights.addWeights(*new Weights(*hWeights[i], *hWeightsInc[i], epsW[i], wc[i], momW[i], muL1, useGrad));
+            _weights.addWeights(*new Weights(*hWeights[i], *hWeightsInc[i], epsW[i], wc[i], momW[i], muL1, _renorm, useGrad));
         }
     }
     
-    _biases = new Weights(hBiases, hBiasesInc, epsB, 0, momB, 0, true);
+    _biases = new Weights(hBiases, hBiasesInc, epsB, 0, momB, 0, 0, true);
 
     // Epsilons for finite-difference gradient checking operation
     _wStep = 0.001;
@@ -330,6 +339,14 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
     delete &momW;
     delete &epsW;
     delete &wc;
+}
+void WeightLayer::setCommon(int epoch) {
+//debug
+    for (int i = 0; i < _weights.getSize(); i++) {
+
+			if(epoch == 100)
+				_weights[i].setEps(_weights[i].getEpsInit()*.1);
+		}
 }
 
 void WeightLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType) {
@@ -348,28 +365,7 @@ void WeightLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType) {
 void WeightLayer::updateWeights() {
     _weights.update();
     _biases->update();
- 
-	if(_renorm > 0)
-	{
-		float layerNorm2 = 0;
-		int size = 0;
-		for (int i = 0; i < _weights.getSize(); i++) {
-			float norm2 =  _weights[i].getW().norm2();
-			layerNorm2 += norm2;
-			size += _weights[i].getW().getNumElements();
-        }
-	
-		float layerNorm = sqrtf(layerNorm2/size);
-
-		if(layerNorm > _renorm)
-		{	
-			float renormScale = _renorm/layerNorm;
-
-			for (int i = 0; i < _weights.getSize(); i++) {
-					_weights[i].getW().scale(renormScale);
-			}
-		}
-	}    
+    
 }
 
 void WeightLayer::copyToCPU() {
@@ -652,20 +648,11 @@ SoftmaxLayer::SoftmaxLayer(ConvNet* convNet, PyObject* paramsDict) : Layer(convN
 
 void SoftmaxLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
     NVMatrix& input = *_inputs[0];
-
-	//debug
-	//printf(" input getNumRows %i getNumCols %i getStride %i getLeadingDim %i isTrans %i isView %i \n",
-	//	input.getNumRows(), input.getNumCols(), input.getStride(), input.getLeadingDim(), input.isTrans(), input.isView());
-
-
     NVMatrix& max = input.max(1);
     input.addVector(max, -1, getActs());
     getActs().apply(NVMatrixOps::Exp());
     NVMatrix& sum = getActs().sum(1);
     getActs().eltwiseDivideByVector(sum);
-//debug
-//	printf(" getActs getNumRows %i getNumCols %i getStride %i getLeadingDim %i isTrans %i isView %i \n",
-//		getActs().getNumRows(), getActs().getNumCols(), getActs().getStride(), getActs().getLeadingDim(), getActs().isTrans(), getActs().isView());
 
     delete &max;
     delete &sum;
@@ -703,20 +690,15 @@ L2SVMLayer::L2SVMLayer(ConvNet* convNet, PyObject* paramsDict) : Layer(convNet, 
 void L2SVMLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
     NVMatrix& input = *_inputs[0];
     input.copy(getActs());
-	//debug
-//	printf(" input getNumRows %i getNumCols %i getStride %i getLeadingDim %i isTrans %i isView %i \n",
-//		input.getNumRows(), input.getNumCols(), input.getStride(), input.getLeadingDim(), input.isTrans(), input.isView());
-//debug
-//	printf(" getActs getNumRows %i getNumCols %i getStride %i getLeadingDim %i isTrans %i isView %i \n",
-//		getActs().getNumRows(), getActs().getNumCols(), getActs().getStride(), getActs().getLeadingDim(), getActs().isTrans(), getActs().isView());
-
 }
+
 
 void L2SVMLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
     assert(inpIdx == 0);
 
     NVMatrix& labels = _next[0]->getPrev()[0]->getActs();
     float gradCoeff = dynamic_cast<CostLayer*>(_next[0])->getCoeff();
+
     computeL2SVMGrad(labels, getActs(), _prev[0]->getActsGrad(), scaleTargets == 1, gradCoeff);
 }
 
@@ -1154,7 +1136,7 @@ void RLogCostLayer::SetCoeff(float newCoeff) {
 NVMatrix* RLogCostLayer::GetProbWeights(){
 	return &_probWeights;
 };
-extern int gepoch;
+
 void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
     // This layer uses its two inputs together
     if (inpIdx == 0) {
@@ -1175,17 +1157,9 @@ void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
 
 		_avg_log = sum/numCases;
 
-		//float step = _init_coeff;
-		//if(gepoch > 150)
-		//	step = _init_coeff*.1;
+		//float step = fminf(pow(_avg_log, _l_decay), _init_coeff);
+		//SetCoeff(step);
 
-		float step = fminf(pow(_avg_log, _l_decay), _init_coeff);
-		SetCoeff(step);
-
-		if(gmini == show_mini || isnan_host(sum))
-		{
-			printf("\n RLogCostLayer::fpropActs avg_log %f step %f \n",  _avg_log, step);//temp
-		}
     }
 }
 

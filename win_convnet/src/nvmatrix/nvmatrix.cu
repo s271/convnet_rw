@@ -158,7 +158,6 @@ void NVMatrix::copyToHost(Matrix& hostMatrix) const {
     assert(isSameDims(hostMatrix));
     hostMatrix.setTrans(_isTrans);
     if (getNumElements() > 0) {
-    //    printf("rows: %d, cols: %d, stride: %d\n", getNumRows(), getNumCols(), getStride());
         cublasStatus status = cublasGetMatrix(getLeadingDim(),getFollowingDim(), sizeof(float),
                                              _devData, getStride(), hostMatrix.getData(), hostMatrix.getLeadingDim());
         if (status != CUBLAS_STATUS_SUCCESS) {

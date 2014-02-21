@@ -85,6 +85,7 @@ public:
     void reset();
     int getNumLayers();
 
+	void setParam();
 	void setEpoch(int epoch);
 	int getEpoch();
     

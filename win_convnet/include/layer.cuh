@@ -70,6 +70,12 @@ protected:
     virtual void truncBwdActs(); 
     virtual void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) = 0;
     
+    virtual void setCommon(int epoch) {
+        // Do nothing by default
+    }
+
+    virtual void setParamNext(int epoch);
+
     virtual void bpropCommon(NVMatrix& v, PASS_TYPE passType) {
         // Do nothing by default
     }
@@ -78,11 +84,11 @@ protected:
     }
 public:    
     static bool _saveActsGrad, _saveActs;
-    
+	virtual void setParam(int epoch);  
     Layer(ConvNet* convNet, PyObject* paramsDict, bool trans);
     
     virtual void fprop(PASS_TYPE passType);
-    void fprop(NVMatrix& v, PASS_TYPE passType);
+   // void fprop(NVMatrix& v, PASS_TYPE passType);
     virtual void fprop(NVMatrixV& v, PASS_TYPE passType);
     virtual void bprop(PASS_TYPE passType);
     void bprop(NVMatrix& v, PASS_TYPE passType);
@@ -135,6 +141,8 @@ protected:
 	float _renorm;
    
     void bpropCommon(NVMatrix& v, PASS_TYPE passType);
+	virtual void setCommon(int epoch);
+
     virtual void bpropBiases(NVMatrix& v, PASS_TYPE passType) = 0;
     virtual void bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType) = 0;
 public:
@@ -163,6 +171,15 @@ protected:
 public:
     SoftmaxLayer(ConvNet* convNet, PyObject* paramsDict);
 };
+
+class L2SVMLayer : public Layer {
+protected:
+    void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
+    void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
+public:
+    L2SVMLayer(ConvNet* convNet, PyObject* paramsDict);
+};
+
 
 class EltwiseSumLayer : public Layer {
 protected:
@@ -395,6 +412,20 @@ public:
     RLogCostLayer(ConvNet* convNet, PyObject* paramsDict);
 	void SetCoeff(float newCoeff);
 	NVMatrix* GetProbWeights();
+};
+/*
+ * Input 0: labels
+ * Input 1: l2svm outputs
+ */
+class L2SVMCostLayer : public CostLayer {
+protected:
+	float _l_decay;
+	float _init_coeff;
+    void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
+    void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
+public:
+    L2SVMCostLayer(ConvNet* convNet, PyObject* paramsDict);
+	void SetCoeff(float newCoeff);
 };
 
 class SumOfSquaresCostLayer : public CostLayer {

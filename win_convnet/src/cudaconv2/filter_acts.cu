@@ -612,22 +612,6 @@ __global__ void filterActs_YxX_sparse_random(float* images, float* filters, floa
         assert(targets.getNumRows() == numFilters * numModules);
         assert(targets.getNumCols() == numImages);
     }
-/* 
-filterActs_YxX_color
-(float* images, float* filters, float* targets,
-                                   const int numImages, const int numFilters,
-                                   const int imgSizeY, const int imgSizeX, const int filterSize, const int paddingStart,
-                                   const int moduleStride,
-                                   const int numModulesY, const int numModulesX, const int imgStride,
-                                   const float scaleTargets, const float scaleOutputs,
-                                   const bool conv)
-	int B_Y _1, int B_X _2, int imgsPerThread _3, int filtersPerThread _4, int numColors _5,
-    __shared__ float shFilters[B_Y*numColors][B_Y * filtersPerThread]; // pre-load B_Y pixels from B_Y*filtersPerThread filters
-    __shared__ float shImages[B_Y*numColors][B_X * imgsPerThread];
-
-*/	
-//	printf(" numGroups %i \n", numGroups);
-//	printf("number of image colors %i, filtersPerThread %i imgsPerThread %i shared mem %i \n", numImgColors, filtersPerThread, imgsPerThread, shared_mem_usage);
 
     if (imgsPerThread == 4) {
         if (numImgColors <= 3) {

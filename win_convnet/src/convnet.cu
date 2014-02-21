@@ -242,6 +242,13 @@ void ConvNet::fprop(PASS_TYPE passType) {
     }
 }
 
+void ConvNet::setParam()
+{
+    for (int i = 0; i < _dataLayers.size(); i++) {
+        _dataLayers[i]->setParam(_epoch);
+    }
+}
+
 void ConvNet::fprop(GPUData& data, PASS_TYPE passType) {
     if (&data != _data) {
         delete _data;

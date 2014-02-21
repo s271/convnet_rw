@@ -990,6 +990,16 @@ class SoftmaxLayerParser(LayerWithInputParser):
         dic['outputs'] = prev_layers[dic['inputs'][0]]['outputs']
         print "Initialized softmax layer '%s', producing %d outputs" % (name, dic['outputs'])
         return dic
+        
+class L2SVMLayerParser(LayerWithInputParser):
+    def __init__(self):
+        LayerWithInputParser.__init__(self, num_inputs=1)
+        
+    def parse(self, name, mcp, prev_layers, model):
+        dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
+        dic['outputs'] = prev_layers[dic['inputs'][0]]['outputs']
+        print "Initialized l2svm layer '%s', producing %d outputs" % (name, dic['outputs'])
+        return dic        
 
 class PoolLayerParser(LayerWithInputParser):
     def __init__(self):
@@ -1092,7 +1102,7 @@ class CostParser(LayerWithInputParser):
         dic, name = self.dic, self.dic['name']
         dic['coeff'] = mcp.safe_get_float(name, 'coeff')
         dic['lp_norm'] = mcp.safe_get_float(name, 'lp_norm')
-        dic['l_decay'] = mcp.safe_get_float(name, 'l_decay')
+        dic['l_decay'] = mcp.safe_get_float(name, 'l_decay')        
             
 class LogregCostParser(CostParser):
     def __init__(self):
@@ -1117,6 +1127,7 @@ class RLogCostParser(CostParser):
         
     def parse(self, name, mcp, prev_layers, model):
         dic = CostParser.parse(self, name, mcp, prev_layers, model)
+        
         if dic['numInputs'][0] != 1: # first input must be labels
             raise LayerParsingError("Layer '%s': dimensionality of first input must be 1" % name)
         if prev_layers[dic['inputs'][1]]['type'] != 'softmax':
@@ -1126,6 +1137,23 @@ class RLogCostParser(CostParser):
                                     % (name, prev_layers[dic['inputs'][1]]['name'], model.train_data_provider.get_num_classes()))
         
         print "Initialized rlog cost '%s'" % name
+        return dic      
+        
+class L2SVMCostParser(CostParser):
+    def __init__(self):
+        CostParser.__init__(self, num_inputs=2)
+        
+    def parse(self, name, mcp, prev_layers, model):
+        dic = CostParser.parse(self, name, mcp, prev_layers, model)
+        if dic['numInputs'][0] != 1: # first input must be labels
+            raise LayerParsingError("Layer '%s': dimensionality of first input must be 1" % name)
+        if prev_layers[dic['inputs'][1]]['type'] != 'l2svm':
+            raise LayerParsingError("Layer '%s': second input must be l2svm layer" % name)
+        if dic['numInputs'][1] != model.train_data_provider.get_num_classes():
+            raise LayerParsingError("Layer '%s': l2svm input '%s' must produce %d outputs, because that is the number of classes in the dataset" \
+                                    % (name, prev_layers[dic['inputs'][1]]['name'], model.train_data_provider.get_num_classes()))
+        
+        print "Initialized l2svm cost '%s'" % name
         return dic        
     
 class SumOfSquaresCostParser(CostParser):
@@ -1143,6 +1171,7 @@ layer_parsers = {'data': lambda : DataLayerParser(),
                  'conv': lambda : ConvLayerParser(),
                  'local': lambda : LocalUnsharedLayerParser(),
                  'softmax': lambda : SoftmaxLayerParser(),
+                 'l2svm': lambda : L2SVMLayerParser(),
                  'eltsum': lambda : EltwiseSumLayerParser(),
                  'eltmax': lambda : EltwiseMaxLayerParser(),
                  'neuron': lambda : NeuronLayerParser(),
@@ -1158,6 +1187,7 @@ layer_parsers = {'data': lambda : DataLayerParser(),
                  'rscale': lambda : RandomScaleLayerParser(),
                  'cost.logreg': lambda : LogregCostParser(),
                  'cost.rlog': lambda : RLogCostParser(), 
+                 'cost.l2svm': lambda : L2SVMCostParser(), 
                  'cost.sum2': lambda : SumOfSquaresCostParser()}
  
 # All the neuron parsers
