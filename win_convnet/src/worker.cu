@@ -89,9 +89,6 @@ void TrainingWorker::run() {
     _dp->setData(*_data);
 	_convNet->setEpoch(_epoch);
 
-	if(!_test)
-		_convNet->setParam();
-
     Cost& batchCost = *new Cost(0);
 
 	vector<int> shaffle;
@@ -108,6 +105,8 @@ void TrainingWorker::run() {
 	// for (int ki = 0; ki < 1; ki++) {
     for (int ki = 0; ki < _dp->getNumMinibatches(); ki++) {
 		int mini_ind = shaffle[ki];
+
+		_convNet->setParam();
 
         _convNet->fprop(mini_ind, _test ? PASS_TEST : PASS_TRAIN);
         _convNet->getCost(batchCost);

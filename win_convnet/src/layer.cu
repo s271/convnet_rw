@@ -95,6 +95,7 @@ void Layer::fprop(PASS_TYPE passType) {
 //}
 void Layer::setParam(int epoch)
 {
+
 	setCommon(epoch);
 
 	setParamNext(epoch);
@@ -343,9 +344,18 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
 void WeightLayer::setCommon(int epoch) {
 //debug
     for (int i = 0; i < _weights.getSize(); i++) {
-
-			if(epoch == 100)
-				_weights[i].setEps(_weights[i].getEpsInit()*.1);
+		if(epoch >= 100)
+			_weights[i].setEps(_weights[i].getEpsInit()*.1);
+			//if(epoch >= 100)
+			//{
+			//	float ranf = .5 + 1.*rand()/RAND_MAX;
+			//	_weights[i].setEps(_weights[i].getEpsInit()*.1*ranf);
+			//}
+			//else
+			//{
+			//	float ranf = .2 + 1.6*rand()/RAND_MAX;
+			//	_weights[i].setEps(_weights[i].getEpsInit()*ranf);
+			//}
 		}
 }
 
@@ -1157,8 +1167,8 @@ void RLogCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
 
 		_avg_log = sum/numCases;
 
-		//float step = fminf(pow(_avg_log, _l_decay), _init_coeff);
-		//SetCoeff(step);
+		float step = fminf(pow(_avg_log, _l_decay), _init_coeff);
+		SetCoeff(step);
 
     }
 }
