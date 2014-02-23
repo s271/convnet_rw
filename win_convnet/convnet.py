@@ -40,6 +40,7 @@ class ConvNet(IGPUModel):
         filename_options = []
         dp_params['multiview_test'] = op.get_value('multiview_test')
         dp_params['crop_border'] = op.get_value('crop_border')
+        dp_params['param schedule'] = op.get_value('param_sched')
         IGPUModel.__init__(self, "ConvNet", op, load_dic, filename_options, dp_params=dp_params)
         
     def import_model(self):
@@ -49,7 +50,7 @@ class ConvNet(IGPUModel):
         self.libmodel = __import__(lib_name) 
         
     def init_model_lib(self):
-        self.libmodel.initModel(self.layers, self.minibatch_size, self.device_ids[0], self.fix_nan)
+        self.libmodel.initModel(self.layers, self.minibatch_size, self.device_ids[0], self.fix_nan)       
         
     def init_model_state(self):
         ms = self.model_state
@@ -57,6 +58,7 @@ class ConvNet(IGPUModel):
             ms['layers'] = lay.LayerParser.parse_layers(self.layer_def, self.layer_params, self, ms['layers'])
         else:
             ms['layers'] = lay.LayerParser.parse_layers(self.layer_def, self.layer_params, self)
+                       
         self.layers_dic = dict(zip([l['name'] for l in ms['layers']], ms['layers']))
         
         logreg_name = self.op.get_value('logreg_name')
@@ -108,14 +110,14 @@ class ConvNet(IGPUModel):
             raise DataProviderException("All matrices returned by data provider must consist of single-precision floats.")
         return batch_data
 
-    def start_batch(self, batch_data, epoch, train=True):
+    def start_batch(self, batch_data, epoch, train=True, eps_scale = .0):
         data = batch_data[2]
         if self.check_grads:
             self.libmodel.checkGradients(data)
         elif not train and self.multiview_test:
             self.libmodel.startMultiviewTest(data, self.train_data_provider.num_views, self.logreg_idx)
         else:
-            self.libmodel.startBatch(data, epoch, not train)
+            self.libmodel.startBatch(data, epoch, not train, float(eps_scale))
         
     def print_iteration(self):
         print "%d.%d..." % (self.epoch, self.batchnum),
@@ -174,6 +176,7 @@ class ConvNet(IGPUModel):
         op.add_option("mini", "minibatch_size", IntegerOptionParser, "Minibatch size", default=128)
         op.add_option("layer-def", "layer_def", StringOptionParser, "Layer definition file", set_once=True)
         op.add_option("layer-params", "layer_params", StringOptionParser, "Layer parameter file")
+        op.add_option("param-sched", "param_sched", StringOptionParser, "Parameters schedule file", set_once=True)
         op.add_option("check-grads", "check_grads", BooleanOptionParser, "Check gradients and quit?", default=0, excuses=['data_path','save_path','train_batch_range','test_batch_range'])
         op.add_option("multiview-test", "multiview_test", BooleanOptionParser, "Cropped DP: test on multiple patches?", default=0, requires=['logreg_name'])
         op.add_option("crop-border", "crop_border", IntegerOptionParser, "Cropped DP: crop border size", default=4, set_once=True)
@@ -192,7 +195,8 @@ class ConvNet(IGPUModel):
         DataProvider.register_data_provider('dummy-cn-n', 'Dummy ConvNet', DummyConvNetDataProvider)
         DataProvider.register_data_provider('cifar-cropped', 'Cropped CIFAR', CroppedCIFARDataProvider)
         
-        return op
+        return op        
+   
     
 if __name__ == "__main__":
     nr.seed(5)
