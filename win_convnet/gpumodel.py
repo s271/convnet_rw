@@ -36,6 +36,7 @@ import sys
 import shutil
 import platform
 from os import linesep as NL
+import ConfigParser as cfg
 
 class ModelStateException(Exception):
     pass
@@ -53,6 +54,8 @@ class IGPUModel:
         self.get_gpus()
         self.fill_excused_options()
         #assert self.op.all_values_given()
+         
+        self.parse_cfg(dp_params['param schedule'])
         
         for o in op.get_options_list():
             setattr(self, o.name, o.value)
@@ -160,17 +163,24 @@ class IGPUModel:
         idx_range = len(dp.batch_range)
         count = 0
         next_data = self.set_batch(idx) 
-        self.epoch, self.batchnum = next_data[0], next_data[1]       
+        self.epoch, self.batchnum = next_data[0], next_data[1]                                     
 #
         #next_data = self.get_next_batch()
         while self.epoch <= self.num_epochs:
             self.epoch, self.batchnum = next_data[0], next_data[1]
             self.print_iteration()
             
+            eps_scale = 0.
+            for nepoch in self.param_schedule:
+                if self.epoch >= nepoch :
+                    eps_scale = self.param_schedule[nepoch]['eps_scale']
+                if self.epoch< nepoch :
+                    break             
+            
             sys.stdout.flush()
             
             compute_time_py = time()
-            self.start_batch(next_data, self.epoch, True)
+            self.start_batch(next_data, self.epoch, True, eps_scale)
             
             #load the next batch while the current one is computing
             #next_data = self.get_next_batch() #
@@ -224,8 +234,8 @@ class IGPUModel:
     def parse_batch_data(self, batch_data, train=True):
         return batch_data[0], batch_data[1], batch_data[2]['data']
     
-    def start_batch(self, batch_data, train=True):
-        self.libmodel.startBatch(batch_data[2], self.epoch, not train)
+    def start_batch(self, batch_data, train=True, eps_scale = 0.):
+        self.libmodel.startBatch(batch_data[2], self.epoch, not train, eps_scale)
     
     def finish_batch(self):
         return self.libmodel.finishBatch()
@@ -376,4 +386,19 @@ class IGPUModel:
             print "Error loading checkpoint:"
             print e
         sys.exit()
+        
+    def parse_cfg(self, sched_file):
+#parse schedule   
+        dic_ep = {}
+        mcp = cfg.SafeConfigParser()
+        mcp.read([sched_file])
+        for sect in mcp.sections():
+            dic_sect = {}
+            dic_val = {}
+            for item in mcp.items(sect):
+                dic_sect[item[0]] = item[1]
+                if item[0] != 'epoch':
+                    dic_val[item[0]] = item[1]
+            dic_ep[int(dic_sect['epoch'])] = dic_val
+        self.param_schedule = dic_ep
         

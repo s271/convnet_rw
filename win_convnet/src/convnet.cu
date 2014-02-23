@@ -143,19 +143,21 @@ void ConvNet::initCuda() {
     int randomSeed = time(0);
     char* randomSeedEnv;
 
+	//debug
+	srand(11);
+	randomSeed = 11;
+
     cudaSetDevice(_deviceID < 0 ? cutGetMaxGflopsDeviceId() : _deviceID);
     cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
     cublasInit();
 
     randomSeedEnv = getenv("CONVNET_RANDOM_SEED");
+
     if (randomSeedEnv != NULL) {
       randomSeed = atoi(randomSeedEnv);
     }
 
     NVMatrix::initRandom(randomSeed);
-
-	//debug
-	//srand(11);
 
     copyToGPU();
 }
@@ -242,10 +244,10 @@ void ConvNet::fprop(PASS_TYPE passType) {
     }
 }
 
-void ConvNet::setParam()
+void ConvNet::setParam(float eps_scale)
 {
     for (int i = 0; i < _dataLayers.size(); i++) {
-        _dataLayers[i]->setParam(_epoch);
+        _dataLayers[i]->setParam(eps_scale);
     }
 }
 

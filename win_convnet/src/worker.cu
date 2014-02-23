@@ -79,8 +79,8 @@ DataWorker::~DataWorker() {
  * TrainingWorker
  * ====================
  */
-TrainingWorker::TrainingWorker(ConvNet& convNet, CPUData& data, bool test, int epoch) 
-    : DataWorker(convNet, data), _test(test), _epoch(epoch) {
+TrainingWorker::TrainingWorker(ConvNet& convNet, CPUData& data, bool test, int epoch, float eps_scale) 
+    : DataWorker(convNet, data), _test(test), _epoch(epoch), _eps_scale(eps_scale) {
 }
 
 // Need to setData here (as opposed to the constructor) because the constructor executes in
@@ -106,7 +106,8 @@ void TrainingWorker::run() {
     for (int ki = 0; ki < _dp->getNumMinibatches(); ki++) {
 		int mini_ind = shaffle[ki];
 
-		_convNet->setParam();
+		if(_eps_scale > 0)
+			_convNet->setParam(_eps_scale);
 
         _convNet->fprop(mini_ind, _test ? PASS_TEST : PASS_TRAIN);
         _convNet->getCost(batchCost);

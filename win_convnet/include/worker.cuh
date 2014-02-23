@@ -69,8 +69,9 @@ class TrainingWorker : public DataWorker {
 protected:
     bool _test;
 	int _epoch;
+	float _eps_scale;
 public:
-    TrainingWorker(ConvNet& convNet, CPUData& data, bool test, int epoch);
+    TrainingWorker(ConvNet& convNet, CPUData& data, bool test, int epoch, float eps_scale);
     void run();
 };
 

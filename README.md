@@ -25,6 +25,7 @@ step = min(coeff, (average log(p) over minibatch)^l_decay)    instead of coeff
 
 5. New cost layer: L2 SVM (implemented as two layer - [svm] activation and [svm_cost]) following Yichuan Tang paper http://arxiv.org/abs/1306.0239 
 
+6. learning rate scheduler: option  --param-sched= file_name.cfg, exampe at  ./example-layers/param_sched_s.cfg
  
 Installation and compilation for Linux should be the same as in the original Alex Krizhevsky's convnet
 ------------------------------------------------------------------------------------------------------

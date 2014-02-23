@@ -93,17 +93,17 @@ void Layer::fprop(PASS_TYPE passType) {
 //    vl.push_back(&v);
 //    fprop(vl, passType);
 //}
-void Layer::setParam(int epoch)
+void Layer::setParam(float eps_scale)
 {
 
-	setCommon(epoch);
+	setCommon(eps_scale);
 
-	setParamNext(epoch);
+	setParamNext(eps_scale);
 }
 
-void Layer::setParamNext(int epoch) {
+void Layer::setParamNext(float eps_scale) {
     for (int i = 0; i < _next.size(); i++) {
-        _next[i]->setParam(epoch);
+        _next[i]->setParam(eps_scale);
     }
 }
 
@@ -341,27 +341,11 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
     delete &epsW;
     delete &wc;
 }
-void WeightLayer::setCommon(int epoch) {
-//debug
+void WeightLayer::setCommon(float eps_scale) {
     for (int i = 0; i < _weights.getSize(); i++) {
-		if(epoch >= 100)
-			_weights[i].setEps(_weights[i].getEpsInit()*.1);
-	/*	if(epoch >= 100)
-			_weights[i].setMom(_weights[i].getMomInit()*.1);
-
-		if(epoch >= 130)
-			_weights[i].setEps(_weights[i].getEpsInit()*.005);*/
-			//if(epoch >= 100)
-			//{
-			//	float ranf = .5 + 1.*rand()/RAND_MAX;
-			//	_weights[i].setEps(_weights[i].getEpsInit()*.1*ranf);
-			//}
-			//else
-			//{
-			//	float ranf = .2 + 1.6*rand()/RAND_MAX;
-			//	_weights[i].setEps(_weights[i].getEpsInit()*ranf);
-			//}
-		}
+		if(eps_scale > 0)
+			_weights[i].setEps(_weights[i].getEpsInit()*eps_scale);
+	}
 }
 
 void WeightLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType) {

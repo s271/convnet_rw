@@ -99,15 +99,17 @@ PyObject* startBatch(PyObject *self, PyObject *args) {
     PyListObject* data;
     int test = 0;
 	int epoch = 0;
-    if (!PyArg_ParseTuple(args, "O!|ii",
+	float epsScale = 0;
+    if (!PyArg_ParseTuple(args, "O!|iif",
         &PyList_Type, &data,
 		&epoch,
-        &test)) {
+        &test,
+		&epsScale)) {
         return NULL;
     }
 
     MatrixV& mvec = *getMatrixV((PyObject*)data); 
-    TrainingWorker* wr = new TrainingWorker(*model, *new CPUData(mvec), test, epoch);
+    TrainingWorker* wr = new TrainingWorker(*model, *new CPUData(mvec), test, epoch, epsScale);
     model->getWorkerQueue().enqueue(wr);
     return Py_BuildValue("i", 0);
 }

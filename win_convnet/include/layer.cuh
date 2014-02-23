@@ -70,11 +70,11 @@ protected:
     virtual void truncBwdActs(); 
     virtual void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) = 0;
     
-    virtual void setCommon(int epoch) {
+    virtual void setCommon(float eps_scale) {
         // Do nothing by default
     }
 
-    virtual void setParamNext(int epoch);
+    virtual void setParamNext(float eps_scale);
 
     virtual void bpropCommon(NVMatrix& v, PASS_TYPE passType) {
         // Do nothing by default
@@ -84,7 +84,7 @@ protected:
     }
 public:    
     static bool _saveActsGrad, _saveActs;
-	virtual void setParam(int epoch);  
+	virtual void setParam(float eps_scale);  
     Layer(ConvNet* convNet, PyObject* paramsDict, bool trans);
     
     virtual void fprop(PASS_TYPE passType);
@@ -141,7 +141,7 @@ protected:
 	float _renorm;
    
     void bpropCommon(NVMatrix& v, PASS_TYPE passType);
-	virtual void setCommon(int epoch);
+	virtual void setCommon(float eps_scale);
 
     virtual void bpropBiases(NVMatrix& v, PASS_TYPE passType) = 0;
     virtual void bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType) = 0;
