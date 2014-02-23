@@ -346,6 +346,11 @@ void WeightLayer::setCommon(int epoch) {
     for (int i = 0; i < _weights.getSize(); i++) {
 		if(epoch >= 100)
 			_weights[i].setEps(_weights[i].getEpsInit()*.1);
+	/*	if(epoch >= 100)
+			_weights[i].setMom(_weights[i].getMomInit()*.1);
+
+		if(epoch >= 130)
+			_weights[i].setEps(_weights[i].getEpsInit()*.005);*/
 			//if(epoch >= 100)
 			//{
 			//	float ranf = .5 + 1.*rand()/RAND_MAX;

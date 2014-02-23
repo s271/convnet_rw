@@ -9,7 +9,12 @@ This option add unary operation wich replace NaN values with zeros in gradients 
 
 2. Dropout imported from Daniel Nouri's fork of cuda-convnet, original at https://github.com/dnouri/cuda-convnet
 
-3. New cost layer: L_p-normed logistic regression - [rlog]   
+3. new parameter for weight layers - L2 norm constraint:   
+renorm   
+If (L2 norm of weight layer)/sqrt(layer size) is more than renorm 
+layer elementwise multiplied on renom/((L2 norm of weight layer)/sqrt(layer size) )
+
+4. New cost layer: L_p-normed logistic regression - [rlog]   
 [rlog] examples at layer-params-80sec_w.cfg and layers-80sec_w.cfg   
 new parameters for [rlog] layer:  
 lp_norm   
@@ -18,29 +23,19 @@ cost function for rlog is sum ||log(p)||^lp_norm
 each minibatch gardient has adaptive step   
 step = min(coeff, (average log(p) over minibatch)^l_decay)    instead of coeff
 
-4. new parameter for weight layers - L2 norm constraint:   
-renorm   
-If (L2 norm of weight layer)/sqrt(layer size) is more than renorm 
-layer elementwise multiplied on renom/((L2 norm of weight layer)/sqrt(layer size) )
+5. New cost layer: L2 SVM (implemented as two layer - [svm] activation and [svm_cost]) following Yichuan Tang paper http://arxiv.org/abs/1306.0239 
 
-5. L1  regularizer for weight layer
-muL1  
-Weight deecay wc treated as L2 regularizwer. For i'th layer cost function  
-L_old(w) = L(w_..., w_i) + wc*w_i^2  
-replaced with  
-L_1(w) = L(w_..., w_i) + muL1*||w||_1  
-wich implemented using slack variable u  
-L_1(w, u) = L(w_..., w_i) + wc*(w_i - u)^2 + wc*muL1*||u||_1
-Coordinate descent applied to L by w,u 
  
-
-Requirements:
---------------
+Installation and compilation for Linux should be the same as in the original Alex Krizhevsky's convnet
+------------------------------------------------------------------------------------------------------
+ 
+Requirements for Windows port 
+-----------------------------
 
 NVIDIA videocad with cuda compute capability 2.0 or better
 
 
-Windows x64
+Windows x64 
 
 
 Cuda SDK 4.2 (will not work for 5.0, for 5.0 port look to original project commentaries or Wyvernbai blog http://www.asiteof.me/archives/50)
@@ -57,8 +52,8 @@ Recommended:
 
 Install WinPython or Anaconda for both 64bit Python and NumPy
 
-Installation:
--------------
+Installation on Windows:
+------------------------
 
 1. Make shure that you have PYTHONPATH enviromental variable set only to your 64 bit Python folder. If it set to other folder(s) you should replace $(PYTHONPATH) in the project settings in C/C++ and linker to absolute directory of 64bit  python.
 

@@ -43,7 +43,7 @@ private:
     Matrix* _hWeights, *_hWeightsInc;
     NVMatrix* _weights, *_weightsInc, *_weightsGrad;
 
-    float _epsW, _epsWinit, _wc, _mom;
+    float _epsW, _epsWinit, _wc, _mom, _mom_init;
 
 //sparse
 	float _muL1;
@@ -67,6 +67,7 @@ public:
         _hWeights = &srcWeights.getCPUW();
         _hWeightsInc = &srcWeights.getCPUWInc();
         _mom = srcWeights.getMom();
+		_mom_init = _mom;
         _useGrad = srcWeights.isUseGrad();  
 
         if (_autoCopyToGPU) {
@@ -76,7 +77,7 @@ public:
     
     Weights(Matrix& hWeights, Matrix& hWeightsInc, float epsW, float wc, float mom, float muL1, float renorm, bool useGrad)
         : _srcWeights(NULL), _hWeights(&hWeights), _hWeightsInc(&hWeightsInc), _numUpdates(0),
-          _epsW(epsW), _epsWinit(epsW),_wc(wc), _mom(mom), _muL1(muL1), _renorm(renorm), _useGrad(useGrad), _onGPU(false), _weights(NULL),
+          _epsW(epsW), _epsWinit(epsW),_wc(wc), _mom(mom), _mom_init(mom), _muL1(muL1), _renorm(renorm), _useGrad(useGrad), _onGPU(false), _weights(NULL),
           _weightsInc(NULL), _weightsGrad(NULL) {
         if (_autoCopyToGPU) {
             copyToGPU();
@@ -241,6 +242,14 @@ public:
     
     float getMom() const {
         return _mom;
+    }
+
+    float getMomInit() const {
+        return _mom_init;
+    }
+
+    void setMom(float mom) {
+        _mom = mom;
     }
     
     float getWC() const {
