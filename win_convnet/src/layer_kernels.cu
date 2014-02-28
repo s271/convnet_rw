@@ -79,11 +79,11 @@ __global__ void kL2SVMCost(float* acts, float* labels, float* maxActs, float* ac
     if (tx < numCases) {
         const int label = int(labels[tx]);
         const float max_svm = maxActs[tx];
-        const float svm_value = acts[label * numCases + tx];  
-		const float max_val = fmaxf(1-svm_value, 0);
-        acts_out[tx] = max_val*max_val;
+        const float svm_label_value = acts[label * numCases + tx];  
+		const float max_label_val = fmaxf(1-svm_label_value, 0);
+        acts_out[tx] = max_label_val*max_label_val;
 
-        if (svm_value != max_svm) {
+        if (svm_label_value != max_svm) {
             correctPreds[tx] = 0;
         } else {
             int numMax = 0;
