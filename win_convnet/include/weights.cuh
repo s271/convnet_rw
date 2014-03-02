@@ -41,11 +41,15 @@ using namespace std;
 class Weights {
 private:
     Matrix* _hWeights, *_hWeightsInc;
+
     NVMatrix* _weights, *_weightsInc, *_weightsGrad;
+
+//bregman
+	Matrix *_hBregman_b_weights, *_hBregman_d_weights;
+	NVMatrix *_bregman_b_weights, *_bregman_d_weights;
 
     float _epsW, _epsWinit, _wc, _mom, _mom_init;
 
-//sparse
 	float _muL1;
 
 	float _renorm;
@@ -66,6 +70,8 @@ public:
                                                _weights(NULL), _weightsInc(NULL), _weightsGrad(NULL) {
         _hWeights = &srcWeights.getCPUW();
         _hWeightsInc = &srcWeights.getCPUWInc();
+//bregman
+//unfinished 
         _mom = srcWeights.getMom();
 		_mom_init = _mom;
         _useGrad = srcWeights.isUseGrad();  
@@ -74,11 +80,31 @@ public:
             copyToGPU();
         }
     }
-    
-    Weights(Matrix& hWeights, Matrix& hWeightsInc, float epsW, float wc, float mom, float muL1, float renorm, bool useGrad)
-        : _srcWeights(NULL), _hWeights(&hWeights), _hWeightsInc(&hWeightsInc), _numUpdates(0),
+
+    Weights(Matrix& hWeights, Matrix& hWeightsInc,
+		float epsW, float wc, float mom, float muL1, float renorm, bool useGrad)
+        : _srcWeights(NULL), _hWeights(&hWeights), _hWeightsInc(&hWeightsInc),
+		_hBregman_b_weights(NULL), _hBregman_d_weights(NULL),
+			_numUpdates(0),
           _epsW(epsW), _epsWinit(epsW),_wc(wc), _mom(mom), _mom_init(mom), _muL1(muL1), _renorm(renorm), _useGrad(useGrad), _onGPU(false), _weights(NULL),
           _weightsInc(NULL), _weightsGrad(NULL) {
+        if (_autoCopyToGPU) {
+            copyToGPU();
+        }
+    }
+      
+    
+    Weights(Matrix& hWeights, Matrix& hWeightsInc,
+//bregman
+		Matrix& hBregman_b_weights, Matrix& hBregman_d_weights,	
+		float epsW, float wc, float mom, float muL1, float renorm, bool useGrad)
+        : _srcWeights(NULL), _hWeights(&hWeights), _hWeightsInc(&hWeightsInc), 
+//bregman
+	_hBregman_b_weights(&hBregman_b_weights), _hBregman_d_weights(&hBregman_d_weights),		
+
+		_numUpdates(0), _epsW(epsW), _epsWinit(epsW),_wc(wc), _mom(mom), _mom_init(mom), _muL1(muL1), _renorm(renorm),
+		_useGrad(useGrad), _onGPU(false), _weights(NULL),
+        _weightsInc(NULL), _weightsGrad(NULL) {
         if (_autoCopyToGPU) {
             copyToGPU();
         }
@@ -134,6 +160,12 @@ public:
             assert(_onGPU);
             _weights->copyToHost(*_hWeights);
             _weightsInc->copyToHost(*_hWeightsInc);
+//bregman
+			if(_hBregman_b_weights)
+			{
+            _bregman_b_weights->copyToHost(*_hBregman_b_weights);
+            _bregman_d_weights->copyToHost(*_hBregman_d_weights);
+			}
         }
     }
     
@@ -146,10 +178,25 @@ public:
             _weights->copyFromHost(*_hWeights, true);
             _weightsInc->copyFromHost(*_hWeightsInc, true);
             _weightsGrad = _useGrad ? new NVMatrix() : NULL;
+			
+			//bregman
+			if(_hBregman_b_weights)
+			{
+				_bregman_b_weights = new NVMatrix();
+				_bregman_b_weights->copyFromHost(*_hBregman_b_weights, true);
+
+				_bregman_d_weights = new NVMatrix();
+				_bregman_d_weights->copyFromHost(*_hBregman_d_weights, true);
+			}
+
         } else {
             _weights = _srcWeights->_weights;
             _weightsInc = _srcWeights->_weightsInc;
             _weightsGrad = _srcWeights->_weightsGrad;
+
+			//bregman
+			_bregman_b_weights = _srcWeights->_bregman_b_weights;
+			_bregman_d_weights = _srcWeights->_bregman_d_weights;
         }
 
         _onGPU = true;
@@ -164,32 +211,11 @@ public:
                 _weightsInc->add(*_weightsGrad, _mom, 1);
             }
 
-            if (_wc > 0 && _muL1 == 0) {
+            if (_wc > 0) {
                 _weightsInc->add(*_weights, -_wc * _epsW);			
             }
 
-			//if (_muL1 > 0) 
-			//{
-			//	_weightsInc->softGradAdd(*_weights, 1, _muL1, -_wc * _epsW);
-			//}
-
             _weights->add(*_weightsInc);
-
-
-			if (_muL1 > 0) 
-			{
-				_weights->shrink(1.f/_muL1);			
-				float norm2 =  _weights->norm2();
-				int size = _weights->getNumElements();
-				float norm = sqrtf(norm2/size);
-				float rminscale = 1e-4;
-				if(norm < rminscale)
-				{
-					float renormScale = rminscale/norm;
-					_weights->scale(renormScale);
-				}
-			}
-
 			_numUpdates = 0;
 
 			if(_renorm > 0)

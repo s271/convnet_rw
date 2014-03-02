@@ -292,11 +292,28 @@ void NeuronLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) 
  */
 WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, bool useGrad) : 
     Layer(convNet, paramsDict, trans) {
-    
+
+//bregman    
     MatrixV& hWeights = *pyDictGetMatrixV(paramsDict, "weights");
     MatrixV& hWeightsInc = *pyDictGetMatrixV(paramsDict, "weightsInc");
     Matrix& hBiases = *pyDictGetMatrix(paramsDict, "biases");
     Matrix& hBiasesInc = *pyDictGetMatrix(paramsDict, "biasesInc");
+
+	string layerType = pyDictGetString(paramsDict, "type");
+	printf("WeightLayer %s \n", _name.c_str());
+
+
+	MatrixV *phBregman_b_weights = NULL, *phBregman_d_weights = NULL;
+	Matrix *phBregman_b_bias = NULL, *phBregman_d_bias = NULL;
+
+//bregman
+	if(layerType == "fc")
+	{
+		phBregman_b_weights = pyDictGetMatrixV(paramsDict, "b_weight_bregman");
+		phBregman_d_weights = pyDictGetMatrixV(paramsDict, "d_weight_bregman");
+	    phBregman_b_bias = pyDictGetMatrix(paramsDict, "b_bias_bregman");
+	    phBregman_d_bias = pyDictGetMatrix(paramsDict, "d_bias_bregman");
+	}
     
     floatv& momW = *pyDictGetFloatV(paramsDict, "momW");
     float momB = pyDictGetFloat(paramsDict, "momB");
@@ -322,12 +339,21 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
             WeightLayer& srcLayer = *static_cast<WeightLayer*>(&convNet->getLayer(srcLayerIdx));
             Weights* srcWeights = &srcLayer.getWeights(matrixIdx);
             _weights.addWeights(*new Weights(*srcWeights, epsW[i]));
-        } else {
+
+        } else if(layerType != "fc"){
             _weights.addWeights(*new Weights(*hWeights[i], *hWeightsInc[i], epsW[i], wc[i], momW[i], muL1, _renorm, useGrad));
-        }
+        } else
+			_weights.addWeights(*new Weights(*hWeights[i], *hWeightsInc[i],
+			*((*phBregman_b_weights)[i]), *((*phBregman_d_weights)[i]),
+			epsW[i], wc[i], momW[i], muL1, _renorm, useGrad));
+
     }
-    
-    _biases = new Weights(hBiases, hBiasesInc, epsB, 0, momB, 0, 0, true);
+    if(layerType != "fc")
+		_biases = new Weights(hBiases, hBiasesInc, epsB, 0, momB, 0, 0, true);
+	else
+		_biases = new Weights(hBiases, hBiasesInc,
+		*phBregman_b_bias, *phBregman_d_bias,		
+		epsB, 0, momB, 0, 0, true);
 
     // Epsilons for finite-difference gradient checking operation
     _wStep = 0.001;
