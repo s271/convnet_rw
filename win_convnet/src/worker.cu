@@ -101,8 +101,8 @@ void TrainingWorker::run() {
 		shaffle[i] = shaffle[r];
 		shaffle[r] = temp;
     }
-if (!_test)
-printf(" eps %f \n", _eps_scale);
+//if (!_test)
+//printf(" eps %f \n", _eps_scale);
 	//for (int ki = 0; ki < 4; ki++) {
     for (int ki = 0; ki < _dp->getNumMinibatches(); ki++) {
 		int mini_ind = shaffle[ki];
