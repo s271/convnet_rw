@@ -101,9 +101,18 @@ void TrainingWorker::run() {
 		shaffle[i] = shaffle[r];
 		shaffle[r] = temp;
     }
-//if (!_test)
+
+	//for (int ki = 0; ki < 1; ki++) {
+
+//	if(_epoch >= 100)
+//		_eps_scale=.1;
+//
+//	if(_epoch >= 130)
+//		_eps_scale=.02;
+//
+//if (!_test && _eps_scale > 0)
 //printf(" eps %f \n", _eps_scale);
-	//for (int ki = 0; ki < 4; ki++) {
+
     for (int ki = 0; ki < _dp->getNumMinibatches(); ki++) {
 		int mini_ind = shaffle[ki];
 

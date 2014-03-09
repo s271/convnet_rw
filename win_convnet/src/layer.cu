@@ -379,12 +379,16 @@ void WeightLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType) {
         if (_weights[i].getEps() > 0) {
             bpropWeights(v, i, passType);
             // Increment its number of updates
+			//temp
+			if(_name != "fc10")
             _weights[i].incNumUpdates();
         }
     }
 }
 
 void WeightLayer::updateWeights() {
+//temp
+if(_name != "fc10")
     _weights.update();
     _biases->update();
     
@@ -440,6 +444,11 @@ void FCLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE p
     NVMatrix& weights_T = _weights[inpIdx].getW().getTranspose();
     _prev[inpIdx]->getActsGrad().addProduct(v, weights_T, scaleTargets, 1);
 
+//debug 
+//	printf("bpropActs %s v %i %i %i weights_T %i %i %i \n", _name.c_str(),
+//		v.getNumRows(), v.getNumCols(), v.getStride(), weights_T.getNumRows(), weights_T.getNumCols(), weights_T.getStride());
+
+
     delete &weights_T;
 }
 
@@ -457,10 +466,20 @@ void FCLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType) {
     NVMatrix& prevActs_T = _prev[inpIdx]->getActs().getTranspose();
     float scaleInc = (_weights[inpIdx].getNumUpdates() == 0 && passType != PASS_GC) * _weights[inpIdx].getMom();
     float scaleGrad = passType == PASS_GC ? 1 : _weights[inpIdx].getEps() / numCases;
+
+//debug 
+//	printf("bpropWeights %s v %i %i %i prevActs_T %i %i %i \n", _name.c_str(),
+//		v.getNumRows(), v.getNumCols(), v.getStride(), prevActs_T.getNumRows(), prevActs_T.getNumCols(), prevActs_T.getStride());
     
 	// Df_next(sum f_prew_k*w_k)/Dw_i = (Df_next(x)/Dx)*f_prev_i
     _weights[inpIdx].getInc().addProduct(prevActs_T, v, scaleInc, scaleGrad);
-    
+
+//temp
+if(_name == "fc10")
+{
+	_weights[inpIdx].incNumUpdates();
+	_weights.update();
+}   
     delete &prevActs_T;
 }
 
@@ -565,6 +584,11 @@ void ConvLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType) {
                              _filterSize->at(inpIdx), _padding->at(inpIdx), _stride->at(inpIdx), _channels->at(inpIdx),
                              _filterChannels->at(inpIdx), _groups->at(inpIdx), _partialSum, scaleTargets, scaleWGrad);
     } else {
+
+//debug 
+//	printf("bpropWeights %s v %i %i %i   \n", _name.c_str(),
+//		v.getNumRows(), v.getNumCols(), v.getStride() );
+
         convWeightActs(_prev[inpIdx]->getActs(), v, tgt, _imgSize->at(inpIdx), _modulesX, _modulesX, _filterSize->at(inpIdx), _padding->at(inpIdx),
                        _stride->at(inpIdx), _channels->at(inpIdx), _groups->at(inpIdx), _partialSum, scaleTargets, scaleWGrad);
     }

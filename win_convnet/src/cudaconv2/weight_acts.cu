@@ -570,6 +570,11 @@ void _weightActs(NVMatrix& images, NVMatrix& hidActs, NVMatrix& targets,
     int numModules = numModulesY * numModulesX;
     int numFilters = hidActs.getNumRows() / numModules;
     int numFiltersPerGroup = numFilters / numGroups;
+
+//debug 
+//	printf("_weightActs images %i %i hidActs %i %i targets %i %i filterSize %i numImgColors %i \n",
+//		images.getNumRows(), images.getNumCols(),  hidActs.getNumRows(), hidActs.getNumCols(),
+//		targets.getNumRows(), targets.getNumCols(), filterSize, numImgColors );
     
     assert(numImgColors % numGroups == 0);
     assert(numFilters % (16*numGroups) == 0);
