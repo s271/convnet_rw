@@ -27,3 +27,38 @@
 #include <weights.cuh>
 
 bool Weights::_autoCopyToGPU = false;
+
+
+// Scale your gradient by epsW / numCases!
+void Weights::update() {
+    // Only true owner of weights updates
+    if (_srcWeights == NULL && _epsW > 0) {
+        assert(_onGPU);
+        if (_useGrad) {
+            _weightsInc->add(*_weightsGrad, _mom, 1);
+        }
+
+        if (_wc > 0) {
+            _weightsInc->add(*_weights, -_wc * _epsW);			
+        }
+
+        _weights->add(*_weightsInc);
+		_numUpdates = 0;
+
+		if(_renorm > 0)
+		{
+
+			float norm2 =  _weights->norm2();
+			int size = _weights->getNumElements();
+		
+			float layerNorm = sqrtf(norm2/size);
+
+			if(layerNorm > _renorm)
+			{	
+				float renormScale = _renorm/layerNorm;
+				_weights->scale(renormScale);
+			}
+		}
+
+    }
+}

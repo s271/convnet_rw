@@ -170,7 +170,7 @@ class IGPUModel:
             self.epoch, self.batchnum = next_data[0], next_data[1]
             self.print_iteration()
             
-            eps_scale = 0.
+            eps_scale = 0
             for nepoch in self.param_schedule:
                 if self.epoch >= nepoch :
                     eps_scale = self.param_schedule[nepoch]['eps_scale']

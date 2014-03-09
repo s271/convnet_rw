@@ -726,15 +726,13 @@ class WeightLayerParser(LayerWithInputParser):
 
     def make_bregman_weight(self, rows, cols, order='C'):
         dic = self.dic
-        dic['d_weight_bregman'], dic['b_weight_bregman'] = [], []
+        dic['b_weight_bregman'] = []
         for i in xrange(len(dic['inputs'])):
-            dic['d_weight_bregman'] +=[n.zeros((rows[i], cols[i]), dtype=n.single, order=order)]
-            dic['b_weight_bregman'] += [n.zeros_like(dic['d_weight_bregman'][i])]
+            dic['b_weight_bregman'] += [n.zeros((rows[i], cols[i]), dtype=n.single, order=order)]
   
     def make_bregman_bias(self, rows, cols, order='C'):
         dic = self.dic
-        dic['d_bias_bregman'] = n.zeros((rows, cols), order='C', dtype=n.single)
-        dic['b_bias_bregman'] = n.zeros_like(dic['d_bias_bregman'])
+        dic['b_bias_bregman'] = n.zeros((rows, cols), order='C', dtype=n.single)
          
     def make_biases(self, rows, cols, order='C'):
         dic = self.dic

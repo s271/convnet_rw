@@ -45,8 +45,8 @@ private:
     NVMatrix* _weights, *_weightsInc, *_weightsGrad;
 
 //bregman
-	Matrix *_hBregman_b_weights, *_hBregman_d_weights;
-	NVMatrix *_bregman_b_weights, *_bregman_d_weights;
+	Matrix *_hBregman_b_weights;
+	NVMatrix *_bregman_b_weights;
 
     float _epsW, _epsWinit, _wc, _mom, _mom_init;
 
@@ -84,7 +84,7 @@ public:
     Weights(Matrix& hWeights, Matrix& hWeightsInc,
 		float epsW, float wc, float mom, float muL1, float renorm, bool useGrad)
         : _srcWeights(NULL), _hWeights(&hWeights), _hWeightsInc(&hWeightsInc),
-		_hBregman_b_weights(NULL), _hBregman_d_weights(NULL),
+		_hBregman_b_weights(NULL),
 			_numUpdates(0),
           _epsW(epsW), _epsWinit(epsW),_wc(wc), _mom(mom), _mom_init(mom), _muL1(muL1), _renorm(renorm), _useGrad(useGrad), _onGPU(false), _weights(NULL),
           _weightsInc(NULL), _weightsGrad(NULL) {
@@ -96,11 +96,11 @@ public:
     
     Weights(Matrix& hWeights, Matrix& hWeightsInc,
 //bregman
-		Matrix& hBregman_b_weights, Matrix& hBregman_d_weights,	
+		Matrix& hBregman_b_weights,
 		float epsW, float wc, float mom, float muL1, float renorm, bool useGrad)
         : _srcWeights(NULL), _hWeights(&hWeights), _hWeightsInc(&hWeightsInc), 
 //bregman
-	_hBregman_b_weights(&hBregman_b_weights), _hBregman_d_weights(&hBregman_d_weights),		
+	_hBregman_b_weights(&hBregman_b_weights),		
 
 		_numUpdates(0), _epsW(epsW), _epsWinit(epsW),_wc(wc), _mom(mom), _mom_init(mom), _muL1(muL1), _renorm(renorm),
 		_useGrad(useGrad), _onGPU(false), _weights(NULL),
@@ -164,7 +164,6 @@ public:
 			if(_hBregman_b_weights)
 			{
             _bregman_b_weights->copyToHost(*_hBregman_b_weights);
-            _bregman_d_weights->copyToHost(*_hBregman_d_weights);
 			}
         }
     }
@@ -184,9 +183,6 @@ public:
 			{
 				_bregman_b_weights = new NVMatrix();
 				_bregman_b_weights->copyFromHost(*_hBregman_b_weights, true);
-
-				_bregman_d_weights = new NVMatrix();
-				_bregman_d_weights->copyFromHost(*_hBregman_d_weights, true);
 			}
 
         } else {
@@ -196,45 +192,13 @@ public:
 
 			//bregman
 			_bregman_b_weights = _srcWeights->_bregman_b_weights;
-			_bregman_d_weights = _srcWeights->_bregman_d_weights;
         }
 
         _onGPU = true;
     }
     
     // Scale your gradient by epsW / numCases!
-    void update() {
-        // Only true owner of weights updates
-        if (_srcWeights == NULL && _epsW > 0) {
-            assert(_onGPU);
-            if (_useGrad) {
-                _weightsInc->add(*_weightsGrad, _mom, 1);
-            }
-
-            if (_wc > 0) {
-                _weightsInc->add(*_weights, -_wc * _epsW);			
-            }
-
-            _weights->add(*_weightsInc);
-			_numUpdates = 0;
-
-			if(_renorm > 0)
-			{
-
-				float norm2 =  _weights->norm2();
-				int size = _weights->getNumElements();
-			
-				float layerNorm = sqrtf(norm2/size);
-
-				if(layerNorm > _renorm)
-				{	
-					float renormScale = _renorm/layerNorm;
-					_weights->scale(renormScale);
-				}
-			}
-
-        }
-    }
+    void update();
     
     int incNumUpdates() {
         if (_srcWeights != NULL) {
