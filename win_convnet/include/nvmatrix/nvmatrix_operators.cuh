@@ -233,6 +233,18 @@ public:
         }
     };
 
+    class InvSVM{
+    private:
+        const float invCp1;
+		const float eta;
+    public:
+        InvSVM(const float _invCp1, const float _eta) : invCp1(_invCp1), eta(eta){
+        }
+        __device__ inline float operator()(const float a) const {
+			return (a<0)*a + (a>eta)*invCp1*(a-eta);
+        }
+    };
+
 };
 
 class NVMatrixBinaryOps {

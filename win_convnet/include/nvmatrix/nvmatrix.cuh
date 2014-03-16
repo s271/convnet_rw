@@ -412,6 +412,8 @@ public:
 	void shrink(float lambda);
 	void softGradAdd(NVMatrix& b, float scaleL2, float scaleL1, float scaleB, NVMatrix& target);
 	void softGradAdd(NVMatrix& b, float scaleL2, float scaleL1, float scaleB);
+	void invSVM(float invCp1, float eta, NVMatrix& target);
+	void invSVM(float invCp1, float eta);
 
     float dotProduct(NVMatrix& b);
 

@@ -887,6 +887,14 @@ void NVMatrix::shrink(float scalar, NVMatrix& target) {
     apply(NVMatrixOps::Shrink(1.f/scalar), target);
 }
 
+void NVMatrix::invSVM(float invCp1, float eta, NVMatrix& target) {
+	apply(NVMatrixOps::InvSVM(invCp1, eta), target);
+};
+
+void NVMatrix::invSVM(float invCp1, float eta) {
+	invSVM(invCp1, eta, *this);
+};
+
 void NVMatrix::pow(float p) {
     pow(p, *this);
 }

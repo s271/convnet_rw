@@ -56,6 +56,8 @@ protected:
     NVMatrixV _inputs;
     NVMatrix *_outputs; // TODO: make this a pointer so you can reuse previous layers' matrices
     NVMatrix *_actsGrad; // Layer activity gradients
+	NVMatrix *_actsG;
+	NVMatrix *_actsR;
     bool _gradConsumer, _foundGradConsumers, _trans;
     bool _conserveMem;
     int _numGradProducersNext;
@@ -106,6 +108,8 @@ public:
     std::vector<Layer*>& getNext();
     virtual NVMatrix& getActs();
     virtual NVMatrix& getActsGrad();
+	virtual NVMatrix& getActsG();
+	virtual NVMatrix& getActsR();
     virtual void postInit();
     
     // Do nothing if this layer has no weights

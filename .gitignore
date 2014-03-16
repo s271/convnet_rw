@@ -23,6 +23,7 @@ Thumbs.db
 *.a
 *.pyc
 *.exp
+*.pickle
 [Bb]in
 [Dd]ebug*/
 [Xx]64*/

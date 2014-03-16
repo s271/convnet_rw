@@ -107,7 +107,10 @@ void Layer::setParamNext(float eps_scale) {
     }
 }
 
+
 void Layer::fprop(NVMatrixV& v, PASS_TYPE passType) {
+
+
     assert(v.size() == _prev.size());
     _inputs.clear();
     _inputs.insert(_inputs.begin(), v.begin(), v.end());
@@ -229,6 +232,15 @@ void Layer::addPrev(Layer* l) {
 void Layer::postInit() {
 //    _outputs = _actsTarget < 0 ? new NVMatrix() : &_prev[_actsTarget]->getActs();
     _actsGrad = _actsGradTarget < 0 ? new NVMatrix() : &_prev[_actsGradTarget]->getActsGrad();
+//temp
+	if(_name == "fc10")
+	{
+printf("init U,Z for fc10\n");
+		_actsG = new NVMatrix();
+		_actsR = new NVMatrix();
+	
+	}
+
 }
 
 // Does this layer, or some layer below it, need the gradient
@@ -266,6 +278,17 @@ NVMatrix& Layer::getActsGrad() {
     assert(_actsGrad != NULL);
     return *_actsGrad;
 }
+
+//temp
+NVMatrix& Layer::getActsG() {
+    assert(_actsG != NULL);
+    return *_actsG;
+}
+NVMatrix& Layer::getActsR() {
+    assert(_actsR != NULL);
+    return *_actsR;
+}
+//end
 
 /* 
  * =======================
@@ -420,12 +443,6 @@ Weights& WeightLayer::getWeights(int idx) {
  * FCLayer
  * =======================
  */
-extern int train;//temp
-extern  int gmini;//temp
-extern  int gmini_max;//temp
-//#define show_mini gmini
-#define show_mini (gmini_max-1)
-//#define show_mini 1
 
 FCLayer::FCLayer(ConvNet* convNet, PyObject* paramsDict) : WeightLayer(convNet, paramsDict, true, false) {
     _wStep = 0.1;
@@ -437,6 +454,18 @@ void FCLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
     if (scaleTargets == 0) {
         getActs().addVector(_biases->getW());
     }
+//temp
+	if(_name == "fc10")
+	{
+	//printf("_weights[inpIdx] %i %i \n", _weights[inpIdx].getNumRows(), _weights[inpIdx].getNumCols());
+	//printf("_weights[inpIdx].getInc() %i %i \n", _weights[inpIdx].getInc().getNumRows(), _weights[inpIdx].getInc().getNumCols());
+
+    getActsR().addProduct(*_inputs[inpIdx], _weights[inpIdx].getInc(), scaleTargets, 1);
+    if (scaleTargets == 0) {
+        getActsR().addVector(_biases->getInc());
+    }
+	}
+//end temp
 }
 
 void FCLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
@@ -468,18 +497,26 @@ void FCLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType) {
     float scaleGrad = passType == PASS_GC ? 1 : _weights[inpIdx].getEps() / numCases;
 
 //debug 
-//	printf("bpropWeights %s v %i %i %i prevActs_T %i %i %i \n", _name.c_str(),
-//		v.getNumRows(), v.getNumCols(), v.getStride(), prevActs_T.getNumRows(), prevActs_T.getNumCols(), prevActs_T.getStride());
-    
+//	printf("bpropWeights %s v %i %i  prevActs_T %i %i  \n", _name.c_str(),
+//		v.getNumRows(), v.getNumCols(), prevActs_T.getNumRows(), prevActs_T.getNumCols());
+//	printf("bpropWeights %s _weights %i %i %i  \n", _name.c_str(), _weights[inpIdx].getInc().getNumRows(), _weights[inpIdx].getInc().getNumCols(), _weights[inpIdx].getInc().getStride());
+
 	// Df_next(sum f_prew_k*w_k)/Dw_i = (Df_next(x)/Dx)*f_prev_i
-    _weights[inpIdx].getInc().addProduct(prevActs_T, v, scaleInc, scaleGrad);
+
 
 //temp
 if(_name == "fc10")
 {
+	_weights[inpIdx].getInc().addProduct(prevActs_T,  getActsG(), scaleInc, scaleGrad);
+
 	_weights[inpIdx].incNumUpdates();
 	_weights.update();
 }   
+else
+{
+    _weights[inpIdx].getInc().addProduct(prevActs_T, v, scaleInc, scaleGrad);
+
+}
     delete &prevActs_T;
 }
 
@@ -744,8 +781,35 @@ void L2SVMLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYP
 
     NVMatrix& labels = _next[0]->getPrev()[0]->getActs();
     float gradCoeff = dynamic_cast<CostLayer*>(_next[0])->getCoeff();
+//debug
+//	printf("L2SVMLayer::bpropActs add %i \n",  scaleTargets == 1);
+
+
+//	printf("L2SVMLayer bpropActs getActs getLeadingDim %i \n", getActs().getLeadingDim());
+
+	NVMatrix* Z2 = new NVMatrix();
+
+	getActs().eltwiseMult(getActs(), *Z2);
+
+	//printf("L2SVMLayer::bpropActs Z2 %i %i \n",  Z2->getNumRows(),  Z2->getNumCols());
+
+	NVMatrix& sumZ2 = Z2->sum(1);
+
+	//printf("L2SVMLayer::sumZ2  %i %i \n",  sumZ2.getNumRows(),  sumZ2.getNumCols());
+	//printf("L2SVMLayer::labels %i %i \n",  labels.getNumRows(),  labels.getNumCols());
 
     computeL2SVMGrad(labels, getActs(), _prev[0]->getActsGrad(), scaleTargets == 1, gradCoeff);
+
+	float lambda_w = 1;
+	float lambda_b = 1;
+	float C1 = 1;
+	float C2 = 1*.3;
+
+	computeL2SVM_G(labels, sumZ2, _prev[0]->getActsR(), _prev[0]->getActs(), _prev[0]->getActsG(), C1, C2, lambda_w, lambda_b);
+
+	delete Z2;
+	delete &sumZ2;
+
 }
 
 /* 
