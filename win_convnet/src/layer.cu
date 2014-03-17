@@ -154,11 +154,14 @@ void Layer::bprop(PASS_TYPE passType) {
 }
 
 void Layer::bprop(NVMatrix& v, PASS_TYPE passType) {
-	//v = getActsGrad() from next
+	//v = getActsGrad()
     v.transpose(_trans);
     for (int i = 0; i < _prev.size(); i++) {
         _prev[i]->getActs().transpose(_trans);
         _prev[i]->getActsGrad().transpose(_trans);
+		//temp
+		if(_prev[i]->_name=="fc10")
+		_prev[i]->getActsG().transpose(_trans);
     }
     getActs().transpose(_trans);
     
@@ -402,19 +405,14 @@ void WeightLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType) {
         if (_weights[i].getEps() > 0) {
             bpropWeights(v, i, passType);
             // Increment its number of updates
-			//temp
-			if(_name != "fc10")
             _weights[i].incNumUpdates();
         }
     }
 }
 
 void WeightLayer::updateWeights() {
-//temp
-if(_name != "fc10")
     _weights.update();
     _biases->update();
-    
 }
 
 void WeightLayer::copyToCPU() {
@@ -437,6 +435,11 @@ void WeightLayer::checkGradients() {
 Weights& WeightLayer::getWeights(int idx) {
     return _weights[idx];
 }
+
+Weights* WeightLayer::getBias() {
+    return _biases;
+}
+
 
 /* 
  * =======================
@@ -469,7 +472,7 @@ void FCLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
 }
 
 void FCLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
-	//v = getActsGrad() from next
+	//v = getActsGrad() 
     NVMatrix& weights_T = _weights[inpIdx].getW().getTranspose();
     _prev[inpIdx]->getActsGrad().addProduct(v, weights_T, scaleTargets, 1);
 
@@ -484,11 +487,19 @@ void FCLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE p
 void FCLayer::bpropBiases(NVMatrix& v, PASS_TYPE passType) {
     int numCases = v.getNumRows();
     float scaleBGrad = passType == PASS_GC ? 1 : _biases->getEps() / numCases;
-    _biases->getGrad().addSum(v, 0, 0, scaleBGrad);
+
+	if(_name == "fc10")
+	{
+		_biases->getGrad().addSum(getActsG(), 0, 0, scaleBGrad);
+	}
+	else
+	{
+		_biases->getGrad().addSum(v, 0, 0, scaleBGrad);
+	}
 }
 
 void FCLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType) {
-	//v = getActsGrad() from next
+	//v = getActsGrad() 
 
     int numCases = v.getNumRows();
 
@@ -508,9 +519,6 @@ void FCLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType) {
 if(_name == "fc10")
 {
 	_weights[inpIdx].getInc().addProduct(prevActs_T,  getActsG(), scaleInc, scaleGrad);
-
-	_weights[inpIdx].incNumUpdates();
-	_weights.update();
 }   
 else
 {
@@ -800,12 +808,17 @@ void L2SVMLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYP
 
     computeL2SVMGrad(labels, getActs(), _prev[0]->getActsGrad(), scaleTargets == 1, gradCoeff);
 
-	float lambda_w = 1;
-	float lambda_b = 1;
 	float C1 = 1;
 	float C2 = 1*.3;
+//temp
+	WeightLayer& wLayer = *static_cast<WeightLayer*>(_prev[0]);
+	int numCases = wLayer.getActs().getNumRows();
+	float eps_b = passType == PASS_GC ? 1 : wLayer.getBias()->getEps() / numCases;
+	float eps_w = passType == PASS_GC ? 1 : wLayer.getWeights(0).getEps() / numCases;
 
-	computeL2SVM_G(labels, sumZ2, _prev[0]->getActsR(), _prev[0]->getActs(), _prev[0]->getActsG(), C1, C2, lambda_w, lambda_b);
+	computeL2SVM_G(labels, sumZ2, _prev[0]->getActsR(), _prev[0]->getActs(), _prev[0]->getActsG(), C1, C2, eps_w, eps_b);
+//debug
+//	_prev[0]->getActsGrad().copy(_prev[0]->getActsG());
 
 	delete Z2;
 	delete &sumZ2;
@@ -1223,7 +1236,7 @@ void L2SVMCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passTyp
 }
 
 void L2SVMCostLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
-	//v = getActsGrad() from next - not needed, no next
+	//v = getActsGrad() - not needed, no next
     assert(inpIdx == 1);
 }
 

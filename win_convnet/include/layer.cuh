@@ -156,6 +156,7 @@ public:
     virtual void copyToGPU();
     void checkGradients();
     Weights& getWeights(int idx);
+	Weights* getBias();
 };
 
 class FCLayer : public WeightLayer {

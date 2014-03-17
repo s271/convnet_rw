@@ -219,31 +219,36 @@ __device__ inline float Psvm(float a, float invCp1, float C2) {
 	return (a<0)*a + (a>C2)*invCp1*(a-C2);
 };
 
-//temp
+__device__ inline float Gradsvm(float a, float C1, float C2) {
+	return C1*fmax(a, 0) + C2*(a > 0);
+};
+
+__device__ inline float GradPsvm(float a, float invCp1z, float Cz, float C1, float C2) {
+	return (a>Cz)*(C2 + C1*invCp1z*(a-Cz));
+};
+
 __global__ void kL2SVM_G(float* racts, float* acts, float* labels, float* sumZ2, float* G, const int numCases,
-                                 const int numOut, const float C1, const float C2, const float lambda_w, const float lambda_b) {
+                                 const int numOut, const float C1, const float C2, const float eps_w, const float eps_b) {
     const int tx = blockIdx.x * LOGREG_GRAD_THREADS_X + threadIdx.x;
     const int ty = blockIdx.y * LOGREG_GRAD_THREADS_Y + threadIdx.y;
     const int tidx = ty * numCases + tx;
 	
-	const float invLambda_w = 1/lambda_w;
-	const float invLambda_b = 1/lambda_b;
-
-    
+//eps = 1/lambda
+   
     if (ty < numOut && tx < numCases) {
         const int label = int(labels[tx]);
 		float t = (label == ty)?1:-1;
 		float val = (1 - t*(racts[tidx]+acts[tidx]));
 
-		const float ZL = sumZ2[tx]*invLambda_w + invLambda_b;
+		const float ZL = sumZ2[tx]*eps_w + eps_b;
 
 		const float invCp1z = 1.f/(1 + C1*ZL);
 		const float Cz = C2*ZL;
 
-		G[tidx] = Psvm(val, invCp1z, Cz);
+		G[tidx] = t*GradPsvm(val, invCp1z, Cz, C1, C2);
     }
-}
 
+}
 
 
 template <bool add>
@@ -515,7 +520,7 @@ void computeL2SVMGrad(NVMatrix& labels, NVMatrix& acts, NVMatrix& target, bool a
 };
 
 //temp
-void computeL2SVM_G(NVMatrix& labels, NVMatrix& sumZ2, NVMatrix& racts, NVMatrix& acts, NVMatrix& target, float C1, float C2, float lambda_w, float lambda_b)
+void computeL2SVM_G(NVMatrix& labels, NVMatrix& sumZ2, NVMatrix& racts, NVMatrix& acts, NVMatrix& target, float C1, float C2, float eps_w, float eps_b)
 {
     int numCases = racts.getLeadingDim(); 
     int numOut = racts.getFollowingDim(); 
@@ -534,7 +539,7 @@ void computeL2SVM_G(NVMatrix& labels, NVMatrix& sumZ2, NVMatrix& racts, NVMatrix
 
     target.resize(racts);
     kL2SVM_G<<<blocks, threads>>>(racts.getDevData(), acts.getDevData(), labels.getDevData(), sumZ2.getDevData(), target.getDevData(),
-                                                 numCases, numOut, C1, C2, lambda_w, lambda_b);
+                                                 numCases, numOut, C1, C2, eps_w, eps_b);
 };
 
 void computeSoftmaxGrad(NVMatrix& acts, NVMatrix& actsGrad, NVMatrix& target, bool add) {
