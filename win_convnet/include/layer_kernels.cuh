@@ -41,7 +41,11 @@ void computeLogregGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target, bool
 
 void computeL2SVMCost(NVMatrix& labels, NVMatrix& input, NVMatrix& cost_out, NVMatrix& correctPreds_out);
 void computeL2SVMGrad(NVMatrix& labels, NVMatrix& acts, NVMatrix& target, bool add, float coeff);
+
+//temp
 void computeL2SVM_G(NVMatrix& labels, NVMatrix& sumZ2, NVMatrix& racts, NVMatrix& acts, NVMatrix& target, float C1, float C2, float eps_w, float eps_b);
+void computeL2SVM_U(NVMatrix& labels, NVMatrix& acts, NVMatrix& target, float C1, float C2, float eps_u);
+void computeL2SVM_invW2(NVMatrix& W, NVMatrix& target, float eps_z); 
 
 void computeRLogCost(NVMatrix& labels, NVMatrix& probs,
 					 NVMatrix& labelLogProbs_out, NVMatrix& correctProbs_out, NVMatrix& probWeights_out,

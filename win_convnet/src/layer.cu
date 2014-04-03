@@ -161,7 +161,11 @@ void Layer::bprop(NVMatrix& v, PASS_TYPE passType) {
         _prev[i]->getActsGrad().transpose(_trans);
 		//temp
 		if(_prev[i]->_name=="fc10")
+		{
 		_prev[i]->getActsG().transpose(_trans);
+		_prev[i]->getActsZ().transpose(_trans);
+		}
+
     }
     getActs().transpose(_trans);
     
@@ -236,11 +240,11 @@ void Layer::postInit() {
 //    _outputs = _actsTarget < 0 ? new NVMatrix() : &_prev[_actsTarget]->getActs();
     _actsGrad = _actsGradTarget < 0 ? new NVMatrix() : &_prev[_actsGradTarget]->getActsGrad();
 //temp
-	if(_name == "fc10")
+	if(_name == "fc10" || _name == "fc128")
 	{
-printf("init U,Z for fc10\n");
 		_actsG = new NVMatrix();
 		_actsR = new NVMatrix();
+		_actsZ = new NVMatrix();
 	
 	}
 
@@ -287,6 +291,12 @@ NVMatrix& Layer::getActsG() {
     assert(_actsG != NULL);
     return *_actsG;
 }
+
+NVMatrix& Layer::getActsZ() {
+    assert(_actsZ != NULL);
+    return *_actsZ;
+}
+
 NVMatrix& Layer::getActsR() {
     assert(_actsR != NULL);
     return *_actsR;
@@ -792,36 +802,62 @@ void L2SVMLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYP
 //debug
 //	printf("L2SVMLayer::bpropActs add %i \n",  scaleTargets == 1);
 
-
-//	printf("L2SVMLayer bpropActs getActs getLeadingDim %i \n", getActs().getLeadingDim());
+//temp
+	WeightLayer& wLayer = *static_cast<WeightLayer*>(_prev[0]);
 
 	NVMatrix* Z2 = new NVMatrix();
+//was error
+	wLayer._prev[0]->getActs().eltwiseMult(wLayer._prev[0]->getActs(), *Z2);
+	//getActs().eltwiseMult(getActs(), *Z2);
 
-	getActs().eltwiseMult(getActs(), *Z2);
+	NVMatrix* U = new NVMatrix();
+	U->resize(getActs());
 
-	//printf("L2SVMLayer::bpropActs Z2 %i %i \n",  Z2->getNumRows(),  Z2->getNumCols());
+	printf("L2SVMLayer::bpropActs Z2 %i %i \n",  Z2->getNumRows(),  Z2->getNumCols());
 
 	NVMatrix& sumZ2 = Z2->sum(1);
 
-	//printf("L2SVMLayer::sumZ2  %i %i \n",  sumZ2.getNumRows(),  sumZ2.getNumCols());
-	//printf("L2SVMLayer::labels %i %i \n",  labels.getNumRows(),  labels.getNumCols());
+	printf("L2SVMLayer::sumZ2  %i %i \n",  sumZ2.getNumRows(),  sumZ2.getNumCols());
+
+	printf("L2SVMLayer::labels %i %i \n",  labels.getNumRows(),  labels.getNumCols());
+	printf("L2SVMLayer::getActs() %i %i \n",  getActs().getNumRows(),  getActs().getNumCols());
+
+	printf("L2SVMLayer::_prev[0]->getActsGrad() %i %i \n",  _prev[0]->getActsGrad().getNumRows(),  _prev[0]->getActsGrad().getNumCols());
 
     computeL2SVMGrad(labels, getActs(), _prev[0]->getActsGrad(), scaleTargets == 1, gradCoeff);
 
 	float C1 = 1;
 	float C2 = 1*.3;
-//temp
-	WeightLayer& wLayer = *static_cast<WeightLayer*>(_prev[0]);
+	float eps_u = .01;
+	float eps_z = .01;
+
 	int numCases = wLayer.getActs().getNumRows();
 	float eps_b = passType == PASS_GC ? 1 : wLayer.getBias()->getEps() / numCases;
 	float eps_w = passType == PASS_GC ? 1 : wLayer.getWeights(0).getEps() / numCases;
 
 	computeL2SVM_G(labels, sumZ2, _prev[0]->getActsR(), _prev[0]->getActs(), _prev[0]->getActsG(), C1, C2, eps_w, eps_b);
+
+	computeL2SVM_U(labels, _prev[0]->getActs(), *U, C1, C2, eps_u);
+
+	printf("L2SVMLayer::bpropActs _prev[0]->getActsG() %i %i \n",  _prev[0]->getActsG().getNumRows(),  _prev[0]->getActsG().getNumCols());
+	printf("L2SVMLayer::bpropActs _prev[0]->getActsZ() %i %i \n",  _prev[0]->getActsZ().getNumRows(),  _prev[0]->getActsZ().getNumCols());
+
+	int numRowsWeights = wLayer.getWeights(inpIdx).getW().getNumRows();
+
+	NVMatrix* invW2 = new NVMatrix();
+
+	invW2->reshape(numRowsWeights, numRowsWeights);
+	computeL2SVM_invW2(wLayer.getWeights(inpIdx).getW(), *invW2, eps_z);
+	printf("L2SVMLayer::bpropActs W2 %i %i \n",  invW2->getNumRows(),  invW2->getNumCols());
+
 //debug
 //	_prev[0]->getActsGrad().copy(_prev[0]->getActsG());
 
 	delete Z2;
 	delete &sumZ2;
+
+	delete invW2;
+	delete U;
 
 }
 

@@ -250,6 +250,26 @@ __global__ void kL2SVM_G(float* racts, float* acts, float* labels, float* sumZ2,
 
 }
 
+__global__ void kL2SVM_U(float* acts, float* labels, float* actU, const int numCases,
+                                 const int numOut, const float C1eps, const float C2eps) {
+    const int tx = blockIdx.x * LOGREG_GRAD_THREADS_X + threadIdx.x;
+    const int ty = blockIdx.y * LOGREG_GRAD_THREADS_Y + threadIdx.y;
+    const int tidx = ty * numCases + tx;
+	
+//eps = 1/lambda
+   
+    if (ty < numOut && tx < numCases) {
+        const int label = int(labels[tx]);
+		float t = (label == ty)?1:-1;
+		float val = (1 - t*acts[tidx]);
+
+		const float invCp1 = 1.f/(1 + C1eps);
+
+		actU[tidx] = Psvm(val, invCp1, C2eps);
+    }
+
+}
+
 
 template <bool add>
 __global__ void kL2SVMGrad(float* y_l, float* labels, float* dE_dx_l, const int numCases,
@@ -541,6 +561,32 @@ void computeL2SVM_G(NVMatrix& labels, NVMatrix& sumZ2, NVMatrix& racts, NVMatrix
     kL2SVM_G<<<blocks, threads>>>(racts.getDevData(), acts.getDevData(), labels.getDevData(), sumZ2.getDevData(), target.getDevData(),
                                                  numCases, numOut, C1, C2, eps_w, eps_b);
 };
+
+void computeL2SVM_U(NVMatrix& labels, NVMatrix& acts, NVMatrix& target, float C1, float C2, float eps_u)
+{
+    int numCases = acts.getLeadingDim(); 
+    int numOut = acts.getFollowingDim(); 
+    assert(labels.getNumElements() == numCases);
+    assert(target.isContiguous());
+    assert(labels.isContiguous());
+	assert(acts.isContiguous());
+    assert(acts.isTrans());
+
+ 
+    dim3 threads(LOGREG_GRAD_THREADS_X, LOGREG_GRAD_THREADS_Y);
+    dim3 blocks(DIVUP(numCases, LOGREG_GRAD_THREADS_X), DIVUP(numOut, LOGREG_GRAD_THREADS_Y));
+
+	 target.resize(acts);
+    kL2SVM_U<<<blocks, threads>>>(acts.getDevData(), labels.getDevData(), target.getDevData(),
+                                                 numCases, numOut, eps_u*C1, eps_u*C2);
+};
+
+void computeL2SVM_invW2(NVMatrix& W, NVMatrix& target, float eps_z)
+{
+
+}; 
+
+//end temp
 
 void computeSoftmaxGrad(NVMatrix& acts, NVMatrix& actsGrad, NVMatrix& target, bool add) {
     int numCases = acts.getLeadingDim();

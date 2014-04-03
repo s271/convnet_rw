@@ -214,6 +214,9 @@ public:
     void rightMult(const NVMatrix &b, float scaleAB, NVMatrix &target) const;
     void rightMult(const NVMatrix &b, NVMatrix &target) const;
     void rightMult(const NVMatrix &b, float scaleAB);
+//temp
+	void kroneckerProd(NVMatrix &target, int iters);
+
     void randomizeUniform();
     void addGaussianNoise(NVMatrix& stdevs, bool var, NVMatrix& target);
     void addGaussianNoise(float stdev, NVMatrix& target);

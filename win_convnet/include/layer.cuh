@@ -47,9 +47,12 @@ class DataLayer;
  * Abstract layer.
  */
 class Layer {
+//temp
+public:
+    std::vector<Layer*> _prev, _next;
+
 protected:
     ConvNet* _convNet;
-    std::vector<Layer*> _prev, _next;
     int _rcvdFInputs, _rcvdBInputs;
 	bool _nan2Zero; //nan fix  
     
@@ -58,6 +61,7 @@ protected:
     NVMatrix *_actsGrad; // Layer activity gradients
 	NVMatrix *_actsG;
 	NVMatrix *_actsR;
+	NVMatrix *_actsZ;
     bool _gradConsumer, _foundGradConsumers, _trans;
     bool _conserveMem;
     int _numGradProducersNext;
@@ -108,8 +112,11 @@ public:
     std::vector<Layer*>& getNext();
     virtual NVMatrix& getActs();
     virtual NVMatrix& getActsGrad();
+//temp
 	virtual NVMatrix& getActsG();
 	virtual NVMatrix& getActsR();
+	virtual NVMatrix& getActsZ();
+
     virtual void postInit();
     
     // Do nothing if this layer has no weights
