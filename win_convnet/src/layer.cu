@@ -614,6 +614,17 @@ void ConvLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
             getActs().addVector(_biases->getW());
         }
     }
+//debug
+	printf("%s _imgSize->at(inpIdx) %i _modulesX %i _padding->at(inpIdx) %i _stride %i _channels %i _groups %i _sharedBiases %i scaleTargets %f \n", _name.c_str(), _imgSize->at(inpIdx),
+		_modulesX, _padding->at(inpIdx), _stride->at(inpIdx), _channels->at(inpIdx), _groups->at(inpIdx), _sharedBiases, scaleTargets);
+/*  
+    intv* _padding, *_stride, *_filterSize, *_channels, *_imgSize, *_groups;
+    intv* _imgPixels, *_filterPixels, *_filterChannels, *_overSample, *_randSparse;
+    int _modulesX, _modules, _numFilters;
+    int _partialSum;
+    bool _sharedBiases;
+*/
+
 }
 
 void ConvLayer::bpropBiases(NVMatrix& v, PASS_TYPE passType) {
@@ -844,11 +855,11 @@ void L2SVMLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYP
 
 	int numRowsWeights = wLayer.getWeights(inpIdx).getW().getNumRows();
 
-	NVMatrix* invW2 = new NVMatrix();
+//	NVMatrix* invW2 = new NVMatrix();
 
-	invW2->reshape(numRowsWeights, numRowsWeights);
-	computeL2SVM_invW2(wLayer.getWeights(inpIdx).getW(), *invW2, eps_z);
-	printf("L2SVMLayer::bpropActs W2 %i %i \n",  invW2->getNumRows(),  invW2->getNumCols());
+//	invW2->reshape(numRowsWeights, numRowsWeights);
+//	computeL2SVM_invW2(wLayer.getWeights(inpIdx).getW(), *invW2, eps_z);
+//	printf("L2SVMLayer::bpropActs W2 %i %i \n",  invW2->getNumRows(),  invW2->getNumCols());
 
 //debug
 //	_prev[0]->getActsGrad().copy(_prev[0]->getActsG());
@@ -856,7 +867,7 @@ void L2SVMLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYP
 	delete Z2;
 	delete &sumZ2;
 
-	delete invW2;
+//	delete invW2;
 	delete U;
 
 }
