@@ -205,29 +205,6 @@ void NVMatrix::rightMult(const NVMatrix &b, float scaleAB, NVMatrix &target) con
 //    cudaThreadSynchronize();
 }
 
-//temp
-void NVMatrix:: kroneckerProd(NVMatrix &target, int iters)
-{
-    assert(isContiguous() && target.isContiguous());
-
-     target.resize(_numRows, _numRows);
-//make matrix
-	const float epsilon =1;
-	const float beta =0;
-
-	cublasSsyr2k('u', 
-		getTransChar(),
-        _numRows, _numCols, 
-        epsilon,
-        getDevData(), _numRows,
-		getDevData(), _numRows,
-        beta,
-        target.getDevData(),_numRows);
-
-
-    checkCublasError("kroneckerProd failed");
-};
-
 void NVMatrix::rightMult(const NVMatrix &b, float scaleAB) {
     rightMult(b, scaleAB, *this);
 }
@@ -909,14 +886,6 @@ void NVMatrix::pow(float p, NVMatrix& target) {
 void NVMatrix::shrink(float scalar, NVMatrix& target) {
     apply(NVMatrixOps::Shrink(1.f/scalar), target);
 }
-
-void NVMatrix::invSVM(float invCp1, float eta, NVMatrix& target) {
-	apply(NVMatrixOps::InvSVM(invCp1, eta), target);
-};
-
-void NVMatrix::invSVM(float invCp1, float eta) {
-	invSVM(invCp1, eta, *this);
-};
 
 void NVMatrix::pow(float p) {
     pow(p, *this);

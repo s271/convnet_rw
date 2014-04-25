@@ -386,12 +386,7 @@ void computeL2SVMCost(NVMatrix& labels, NVMatrix& act_prev, NVMatrix& act_out, N
     assert(act_prev.isContiguous());
     
     NVMatrix& maxActs = act_prev.max(0);
-
-//debug
-	//printf(" computeL2SVMCost act_prev getNumRows %i getNumCols %i \n", act_prev.getNumRows(), act_prev.getNumCols());
-//	printf(" maxActs  %i  %i %i \n", maxActs.getLeadingDim(), maxActs.getNumCols(),  maxActs.getNumRows());
-	
-   
+    
     act_out.resize(1, numCases);
     correctPreds_out.resize(1, numCases);
     dim3 threads(LOGREG_ERR_THREADS_X, 1);
@@ -539,55 +534,6 @@ void computeL2SVMGrad(NVMatrix& labels, NVMatrix& acts, NVMatrix& target, bool a
 
 };
 
-//temp
-void computeL2SVM_G(NVMatrix& labels, NVMatrix& sumZ2, NVMatrix& racts, NVMatrix& acts, NVMatrix& target, float C1, float C2, float eps_w, float eps_b)
-{
-    int numCases = racts.getLeadingDim(); 
-    int numOut = racts.getFollowingDim(); 
-    assert(labels.getNumElements() == numCases);
-    assert(racts.isContiguous());
-    assert(target.isContiguous());
-    assert(labels.isContiguous());
-	assert(sumZ2.isContiguous());
-	assert(acts.isContiguous());
-    assert(racts.isTrans());
-    assert(acts.isTrans());
-
- 
-    dim3 threads(LOGREG_GRAD_THREADS_X, LOGREG_GRAD_THREADS_Y);
-    dim3 blocks(DIVUP(numCases, LOGREG_GRAD_THREADS_X), DIVUP(numOut, LOGREG_GRAD_THREADS_Y));
-
-    target.resize(racts);
-    kL2SVM_G<<<blocks, threads>>>(racts.getDevData(), acts.getDevData(), labels.getDevData(), sumZ2.getDevData(), target.getDevData(),
-                                                 numCases, numOut, C1, C2, eps_w, eps_b);
-};
-
-void computeL2SVM_U(NVMatrix& labels, NVMatrix& acts, NVMatrix& target, float C1, float C2, float eps_u)
-{
-    int numCases = acts.getLeadingDim(); 
-    int numOut = acts.getFollowingDim(); 
-    assert(labels.getNumElements() == numCases);
-    assert(target.isContiguous());
-    assert(labels.isContiguous());
-	assert(acts.isContiguous());
-    assert(acts.isTrans());
-
- 
-    dim3 threads(LOGREG_GRAD_THREADS_X, LOGREG_GRAD_THREADS_Y);
-    dim3 blocks(DIVUP(numCases, LOGREG_GRAD_THREADS_X), DIVUP(numOut, LOGREG_GRAD_THREADS_Y));
-
-	 target.resize(acts);
-    kL2SVM_U<<<blocks, threads>>>(acts.getDevData(), labels.getDevData(), target.getDevData(),
-                                                 numCases, numOut, eps_u*C1, eps_u*C2);
-};
-
-void computeL2SVM_invW2(NVMatrix& W, NVMatrix& target, float eps_z)
-{
-
-}; 
-
-//end temp
-
 void computeSoftmaxGrad(NVMatrix& acts, NVMatrix& actsGrad, NVMatrix& target, bool add) {
     int numCases = acts.getLeadingDim();
     int numOut = acts.getFollowingDim();
@@ -660,4 +606,3 @@ void computeRLogSoftmaxGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target,
 
     cutilCheckMsg("computeRLogSoftmaxGrad: Kernel execution failed");
 }
-

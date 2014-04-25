@@ -44,7 +44,6 @@ private:
 
     NVMatrix* _weights, *_weightsInc, *_weightsGrad;
 
-//temp
 //bregman
 	Matrix *_hBregman_b_weights;
 	NVMatrix *_bregman_b_weights;

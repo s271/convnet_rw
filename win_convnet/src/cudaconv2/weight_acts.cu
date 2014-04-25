@@ -462,7 +462,7 @@ __global__ void conv_weight_acts_mc_mf_rand(float* images, float* hidActs, float
         for (int caseIdx = 0; caseIdx < numImages; caseIdx += preloadCases) {
             if (loadY < B_Y) {
                 /*
-                 * As long as B_Y * B_X is divisible by preloadCases this will loop the right
+                 * As long as B_Y * B_X is divisible by preloadCases this will dloop the right
                  * number of times.
                  *
                  * This will load some images from filter pixels that don't exist (it'll set those to 0),
@@ -570,11 +570,6 @@ void _weightActs(NVMatrix& images, NVMatrix& hidActs, NVMatrix& targets,
     int numModules = numModulesY * numModulesX;
     int numFilters = hidActs.getNumRows() / numModules;
     int numFiltersPerGroup = numFilters / numGroups;
-
-//debug 
-//	printf("_weightActs images %i %i hidActs %i %i targets %i %i filterSize %i numImgColors %i \n",
-//		images.getNumRows(), images.getNumCols(),  hidActs.getNumRows(), hidActs.getNumCols(),
-//		targets.getNumRows(), targets.getNumCols(), filterSize, numImgColors );
     
     assert(numImgColors % numGroups == 0);
     assert(numFilters % (16*numGroups) == 0);
