@@ -44,6 +44,9 @@ private:
 
     NVMatrix* _weights, *_weightsInc, *_weightsGrad;
 
+//debug wdrop
+	 NVMatrix* _inc_drop;
+
 //bregman
 	Matrix *_hBregman_b_weights;
 	NVMatrix *_bregman_b_weights;
@@ -173,6 +176,7 @@ public:
     void copyToGPU() {
         if (_srcWeights == NULL) {
             _weights = new NVMatrix();
+			_inc_drop = new NVMatrix();//debug wdrop
             _weightsInc = new NVMatrix();
             _weights->copyFromHost(*_hWeights, true);
             _weightsInc->copyFromHost(*_hWeightsInc, true);
@@ -198,7 +202,7 @@ public:
     }
     
     // Scale your gradient by epsW / numCases!
-    void update();
+    void update(bool use_inc_drop);
     
     int incNumUpdates() {
         if (_srcWeights != NULL) {
@@ -295,9 +299,9 @@ public:
 //        }
 //    }
     
-    void update() {
+    void update(bool use_inc_drop) {
         for (int i = 0; i < getSize(); i++) {
-            _weightList[i]->update();
+            _weightList[i]->update(use_inc_drop);
         }
     }
 

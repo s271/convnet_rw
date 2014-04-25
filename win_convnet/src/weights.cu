@@ -30,7 +30,7 @@ bool Weights::_autoCopyToGPU = false;
 
 
 // Scale your gradient by epsW / numCases!
-void Weights::update() {
+void Weights::update(bool use_inc_drop) {
     // Only true owner of weights updates
     if (_srcWeights == NULL && _epsW > 0) {
         assert(_onGPU);
@@ -41,6 +41,14 @@ void Weights::update() {
         if (_wc > 0) {
             _weightsInc->add(*_weights, -_wc * _epsW);			
         }
+if(0)
+		if(use_inc_drop)
+		{
+		    _inc_drop->resize(_weightsInc->getNumRows(), _weightsInc->getNumCols());
+			_inc_drop->randomizeUniform();
+			_inc_drop->biggerThanScalar(.5);
+		   _weightsInc->eltwiseMult(*_inc_drop);
+		}
 
         _weights->add(*_weightsInc);
 		_numUpdates = 0;
