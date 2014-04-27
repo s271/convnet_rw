@@ -41,12 +41,12 @@ void Weights::update(bool use_inc_drop) {
         if (_wc > 0) {
             _weightsInc->add(*_weights, -_wc * _epsW);			
         }
-if(0)
-		if(use_inc_drop)
+
+		//if(use_inc_drop)
 		{
 		    _inc_drop->resize(_weightsInc->getNumRows(), _weightsInc->getNumCols());
 			_inc_drop->randomizeUniform();
-			_inc_drop->biggerThanScalar(.5);
+			_inc_drop->biggerThanScalar(.15);
 		   _weightsInc->eltwiseMult(*_inc_drop);
 		}
 
