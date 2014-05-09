@@ -42,10 +42,10 @@ numepochs = nbe[1]
 
 x = range(0, len(train_errors_base))
 x1 = range(0, len(train_errors))
-pl.plot(x, train_errors_base, 'k-', label='Training set 1')
-pl.plot(x, test_errors_base, 'r-', label='Test set 1')
-pl.plot(x1, train_errors, 'g-', label='Training set 2')
-pl.plot(x1, test_errors, 'b-', label='Test set 2')
+pl.plot(x, train_errors_base, 'k-', label='Baseline training set ')
+pl.plot(x, test_errors_base, 'r-', label='Baseline test set ')
+pl.plot(x1, train_errors, 'g-', label='Training set')
+pl.plot(x1, test_errors, 'b-', label='Test set')
 pl.legend()
 ticklocs = range(numbatches, len(train_errors) - len(train_errors) % numbatches + 1, numbatches)
 epoch_label_gran = int(ceil(numepochs / 20.)) # aim for about 20 labels
@@ -55,5 +55,5 @@ ticklabels = map(lambda x: str((x[1] / numbatches)) if x[0] % epoch_label_gran =
 pl.xticks(ticklocs, ticklabels)
 pl.xlabel('Epoch')
 #        pl.ylabel(self.show_cost)
-pl.title('logreg')
+pl.title('error')
 pl.show()

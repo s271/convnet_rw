@@ -203,6 +203,8 @@ public:
     
     // Scale your gradient by epsW / numCases!
     void update(bool use_inc_drop);
+
+	void shrink(float lambda);
     
     int incNumUpdates() {
         if (_srcWeights != NULL) {
@@ -304,6 +306,13 @@ public:
             _weightList[i]->update(use_inc_drop);
         }
     }
+
+    void shrink(float lambda) {
+        for (int i = 0; i < getSize(); i++) {
+            _weightList[i]->shrink(lambda);
+        }
+    }
+
 
     void copyToCPU() {
         for (int i = 0; i < getSize(); i++) {

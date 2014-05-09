@@ -387,8 +387,12 @@ void WeightLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType) {
 void WeightLayer::updateWeights() {
 
 	bool use_inc_drop = false;
-	//if(_type == "conv")
-	//	use_inc_drop = true;
+//	if(_type == "conv")
+//		use_inc_drop = true;
+
+//debug shrink
+//	if(_name == "fc128_1" || _name == "fc128_2" || _name == "fc128_3")
+//		_weights.shrink(1000*1000);
 
     _weights.update(use_inc_drop);
     _biases->update(false);

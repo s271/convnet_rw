@@ -1,1 +1,1 @@
-python convnet.py -f E:\cifar-10-py\tmp_colormaj\ConvNet__2014-05-05_15.07.54 --epochs=250
+python convnet.py -f E:\cifar-10-py\tmp_colormaj\ConvNet__2014-05-09_09.16.17 --epochs=175

@@ -283,7 +283,9 @@ __global__ void kL2SVMGrad(float* y_l, float* labels, float* dE_dx_l, const int 
 		float t = (label == ty)?1:-1;
 		//y_l = w*act_prev
         //float v = gradCoeff*t*(1 - t*y_l[tidx] > 0); //-grad, because we are adding it and minimize
-		float max_val = fmaxf(1 - t*y_l[tidx], 0) + .3*(1 - t*y_l[tidx] > 0);
+		float act = 1 - t*y_l[tidx];
+		float max_val = fmaxf(act, 0) + .3*(act > 0);
+
 		float v = gradCoeff*t*max_val; //-grad, because we are adding it and minimize
         if (add) {
             dE_dx_l[tidx] += v;
