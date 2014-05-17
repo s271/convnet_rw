@@ -627,6 +627,21 @@ class EltwiseMaxLayerParser(LayerWithInputParser):
 
         print "Initialized elementwise max layer '%s', producing %d outputs" % (name, dic['outputs'])
         return dic
+        
+class EltwiseFuncParser(LayerWithInputParser):
+    def __init__(self):
+        LayerWithInputParser.__init__(self)
+        
+    def parse(self, name, mcp, prev_layers, model):
+        dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
+        if len(dic['inputs']) < 2:
+            raise LayerParsingError("Layer '%s': elementwise func layer must have at least 2 inputs, got %d." % (name, len(dic['inputs'])))
+        if len(set(dic['numInputs'])) != 1:
+            raise LayerParsingError("Layer '%s': all inputs must have the same dimensionality. Got dimensionalities: %s" % (name, ", ".join(str(s) for s in dic['numInputs'])))
+        dic['outputs'] = dic['numInputs'][0]
+
+        print "Initialized elementwise func layer '%s', producing %d outputs" % (name, dic['outputs'])
+        return dic        
 
 class WeightLayerParser(LayerWithInputParser):
     LAYER_PAT = re.compile(r'^\s*([^\s\[]+)(?:\[(\d+)\])?\s*$') # matches things like layername[5], etc
@@ -1191,6 +1206,7 @@ layer_parsers = {'data': lambda : DataLayerParser(),
                  'l2svm': lambda : L2SVMLayerParser(),
                  'eltsum': lambda : EltwiseSumLayerParser(),
                  'eltmax': lambda : EltwiseMaxLayerParser(),
+                 'eltfunc': lambda : EltwiseFuncParser(),
                  'neuron': lambda : NeuronLayerParser(),
                  'pool': lambda : PoolLayerParser(),
                  'rnorm': lambda : NormLayerParser(NormLayerParser.RESPONSE_NORM),

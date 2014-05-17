@@ -198,6 +198,15 @@ public:
     EltwiseMaxLayer(ConvNet* convNet, PyObject* paramsDict);
 };
 
+class EltwiseFuncLayer : public Layer {
+protected:
+	vector<float> _param;
+    void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
+    void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
+public:
+    EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict);
+};
+
 class DataLayer : public Layer {
 private:
     int _dataIdx;

@@ -781,6 +781,57 @@ void EltwiseMaxLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PAS
 
 /* 
  * =======================
+ * EltwiseMaxLayer
+ * =======================
+ */
+EltwiseFuncLayer::EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict) : Layer(convNet, paramsDict, false) {
+	_param.push_back(0);
+	_param.push_back(0);
+	_param.push_back(0);
+}
+
+void EltwiseFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
+	if (inpIdx == 2)
+	{
+		computeEltwiseFuncAct(*_inputs[0], *_inputs[1], *_inputs[2],
+		  getActs(), _param[0], _param[1], _param[2]);
+	}
+
+}
+
+void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
+	if (inpIdx == 2)
+	{
+		float param_grad = 0;
+		NVMatrix temp0;
+		temp0.resize(_prev[inpIdx]->getActsGrad());//could be reduced
+		NVMatrix temp1;
+		temp1.resize(_prev[inpIdx]->getActsGrad());//could be reduced
+		NVMatrix temp2;
+		temp2.resize(_prev[inpIdx]->getActsGrad());//could be reduced
+
+		computeEltwiseFuncParamGrad(v, *_inputs[0], *_inputs[1], *_inputs[2],
+		temp0, temp1, temp2,
+		_param[0], _param[1], _param[2], scaleTargets != 0);
+
+		float grad0 = temp0.sum();
+		float grad1 = temp1.sum();
+		float grad2 = temp2.sum();
+//
+//_param[0] += grad0;
+//_param[1] += grad1;
+//_param[2] += grad2;
+
+		computeEltwiseFuncGrad(v, *_inputs[0], *_inputs[1], *_inputs[2],
+		 _prev[0]->getActsGrad(),  _prev[1]->getActsGrad(),  _prev[2]->getActsGrad(),
+		_param[0], _param[1], _param[2], 
+		scaleTargets != 0);
+	}
+}
+
+
+/* 
+ * =======================
  * DataLayer
  * =======================
  */
