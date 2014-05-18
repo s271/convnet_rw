@@ -60,11 +60,11 @@ void computeEltwiseMaxGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& output,
 
 void computeEltwiseFuncParamGrad(NVMatrix& actGrad, NVMatrix& input0, NVMatrix& input1,  NVMatrix& input2,
 								 NVMatrix& target0, NVMatrix& target1, NVMatrix& target2,
-								 float param0, float param1, float param2, int add);
+								 float param0, float param1, float param2);
 
 void computeEltwiseFuncGrad(NVMatrix& actGrad, NVMatrix& input0, NVMatrix& input1,  NVMatrix& input2,
 								 NVMatrix& target0, NVMatrix& target1, NVMatrix& target2,
-								 float param0, float param1, float param2, int add);
+								 float param0, float param1, float param2);
 
 void computeEltwiseFuncAct(NVMatrix& input0, NVMatrix& input1,  NVMatrix& input2,
 								 NVMatrix& target, float param0, float param1, float param2);

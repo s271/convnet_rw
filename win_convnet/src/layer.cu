@@ -531,6 +531,11 @@ ConvLayer::ConvLayer(ConvNet* convNet, PyObject* paramsDict) : LocalLayer(convNe
 }
 
 void ConvLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
+
+//debug
+//	printf(" conv fprop name %s \n", _name.c_str());
+
+
     if (_randSparse->at(inpIdx)) {
         convFilterActsSparse(*_inputs[inpIdx], *_weights[inpIdx], getActs(), _filterConns->at(inpIdx).dFilterConns,
                              _imgSize->at(inpIdx), _modulesX, _modulesX, _padding->at(inpIdx), _stride->at(inpIdx), _channels->at(inpIdx),
@@ -791,41 +796,42 @@ EltwiseFuncLayer::EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict) : Lay
 }
 
 void EltwiseFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
-	if (inpIdx == 2)
+	if (inpIdx == 0)
 	{
 		computeEltwiseFuncAct(*_inputs[0], *_inputs[1], *_inputs[2],
 		  getActs(), _param[0], _param[1], _param[2]);
 	}
-
 }
+//debug
+extern int minibatch;
 
 void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
-	if (inpIdx == 2)
-	{
-		float param_grad = 0;
-		NVMatrix temp0;
-		temp0.resize(_prev[inpIdx]->getActsGrad());//could be reduced
-		NVMatrix temp1;
-		temp1.resize(_prev[inpIdx]->getActsGrad());//could be reduced
-		NVMatrix temp2;
-		temp2.resize(_prev[inpIdx]->getActsGrad());//could be reduced
 
-		computeEltwiseFuncParamGrad(v, *_inputs[0], *_inputs[1], *_inputs[2],
-		temp0, temp1, temp2,
-		_param[0], _param[1], _param[2], scaleTargets != 0);
+
+
+	if (inpIdx == 0)
+	{
+		NVMatrix temp0, temp1, temp2;
+		computeEltwiseFuncGrad(v, *_inputs[0], *_inputs[1], *_inputs[2],
+		 temp0,  temp1,  temp2,
+		_param[0], _param[1], _param[2]);
 
 		float grad0 = temp0.sum();
 		float grad1 = temp1.sum();
 		float grad2 = temp2.sum();
-//
+
+//debug
+		if(minibatch==0)
+			printf(" grads %f %f %f \n", grad0, grad1, grad2);
+
+
 //_param[0] += grad0;
 //_param[1] += grad1;
 //_param[2] += grad2;
 
 		computeEltwiseFuncGrad(v, *_inputs[0], *_inputs[1], *_inputs[2],
 		 _prev[0]->getActsGrad(),  _prev[1]->getActsGrad(),  _prev[2]->getActsGrad(),
-		_param[0], _param[1], _param[2], 
-		scaleTargets != 0);
+		_param[0], _param[1], _param[2]);
 	}
 }
 

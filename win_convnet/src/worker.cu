@@ -83,6 +83,9 @@ TrainingWorker::TrainingWorker(ConvNet& convNet, CPUData& data, bool test, int e
     : DataWorker(convNet, data), _test(test), _epoch(epoch), _eps_scale(eps_scale) {
 }
 
+//debug
+int minibatch=0;
+
 // Need to setData here (as opposed to the constructor) because the constructor executes in
 // the original CPU thread, which is not the one with GPU access.
 void TrainingWorker::run() {
@@ -103,9 +106,12 @@ void TrainingWorker::run() {
     }
 //if (!_test)
 //printf(" eps %f \n", _eps_scale);
+//debug
 	//for (int ki = 0; ki < 4; ki++) {
     for (int ki = 0; ki < _dp->getNumMinibatches(); ki++) {
 		int mini_ind = shaffle[ki];
+//debug
+minibatch=ki;
 
 		if(_eps_scale > 0)
 			_convNet->setParam(_eps_scale);
