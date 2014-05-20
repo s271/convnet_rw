@@ -790,16 +790,23 @@ void EltwiseMaxLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PAS
  * =======================
  */
 EltwiseFuncLayer::EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict) : Layer(convNet, paramsDict, false) {
-	_param.push_back(0);
-	_param.push_back(0);
-	_param.push_back(0);
+	_param.push_back(0.001);
+	_param.push_back(0.001);
+	_param.push_back(0.001);
+	_param.push_back(1);
+	_param.push_back(1);
+	_param_inc.push_back(0);
+	_param_inc.push_back(0);
+	_param_inc.push_back(0);
+	_param_inc.push_back(0);
+	_param_inc.push_back(0);
 }
 
 void EltwiseFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
 	if (inpIdx == 0)
 	{
 		computeEltwiseFuncAct(*_inputs[0], *_inputs[1], *_inputs[2],
-		  getActs(), _param[0], _param[1], _param[2]);
+		  getActs(), _param[0], _param[1], _param[2], _param[3], _param[4]);
 	}
 }
 //debug
@@ -808,30 +815,47 @@ extern int minibatch;
 void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
 
-
 	if (inpIdx == 0)
 	{
-		NVMatrix temp0, temp1, temp2;
-		computeEltwiseFuncGrad(v, *_inputs[0], *_inputs[1], *_inputs[2],
-		 temp0,  temp1,  temp2,
-		_param[0], _param[1], _param[2]);
+		NVMatrix temp0, temp1, temp2, temp3, temp4;
+		computeEltwiseFuncParamGrad(v, *_inputs[0], *_inputs[1], *_inputs[2],
+		 temp0,  temp1,  temp2, temp3,  temp4,
+		_param[0], _param[1], _param[2], _param[3], _param[4]);
 
-		float grad0 = temp0.sum();
-		float grad1 = temp1.sum();
-		float grad2 = temp2.sum();
+		float grad[5];
+		grad[0] = temp0.sum();
+		grad[1] = temp1.sum();
+		grad[2] = temp2.sum();
+		grad[3] = temp3.sum();
+		grad[4] = temp4.sum();
+		float mom = .9;
+		float eps = .00005;
+		float wc = .00005;
+
+		for(int i = 0; i < 5; i++)
+			_param_inc[i] = mom*_param_inc[i] + eps*grad[i] - wc*_param[i];
 
 //debug
 		if(minibatch==0)
-			printf(" grads %f %f %f \n", grad0, grad1, grad2);
+		{
+			printf(" _param_inc %f %f %f \n", _param_inc[0] , _param_inc[1] , _param_inc[2] );
+		}
 
+		for(int i = 0; i < 5; i++)
+		{
+			_param[i] += _param_inc[i];
+			_param[i] = fmin(fmax(_param[i], -1), 1);
+		}
+;
+		if(minibatch==0)
+		{
+			printf(" grads %f %f %f \n", grad[0] , grad[1] , grad[2] );
+			printf(" _param after %f %f %f  %f %f \n", _param[0] , _param[1] , _param[2] , _param[3] , _param[4]);
 
-//_param[0] += grad0;
-//_param[1] += grad1;
-//_param[2] += grad2;
-
+		}
 		computeEltwiseFuncGrad(v, *_inputs[0], *_inputs[1], *_inputs[2],
 		 _prev[0]->getActsGrad(),  _prev[1]->getActsGrad(),  _prev[2]->getActsGrad(),
-		_param[0], _param[1], _param[2]);
+		_param[0], _param[1], _param[2], _param[3], _param[4]);
 	}
 }
 

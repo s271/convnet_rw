@@ -357,8 +357,8 @@ __global__ void kEltwiseMaxGrad(float* actGrad, float* input, float* output, flo
 template <int B_X, int B_Y>
 __global__ void kEltwiseFuncParamGrad(float* actGrad,
 								float* input0, float* input1, float* input2,
-								float* target0, float* target1, float* target2,
-							    float param0, float param1, float param2,
+								float* target0, float* target1, float* target2, float* target3, float* target4,
+							    float param0, float param1, float param2, float param3, float param4,
 								const uint imgPixels, const uint numCases,
 								const uint stride) {
     const uint idxX = blockIdx.x * B_X + threadIdx.x;
@@ -374,21 +374,20 @@ __global__ void kEltwiseFuncParamGrad(float* actGrad,
 
 			float fm0 = fmaxf(in0, 0);
 			float fm1 = fmaxf(in1, 0);
-			float val_down = param0*fm0 + param1*fm1 + param2*in2;
+			float val_down = (param0*fm0 + param1*fm1 + param2*in2 > 0);
 
-			if(val_down <= 0)
-				continue;
-
-			target0[offset] = grad_next*fm0;
-			target1[offset] = grad_next*fm1;
-			target2[offset] = grad_next*in2;			
+			target0[offset] = val_down*grad_next*fm0;
+			target1[offset] = val_down*grad_next*fm1;
+			target2[offset] = val_down*grad_next*in2;	
+			target3[offset] = grad_next*fm0;
+			target4[offset] = grad_next*fm1;
 		}
    }
 }
 
 template <int B_X, int B_Y>
 __global__ void kEltwiseFuncAct (const float* input0, const float* input1, const float* input2, float* const target,
-							 const float param0, const float param1, const float param2,
+							 const float param0, const float param1, const float param2, const float param3, const float param4,
 							const uint imgPixels, const uint numCases,
                              const uint stride) {
     const uint idxX = blockIdx.x * B_X + threadIdx.x;
@@ -404,7 +403,7 @@ __global__ void kEltwiseFuncAct (const float* input0, const float* input1, const
 			float fm0 = fmaxf(in0, 0);
 			float fm1 = fmaxf(in1, 0);
 
-            float val = fmax(param0*fm0 + param1*fm1 + param2*in2, 0) + fm0 + fm1 + in2;
+            float val = fmax(param0*fm0 + param1*fm1 + param2*in2, 0) + param3*fm0 + param4*fm1 + in2;
 
             target[offset] = val;
 
@@ -416,7 +415,7 @@ template <int B_X, int B_Y>
 __global__ void kEltwiseFuncGrad(float* actGrad,
 								float* input0, float* input1, float* input2,
 								float* target0, float* target1, float* target2,
-								float param0, float param1, float param2,
+								const float param0, const float param1, const float param2, const float param3, const float param4,
 								const uint imgPixels, const uint numCases,
 								const uint stride) {
 
@@ -437,9 +436,9 @@ __global__ void kEltwiseFuncGrad(float* actGrad,
 			float fm1 = fmaxf(in1, 0);
 			
 
-            float val_p = param0*fm0 + param1*fm1 + param2*in2 > 0;
-			float val0 = (val_p*param0 + 1)*(in0 > 0);
-			float val1 = (val_p*param1 + 1)*(in1 > 0);
+            float val_p = (param0*fm0 + param1*fm1 + param2*in2 > 0);
+			float val0 = (val_p*param0 + param3)*(in0 > 0);
+			float val1 = (val_p*param1 + param4)*(in1 > 0);
 			float val2 = val_p*param2 + 1;
 
 			target0[offset] = val0*grad_next;
@@ -473,8 +472,8 @@ void computeEltwiseMaxGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& output,
 }
 
 void computeEltwiseFuncParamGrad(NVMatrix& actGrad, NVMatrix& input0, NVMatrix& input1,  NVMatrix& input2,
-								 NVMatrix& target0, NVMatrix& target1, NVMatrix& target2,
-								 float param0, float param1, float param2)
+								 NVMatrix& target0, NVMatrix& target1, NVMatrix& target2, NVMatrix& target3, NVMatrix& target4,
+								 float param0, float param1, float param2, float param3, float param4)
 {
         if (!target0.isSameDims(input0)) {
             target0.resize(input0);
@@ -488,6 +487,14 @@ void computeEltwiseFuncParamGrad(NVMatrix& actGrad, NVMatrix& input0, NVMatrix& 
             target2.resize(input2);
         }
 
+        if (!target3.isSameDims(input2)) {
+            target3.resize(input2);
+        }
+
+        if (!target4.isSameDims(input2)) {
+            target4.resize(input2);
+        }
+
         int height = input0.getFollowingDim(), width = input0.getLeadingDim();
 
         dim3 blocks(std::min(NUM_BLOCKS_MAX, DIVUP(width, ELTWISE_THREADS_X)),
@@ -498,15 +505,15 @@ void computeEltwiseFuncParamGrad(NVMatrix& actGrad, NVMatrix& input0, NVMatrix& 
 
 		kEltwiseFuncParamGrad<ELTWISE_THREADS_X, ELTWISE_THREADS_Y><<<blocks, threads>>>(actGrad.getDevData(), 
 			input0.getDevData(), input1.getDevData(), input2.getDevData(),
-			target0.getDevData(), target1.getDevData(), target2.getDevData(),
-			param0, param1, param2, 
+			target0.getDevData(), target1.getDevData(), target2.getDevData(), target3.getDevData(), target4.getDevData(),
+			param0, param1, param2, param3, param4,
 			height, width, input0.getStride());
 
 		cutilCheckMsg("kEltwiseFuncParamGrad: Kernel execution failed");
 };
 
 void computeEltwiseFuncAct(NVMatrix& input0, NVMatrix& input1,  NVMatrix& input2,
-								 NVMatrix& target, float param0, float param1, float param2)
+								 NVMatrix& target, float param0, float param1, float param2, float param3, float param4)
 {
 
         if (!target.isSameDims(input0)) {
@@ -521,7 +528,7 @@ void computeEltwiseFuncAct(NVMatrix& input0, NVMatrix& input1,  NVMatrix& input2
 
 		cudaFuncSetCacheConfig(kEltwiseFuncAct<ELTWISE_THREADS_X, ELTWISE_THREADS_Y>, cudaFuncCachePreferL1);
 		kEltwiseFuncAct<ELTWISE_THREADS_X, ELTWISE_THREADS_Y><<<blocks, threads>>>(input0.getDevData(), input1.getDevData(), input2.getDevData(),
-			target.getDevData(), param0, param1, param2, 
+			target.getDevData(), param0, param1, param2, param3, param4, 
 			height, width, input0.getStride());
 
 		cutilCheckMsg("computeEltwiseFuncAct: Kernel execution failed");
@@ -530,7 +537,7 @@ void computeEltwiseFuncAct(NVMatrix& input0, NVMatrix& input1,  NVMatrix& input2
 
 void computeEltwiseFuncGrad(NVMatrix& actGrad, NVMatrix& input0, NVMatrix& input1,  NVMatrix& input2,
 								 NVMatrix& target0, NVMatrix& target1, NVMatrix& target2,
-								 float param0, float param1, float param2)
+								 float param0, float param1, float param2, float param3, float param4)
 {
 
         if (!target0.isSameDims(input0)) {
@@ -556,7 +563,7 @@ void computeEltwiseFuncGrad(NVMatrix& actGrad, NVMatrix& input0, NVMatrix& input
 		kEltwiseFuncGrad<ELTWISE_THREADS_X, ELTWISE_THREADS_Y><<<blocks, threads>>>(actGrad.getDevData(), 
 			input0.getDevData(), input1.getDevData(), input2.getDevData(),
 			target0.getDevData(), target1.getDevData(), target2.getDevData(),
-			param0, param1, param2, 
+			param0, param1, param2, param3, param4,
 			height, width, input0.getStride());
 
 		cutilCheckMsg("computeEltwiseFuncAct: Kernel execution failed");
