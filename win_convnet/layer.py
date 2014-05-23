@@ -641,7 +641,9 @@ class EltwiseFuncParser(LayerWithInputParser):
         dic['outputs'] = dic['numInputs'][0]
         
         meta_param = [.01, .01, .01, 1., 1.]
-        dic['meta_param'] = meta_param     
+        meta_param_inc = [.0, .0, .0, .0, .0]
+        dic['meta_param'] = meta_param    
+        dic['meta_param_inc'] = meta_param_inc 
 
         print "Initialized elementwise func layer '%s', producing %d outputs" % (name, dic['outputs'])
         return dic        

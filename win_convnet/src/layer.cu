@@ -790,7 +790,6 @@ void EltwiseMaxLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PAS
  * =======================
  */
 EltwiseFuncLayer::EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict) : Layer(convNet, paramsDict, false) {
-printf(" start _param init \n");
 	hParamList = PyDict_GetItemString(paramsDict, "meta_param");
 	_param = getVectorDouble(hParamList);
 	//debug
@@ -798,12 +797,11 @@ printf(" start _param init \n");
 
 	printf(" _param init  %f %f %f  %f %f \n", _param[0] , _param[1] , _param[2] , _param[3] , _param[4]);
 
+	hParamListInc = PyDict_GetItemString(paramsDict, "meta_param_inc");
+	_param_inc = getVectorDouble(hParamListInc);
 
-	_param_inc.push_back(0);
-	_param_inc.push_back(0);
-	_param_inc.push_back(0);
-	_param_inc.push_back(0);
-	_param_inc.push_back(0);
+	printf(" _param_inc %f %f %f %f %f \n", _param_inc[0] , _param_inc[1] , _param_inc[2]  , _param_inc[3]  , _param_inc[4]);
+
 }
 
 void EltwiseFuncLayer::copyToCPU()
@@ -811,6 +809,7 @@ void EltwiseFuncLayer::copyToCPU()
 	for(int i = 0; i < _param.size(); i++)
 	{
 		PyList_SetItem(hParamList, i,  PyFloat_FromDouble(_param[i]));
+		PyList_SetItem(hParamListInc, i,  PyFloat_FromDouble(_param_inc[i]));
 	}
 };
 
