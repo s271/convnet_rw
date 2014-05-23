@@ -202,8 +202,10 @@ class EltwiseFuncLayer : public Layer {
 protected:
 	vector<double> _param;
 	vector<double> _param_inc;
+	PyObject* hParamList;
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
+    void copyToCPU();
 public:
     EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict);
 };

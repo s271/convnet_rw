@@ -72,11 +72,11 @@ MatrixV* getMatrixV(PyObject* pyList) {
     return vec;
 }
 
-vector<double> pyDictVectorDouble(PyObject* dict, const char* key) {
+vector<double> getVectorDouble(PyObject* pyList) {
 	vector<double> vec;
-	if(PyDict_GetItemString(dict, key) != NULL)
-		for (int i = 0; i < PyList_GET_SIZE(PyDict_GetItemString(dict, key)); i++) {
-			vec.push_back(PyFloat_AS_DOUBLE(PyList_GET_ITEM(PyDict_GetItemString(dict, key), i)));
+	if(pyList != NULL)
+		for (int i = 0; i < PyList_GET_SIZE(pyList); i++) {
+			vec.push_back(PyFloat_AS_DOUBLE(PyList_GET_ITEM(pyList, i)));
 		}
     return vec;
 }

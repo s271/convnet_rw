@@ -60,12 +60,11 @@ typedef std::vector<double> doublev;
 typedef std::vector<float> floatv;
 typedef std::vector<int> intv;
 
-using namespace std;
-
 floatv* getFloatV(PyObject* pyList);
 intv* getIntV(PyObject* pyList);
 MatrixV* getMatrixV(PyObject* pyList);
 int* getIntA(PyObject* pyList);
+std::vector<double> getVectorDouble(PyObject* pyList);
 
 int pyDictGetInt(PyObject* dict, const char* key);
 intv* pyDictGetIntV(PyObject* dict, const char* key);
@@ -75,7 +74,6 @@ floatv* pyDictGetFloatV(PyObject* dict, const char* key);
 Matrix* pyDictGetMatrix(PyObject* dict, const char* key);
 MatrixV* pyDictGetMatrixV(PyObject* dict, const char* key);
 int* pyDictGetIntA(PyObject* dict, const char* key);
-vector<double> pyDictVectorDouble(PyObject* dict, const char* key);
 
 template<typename T>
 std::string tostr(T n) {

@@ -640,7 +640,7 @@ class EltwiseFuncParser(LayerWithInputParser):
             raise LayerParsingError("Layer '%s': all inputs must have the same dimensionality. Got dimensionalities: %s" % (name, ", ".join(str(s) for s in dic['numInputs'])))
         dic['outputs'] = dic['numInputs'][0]
         
-        meta_param = [.01, .01, .01, 1, 1]
+        meta_param = [.01, .01, .01, 1., 1.]
         dic['meta_param'] = meta_param     
 
         print "Initialized elementwise func layer '%s', producing %d outputs" % (name, dic['outputs'])
