@@ -790,11 +790,11 @@ void EltwiseMaxLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PAS
  * =======================
  */
 EltwiseFuncLayer::EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict) : Layer(convNet, paramsDict, false) {
-	_param.push_back(0.001);
-	_param.push_back(0.001);
-	_param.push_back(0.001);
-	_param.push_back(1);
-	_param.push_back(1);
+
+	_param = pyDictVectorDouble(paramsDict, "meta_param");
+	//debug
+	assert(_param.size() == 5);
+
 	_param_inc.push_back(0);
 	_param_inc.push_back(0);
 	_param_inc.push_back(0);
@@ -822,15 +822,15 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 		 temp0,  temp1,  temp2, temp3,  temp4,
 		_param[0], _param[1], _param[2], _param[3], _param[4]);
 
-		float grad[5];
+		double grad[5];
 		grad[0] = temp0.sum();
 		grad[1] = temp1.sum();
 		grad[2] = temp2.sum();
 		grad[3] = temp3.sum();
 		grad[4] = temp4.sum();
-		float mom = .9;
-		float eps = .00005;
-		float wc = .00005;
+		double mom = .9;
+		double eps = 1e-5;
+		double wc = 1e-6;
 
 		for(int i = 0; i < 5; i++)
 			_param_inc[i] = mom*_param_inc[i] + eps*grad[i] - wc*_param[i];
@@ -838,7 +838,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 //debug
 		if(minibatch==0)
 		{
-			printf(" _param_inc %f %f %f \n", _param_inc[0] , _param_inc[1] , _param_inc[2] );
+			printf(" _param_inc %f %f %f %f %f \n", _param_inc[0] , _param_inc[1] , _param_inc[2]  , _param_inc[3]  , _param_inc[4]);
 		}
 
 		for(int i = 0; i < 5; i++)
@@ -846,10 +846,10 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 			_param[i] += _param_inc[i];
 			_param[i] = fmin(fmax(_param[i], -1), 1);
 		}
-;
+
 		if(minibatch==0)
 		{
-			printf(" grads %f %f %f \n", grad[0] , grad[1] , grad[2] );
+			printf(" grads %f %f %f %f %f \n", grad[0] , grad[1] , grad[2], grad[3], grad[4]);
 			printf(" _param after %f %f %f  %f %f \n", _param[0] , _param[1] , _param[2] , _param[3] , _param[4]);
 
 		}

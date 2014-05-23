@@ -60,6 +60,7 @@ int* getIntA(PyObject* pyList) {
     }
     return arr;
 }
+
 MatrixV* getMatrixV(PyObject* pyList) {
     if (pyList == NULL) {
         return NULL;
@@ -68,6 +69,15 @@ MatrixV* getMatrixV(PyObject* pyList) {
     for (int i = 0; i < PyList_GET_SIZE(pyList); i++) {
         vec->push_back(new Matrix((PyArrayObject*)PyList_GET_ITEM(pyList, i)));
     }
+    return vec;
+}
+
+vector<double> pyDictVectorDouble(PyObject* dict, const char* key) {
+	vector<double> vec;
+	if(PyDict_GetItemString(dict, key) != NULL)
+		for (int i = 0; i < PyList_GET_SIZE(PyDict_GetItemString(dict, key)); i++) {
+			vec.push_back(PyFloat_AS_DOUBLE(PyList_GET_ITEM(PyDict_GetItemString(dict, key), i)));
+		}
     return vec;
 }
 

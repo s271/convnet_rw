@@ -200,8 +200,8 @@ public:
 
 class EltwiseFuncLayer : public Layer {
 protected:
-	vector<float> _param;
-	vector<float> _param_inc;
+	vector<double> _param;
+	vector<double> _param_inc;
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
 public:
