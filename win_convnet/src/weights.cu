@@ -52,7 +52,7 @@ void Weights::update(bool use_inc_drop) {
 		{
 		    _inc_drop->resize(_weightsInc->getNumRows(), _weightsInc->getNumCols());
 			_inc_drop->randomizeUniform();
-			_inc_drop->biggerThanScalar(.25);
+			_inc_drop->biggerThanScalar(.1);
 		   _weightsInc->eltwiseMult(*_inc_drop);
 		}
 

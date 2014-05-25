@@ -387,8 +387,8 @@ void WeightLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType) {
 void WeightLayer::updateWeights() {
 
 	bool use_inc_drop = false;
-//	if(_type == "conv")
-//		use_inc_drop = true;
+	//if(_type == "conv")
+	//	use_inc_drop = true;
 
 //debug shrink
 //	if(_name == "fc128_1" || _name == "fc128_2" || _name == "fc128_3")
@@ -793,14 +793,12 @@ EltwiseFuncLayer::EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict) : Lay
 	hParamList = PyDict_GetItemString(paramsDict, "meta_param");
 	_param = getVectorDouble(hParamList);
 	//debug
-	assert(_param.size() == 5);
+	assert(_param.size() == 6);
 
-	printf(" _param init  %f %f %f  %f %f \n", _param[0] , _param[1] , _param[2] , _param[3] , _param[4]);
+	printf(" _param init  %f %f %f  %f %f %f \n", _param[0] , _param[1] , _param[2] , _param[3] , _param[4], _param[5]);
 
 	hParamListInc = PyDict_GetItemString(paramsDict, "meta_param_inc");
 	_param_inc = getVectorDouble(hParamListInc);
-
-	printf(" _param_inc %f %f %f %f %f \n", _param_inc[0] , _param_inc[1] , _param_inc[2]  , _param_inc[3]  , _param_inc[4]);
 
 }
 
@@ -817,7 +815,7 @@ void EltwiseFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passT
 	if (inpIdx == 0)
 	{
 		computeEltwiseFuncAct(*_inputs[0], *_inputs[1], *_inputs[2],
-		  getActs(), _param[0], _param[1], _param[2], _param[3], _param[4]);
+		  getActs(), _param[0], _param[1], _param[2], _param[3], _param[4], _param[5]);
 	}
 }
 //debug
@@ -828,45 +826,45 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 	if (inpIdx == 0)
 	{
-		NVMatrix temp0, temp1, temp2, temp3, temp4;
-		computeEltwiseFuncParamGrad(v, *_inputs[0], *_inputs[1], *_inputs[2],
-		 temp0,  temp1,  temp2, temp3,  temp4,
-		_param[0], _param[1], _param[2], _param[3], _param[4]);
-
-		double grad[5];
-		grad[0] = temp0.sum();
-		grad[1] = temp1.sum();
-		grad[2] = temp2.sum();
-		grad[3] = temp3.sum();
-		grad[4] = temp4.sum();
-		double mom = .9;
-		double eps = 1e-5;
-		double wc = 1e-6;
-
-		for(int i = 0; i < 5; i++)
-			_param_inc[i] = mom*_param_inc[i] + eps*grad[i] - wc*_param[i];
-
-//debug
-		if(minibatch==0)
-		{
-			printf(" _param_inc %f %f %f %f %f \n", _param_inc[0] , _param_inc[1] , _param_inc[2]  , _param_inc[3]  , _param_inc[4]);
-		}
-
-		for(int i = 0; i < 5; i++)
-		{
-			_param[i] += _param_inc[i];
-			_param[i] = fmin(fmax(_param[i], -1), 1);
-		}
-
-		if(minibatch==0)
-		{
-			printf(" grads %f %f %f %f %f \n", grad[0] , grad[1] , grad[2], grad[3], grad[4]);
-			printf(" _param after %f %f %f  %f %f \n", _param[0] , _param[1] , _param[2] , _param[3] , _param[4]);
-
-		}
+//		NVMatrix temp0, temp1, temp2, temp3, temp4, temp5;
+//		computeEltwiseFuncParamGrad(v, *_inputs[0], *_inputs[1], *_inputs[2],
+//		 temp0,  temp1,  temp2, temp3,  temp4, temp5);
+//
+//		double grad[6];
+//		grad[0] = temp0.sum();
+//		grad[1] = temp1.sum();
+//		grad[2] = temp2.sum();
+//		grad[3] = temp3.sum();
+//		grad[4] = temp4.sum();
+//		grad[5] = temp5.sum();
+//		double mom = .9;
+//		double eps = 2e-5;
+//		double wc = 1e-5;
+//
+//		for(int i = 0; i < 6; i++)
+//			_param_inc[i] = mom*_param_inc[i] + eps*grad[i] - wc*_param[i];
+//
+////debug
+//		//if(minibatch==0)
+//		//{
+//		//	printf(" _param_inc %f %f %f %f %f \n", _param_inc[0] , _param_inc[1] , _param_inc[2]  , _param_inc[3]  , _param_inc[4]);
+//		//}
+//
+//		for(int i = 0; i < 6; i++)
+//		{
+//			_param[i] += _param_inc[i];
+//			_param[i] = fmin(fmax(_param[i], -1), 1);
+//		}
+//
+//		if(minibatch==0)
+//		{
+//			//printf(" grads %f %f %f %f %f \n", grad[0] , grad[1] , grad[2], grad[3], grad[4]);
+//			printf(" _param after %f %f %f  %f %f %f\n", _param[0] , _param[1] , _param[2] , _param[3] , _param[4], _param[5]);
+//
+//		}
 		computeEltwiseFuncGrad(v, *_inputs[0], *_inputs[1], *_inputs[2],
 		 _prev[0]->getActsGrad(),  _prev[1]->getActsGrad(),  _prev[2]->getActsGrad(),
-		_param[0], _param[1], _param[2], _param[3], _param[4]);
+		_param[0], _param[1], _param[2], _param[3], _param[4], _param[5]);
 	}
 }
 

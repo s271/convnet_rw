@@ -59,15 +59,14 @@ void computeRLogSoftmaxGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target,
 void computeEltwiseMaxGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& output, NVMatrix& target, bool add);
 
 void computeEltwiseFuncParamGrad(NVMatrix& actGrad, NVMatrix& input0, NVMatrix& input1,  NVMatrix& input2,
-								 NVMatrix& target0, NVMatrix& target1, NVMatrix& target2, NVMatrix& target3, NVMatrix& target4,
-								 float param0, float param1, float param2, float param3, float param4);
+								 NVMatrix& target0, NVMatrix& target1, NVMatrix& target2, NVMatrix& target3, NVMatrix& target4, NVMatrix& target5);
 
 void computeEltwiseFuncGrad(NVMatrix& actGrad, NVMatrix& input0, NVMatrix& input1,  NVMatrix& input2,
 								 NVMatrix& target0, NVMatrix& target1, NVMatrix& target2,
-								 float param0, float param1, float param2, float param3, float param4);
+								 float param0, float param1, float param2, float param3, float param4, float param5);
 
 void computeEltwiseFuncAct(NVMatrix& input0, NVMatrix& input1,  NVMatrix& input2,
-								 NVMatrix& target, float param0, float param1, float param2, float param3, float param4);
+								 NVMatrix& target, float param0, float param1, float param2, float param3, float param4, float param5);
 
 #endif	/* LAYER_KERNELS_CUH */
 
