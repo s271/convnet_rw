@@ -29,6 +29,8 @@
 
 #include <cutil_inline.h>
 #include <nvmatrix.cuh>
+#include <vector>
+using namespace std;
 
 #define LOGREG_GRAD_THREADS_X      32
 #define LOGREG_GRAD_THREADS_Y      4
@@ -65,8 +67,7 @@ void computeEltwiseFuncGrad(NVMatrix& actGrad, NVMatrix& input0, NVMatrix& input
 								 NVMatrix& target0, NVMatrix& target1, NVMatrix& target2,
 								 float param0, float param1, float param2, float param3, float param4, float param5);
 
-void computeEltwiseFuncAct(NVMatrix& input0, NVMatrix& input1,  NVMatrix& input2,
-								 NVMatrix& target, float param0, float param1, float param2, float param3, float param4, float param5);
+void computeEltwiseFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& param, int size_in, int size_out);
 
 #endif	/* LAYER_KERNELS_CUH */
 

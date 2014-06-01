@@ -259,13 +259,8 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
             + myImgIdx;
 
     float prod[filtersPerThread][imgsPerThread];
-    #pragma unroll
-    for(int f = 0; f < filtersPerThread; f++) {
-        #pragma unroll
-        for(int g = 0; g < imgsPerThread; g++) {
-            prod[f][g] = 0;
-        }
-    }
+	memset(prod, 0, sizeof(prod));
+
 //    __shared__ int imgPos[]
     for (int oc = 0; oc < numFilterColors; oc += colorCache) { // oc stands for outer color (loop)
         for (int p = 0; p < filterPixels; p += B_Y) {

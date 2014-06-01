@@ -632,17 +632,38 @@ class EltwiseFuncParser(LayerWithInputParser):
     def __init__(self):
         LayerWithInputParser.__init__(self)
         
+     def add_params(self, mcp):
+        LayerWithInputParser.add_params(self, mcp)
+
+        dic, name = self.dic, self.dic['name'] 
+        dic['epsP'] = mcp.safe_get_int(name, 'epsP')      
+        dic['wc'] = mcp.safe_get_int(name, 'wc')    
+        dic['mom'] = mcp.safe_get_int(name, 'mom')     
+        
     def parse(self, name, mcp, prev_layers, model):
         dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
         if len(dic['inputs']) < 2:
             raise LayerParsingError("Layer '%s': elementwise func layer must have at least 2 inputs, got %d." % (name, len(dic['inputs'])))
         if len(set(dic['numInputs'])) != 1:
             raise LayerParsingError("Layer '%s': all inputs must have the same dimensionality. Got dimensionalities: %s" % (name, ", ".join(str(s) for s in dic['numInputs'])))
-        dic['outputs'] = dic['numInputs'][0]
         
-        meta_param = [.0, .0, 1., 1., 1., 0.]
-       
-        meta_param_inc = [.0, .0, .0, .0, .0, .0]
+        dic['size_in'] = mcp.safe_get_int(name, 'size_in')
+        dic['size_out'] = mcp.safe_get_int(name, 'size_out') 
+        dic['outputs'] = dic['numInputs'][0]*dic['size_out']/dic['size_in']
+
+        size_param = 2*dic['size_in']*dic['size_out']
+        dic['updates'] = mcp.safe_get_int(name, 'updates', default=size_param)         
+    
+    
+        meta_param = [0]*size_param     
+            
+        for j in range(dic['size_out']):   
+            meta_param[j*2*dic['size_in'] + 2]=1
+            meta_param[j*2*dic['size_in'] + dic['size_in']]=1 
+            meta_param[j*2*dic['size_in'] + dic['size_in'] + 1]=1            
+        
+        meta_param_inc = [0]*size_param
+
         dic['meta_param'] = meta_param    
         dic['meta_param_inc'] = meta_param_inc 
 
@@ -776,7 +797,7 @@ class WeightLayerParser(LayerWithInputParser):
         dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
         dic['requiresParams'] = True
         dic['gradConsumer'] = True
-        dic['initW'] = mcp.safe_get_float_list(name, 'initW', default=0.01)
+        dic['initW'] =
         dic['initB'] = mcp.safe_get_float(name, 'initB', default=0)
         dic['initWFunc'] = mcp.safe_get(name, 'initWFunc', default="")
         dic['initBFunc'] = mcp.safe_get(name, 'initBFunc', default="")

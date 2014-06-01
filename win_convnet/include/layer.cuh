@@ -204,6 +204,9 @@ protected:
 	vector<double> _param_inc;
 	PyObject* hParamList;
 	PyObject* hParamListInc;
+	float _epsP, _wc, _mom;
+	int _sizeIn, _sizeOut, _updates;
+
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
     void copyToCPU();
