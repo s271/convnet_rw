@@ -60,8 +60,9 @@ void computeRLogSoftmaxGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target,
 
 void computeEltwiseMaxGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& output, NVMatrix& target, bool add);
 
-void computeEltwiseFuncParamGrad(NVMatrix& actGrad, NVMatrix& input0, NVMatrix& input1,  NVMatrix& input2,
-								 NVMatrix& target0, NVMatrix& target1, NVMatrix& target2, NVMatrix& target3, NVMatrix& target4, NVMatrix& target5);
+void computeEltwiseFuncParamGradSingle(NVMatrix& actGrad, NVMatrix& input,
+								 NVMatrix& target, NVMatrix& target_m,
+								 int pin, int pout, int size_in, int size_out);
 
 void computeEltwiseFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target,
 								 vector<double>& param, int size_in, int size_out);

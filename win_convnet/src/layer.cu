@@ -827,6 +827,24 @@ extern int minibatch;
 
 void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
+	NVMatrix temp, temp_m;
+
+	static int pin_prev = 0;
+	static int pout_prev = 0;
+
+	int pin = (pin_prev + 1 + rand()%3)%_sizeIn;
+	int pout = (pout_prev + 1 + rand()%3)%_sizeOut;
+
+	computeEltwiseFuncParamGradSingle(v, *_inputs[inpIdx],
+								  temp, temp_m,
+								 pin, pout,  _sizeIn, _sizeOut);
+	double grad = temp.sum();
+	double grad_m = temp_m.sum();
+	int ind_p = pin*2*_sizeIn + pout;
+	int ind_p_m = ind_p + _sizeIn;
+	_param_inc[ind_p] = _mom*_param_inc[ind_p] + _epsP*grad - _wc*_param[ind_p];
+	_param_inc[ind_p_m] = _mom*_param_inc[ind_p_m] + _epsP*grad - _wc*_param[ind_p_m];
+
 //
 //
 //		NVMatrix temp0, temp1, temp2, temp3, temp4, temp5;
