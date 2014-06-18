@@ -459,6 +459,7 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 								const uint strideInp, const uint strideTag,
 								const uint sizeIn, const uint sizeOut) {
 
+
 //go over output group
     const uint idxX = blockIdx.x * B_X + threadIdx.x;
 
@@ -599,6 +600,18 @@ void computeEltwiseFuncParamGradSingle(NVMatrix& actGrad, NVMatrix& input,
 #undef N_SUM
     dim3 threads(ELTWISE_THREADS_X, ELTWISE_THREADS_Y);
 
+	BaseIndex<4> baseInputInd;
+	int strideInp = input.getStride();
+	int yg_dummy = 0;
+	int x_dummy = 0, bx=0, by=0, tx=0, ty=0;
+	int inp_i = pin;
+	int BY = ELTWISE_THREADS_Y;
+	int BX = ELTWISE_THREADS_X;
+	baseInputInd<<Index(numPixelsPerGroup/(numPixelsPerGroup/4), inp_i)
+		<<Index((numPixelsPerGroup/4)/strideInp, yg_dummy)
+		<<Index(strideInp*BY, by)<<Index(strideInp, ty)
+		<<Index(BX, bx)<<Index(1, tx);
+
 	int sizeX = blocks.x*threads.x;
 	int sizeY = blocks.y*threads.y;
 
@@ -687,18 +700,22 @@ void computeEltwiseFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& pa
 	float temp[CONST_AREA_SIZE];
 	assert(param.size() <= CONST_AREA_SIZE);
 	for(int i = 0; i < param.size(); i++)
-		temp[i] = param[i];
+		temp[i] = (float)param[i];
 	cudaMemcpyToSymbol(const_area, temp, sizeof(float)*param.size(), cudaMemcpyHostToDevice);
-//debug
-	Index<int> block_x;
-//debug
-BaseIndex<2> imgIndexBase_0;
-imgIndexBase_0<<out_height<<out_width;
-BaseIndex<3>  imgIndexBase_g = imgIndexBase_0.divisorSplit(0, size_in);
-
-imgIndexBase_g<<imgIndexBase_0;
 
 	int numPixelsPerGroup = out_height/size_out;
+
+//debug
+//	Index<int> block_x;
+//debug
+//BaseIndex<2> imgIndexBase_0;
+//imgIndexBase_0<<out_height<<out_width;
+//BaseIndex<3>  imgIndexBase_g = imgIndexBase_0.divisorSplit(0, size_in);
+//imgIndexBase_g.Assert();
+//imgIndexBase_g<<imgIndexBase_0;
+
+
+
 #define N_SUM 4
     dim3 blocks(std::min(NUM_BLOCKS_MAX, DIVUP(out_width, ELTWISE_THREADS_X)),
                 std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup/N_SUM, ELTWISE_THREADS_Y)));
@@ -743,7 +760,7 @@ void computeEltwiseFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target
 	float temp[CONST_AREA_SIZE];
 	assert(param.size() <= CONST_AREA_SIZE);
 	for(int i = 0; i < param.size(); i++)
-		temp[i] = param[i];
+		temp[i] = (float)param[i];
 	cudaMemcpyToSymbol(const_area, temp, sizeof(float)*param.size(), cudaMemcpyHostToDevice);
 
 
