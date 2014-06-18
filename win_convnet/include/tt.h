@@ -54,6 +54,15 @@ struct Index
 	Index(int width, int ind){_width = width; _ind = ind;};
 };
 
+struct RIndex
+{
+	int _width;
+	int _ind;
+	RIndex(){_ind = 0;};
+	RIndex(int width){_width = width; _ind = 0;};
+	RIndex(int width, int ind){_width = width; _ind = ind;};
+};
+
 template <int dims>
 struct BaseIndex
 {
@@ -107,8 +116,20 @@ struct BaseIndex
 		return *this;
 	}
 
-	BaseIndex<dims>& Insert(Index indx)
+	BaseIndex<dims>& Insert(Index& indx)
 	{
+		_dim[_ndims] = indx._width;
+		_ind[_ndims] = indx._ind;
+		_ndims++;
+		return *this;
+	}
+
+	BaseIndex<dims>& Insert(RIndex& indx)
+	{
+		if(_ndims > 0)
+		{
+			_dim[_ndims-1] /=  indx._width;
+		}
 		_dim[_ndims] = indx._width;
 		_ind[_ndims] = indx._ind;
 		_ndims++;
@@ -153,6 +174,11 @@ struct BaseIndex
 	}
 
 	BaseIndex<dims>& operator<<(Index insBase)
+	{
+		return Insert(insBase);
+	}
+
+	BaseIndex<dims>& operator<<(RIndex insBase)
 	{
 		return Insert(insBase);
 	}

@@ -612,6 +612,14 @@ void computeEltwiseFuncParamGradSingle(NVMatrix& actGrad, NVMatrix& input,
 		<<Index(strideInp*BY, by)<<Index(strideInp, ty)
 		<<Index(BX, bx)<<Index(1, tx);
 
+	BaseIndex<4> baseRInputInd;
+	baseRInputInd<<Index(numPixelsPerGroup, inp_i)
+		<<RIndex((numPixelsPerGroup/4), yg_dummy)
+		<<RIndex(strideInp*BY, by)
+		<<RIndex(strideInp, ty)
+		<<RIndex(BX, bx)
+		<<RIndex(1, tx);
+
 	int sizeX = blocks.x*threads.x;
 	int sizeY = blocks.y*threads.y;
 
