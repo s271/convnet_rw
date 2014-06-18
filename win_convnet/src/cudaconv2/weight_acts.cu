@@ -438,8 +438,8 @@ __global__ void conv_weight_acts_mc_mf_rand(float* images, float* hidActs, float
             + loadY * numImages * numModules
             + loadX;
 
-    targets += outputModuleIdx * numFilters * filterPixels * numFilterColors
-            + filterColorIdx * filterPixels * numFilters
+    targets += outputModuleIdx * numFilterColors * numFilters * filterPixels 
+            + filterColorIdx * numFilters * filterPixels
             + blockPixelOffset * numFilters
             + blockFilterIdx
             + threadIdx.y * numFilters + threadIdx.x;

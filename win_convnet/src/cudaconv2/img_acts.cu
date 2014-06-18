@@ -424,13 +424,7 @@ __global__ void conv_img_acts_manycolor(const float* hidActs, const float* filte
     targets += (imgColorIdx + threadIdx.y) * imgPixels * numImages + blockPixelIdx * numImages + blockCaseIdx + threadIdx.x;
 
     float prod[colorsPerThread][imgsPerThread];
-    #pragma unroll
-    for (int c = 0; c < colorsPerThread; c++) {
-        #pragma unroll
-        for (int i = 0; i < imgsPerThread; i++) {
-            prod[c][i] = 0;
-        }
-    }
+	memset(prod, 0, sizeof(prod));
 
     const int startY = blockPixelIdxY - paddingStart < filterSize ? 0
                         : 1 + (blockPixelIdxY - paddingStart - filterSize) / moduleStride;

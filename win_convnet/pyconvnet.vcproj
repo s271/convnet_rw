@@ -517,6 +517,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\include\tt.h"
+				>
+			</File>
+			<File
 				RelativePath=".\include\util.cuh"
 				>
 			</File>

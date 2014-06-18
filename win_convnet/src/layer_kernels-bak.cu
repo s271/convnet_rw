@@ -348,8 +348,6 @@ __global__ void kRLogSoftmaxGrad(float* y_l, float* labels, float* dE_dx_l, floa
     }
 }
 
-#include "tt.h"
-
 template <int B_X, bool add>
 __global__ void kEltwiseMaxGrad(float* actGrad, float* input, float* output, float* target,
                                 const int numElements) {
@@ -366,28 +364,33 @@ __global__ void kEltwiseMaxGrad(float* actGrad, float* input, float* output, flo
 #define CONST_AREA_SIZE 256
 __device__ __constant__ float const_area[CONST_AREA_SIZE];
 
-
-
 template <int B_X, int B_Y>
 __global__ void kEltwiseFuncParamGradSingle(float* actGrad, float* input, float* target, float* target_m,
-								const uint pin, const uint pout, const uint imgInPixels, const uint numCases,
-								const uint strideInp, const uint strideOut, const uint strideTag,
+								const uint pin, const uint pout, const uint caseSize, const uint numCases, int numFilters,
+								const uint numFiltersPerGroup, const uint strideInp, const uint strideGrad, const uint strideTag,
 								const uint sizeIn, const uint sizeOut)
 {
-    const uint idxX = blockIdx.x * B_X + threadIdx.x;
-    const uint idxY = blockIdx.y * B_Y + threadIdx.y;
-	int tagOffset = (threadIdx.x + blockIdx.x*blockDim.x) +  (threadIdx.y + blockIdx.y*blockDim.y)*strideTag;
-	const int numPixelsPerGroup = imgInPixels/sizeIn;
+	const uint idxX = blockIdx.x * B_X + threadIdx.x;
+
+	const uint blockPixelIdx = blockIdx.y/numFiltersPerGroup;
+	const uint blockFilterIdx = blockIdx.y%numFiltersPerGroup;
+	const uint pixelIdx = blockPixelIdx*B_Y + threadIdx.y;
+	const uint idxY = pixelIdx*numFilters  + blockFilterIdx;//+  pout*numFiltersPerGroup
 
 	float sum = 0;
 	float sum_m = 0;
 
-	//gridDim.y is DIVUP(numPixelsPerGroup/n_sum, ELTWISE_THREADS_Y)
-    for (uint yg = idxY; yg < numPixelsPerGroup; yg += gridDim.y * B_Y) {
+	int tagOffset = (threadIdx.x + blockIdx.x*blockDim.x) +  (threadIdx.y + blockIdx.y*blockDim.y)*strideTag;
+
+
+    for (uint yg = idxY; yg < caseSize; yg += gridDim.y * B_Y) {
         for (uint x = idxX; x < numCases; x += gridDim.x * B_X) {	
-			int offset_in = (yg+pin*numPixelsPerGroup) * strideInp + x;
-			int offset_out = (yg+pout*numPixelsPerGroup) * strideOut + x;
-			float grad_next = actGrad[offset_out];
+
+			int offset_in = (yg+pin*numFiltersPerGroup) * strideInp + x;
+			int offset_grad = (yg+pout*numFiltersPerGroup)*strideGrad + x;
+
+
+			float grad_next = actGrad[offset_grad];
 			float in_val = input[offset_in];
 			float val_m = fmax(in_val, 0);
 			sum +=  grad_next*in_val;
@@ -469,6 +472,8 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 
 	//gridDim.y is DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)
     for (uint yg = idxY; yg < numPixelsPerGroup; yg += gridDim.y * B_Y) {
+
+		//uint yg = blockIdx.x * B_Y + threadIdx.x + k*gridDim.y * B_Y
 
         for (uint x = idxX; x < numCases; x += gridDim.x * B_X) {	
 			
@@ -585,19 +590,21 @@ void computeEltwiseMaxGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& output,
 
 void computeEltwiseFuncParamGradSingle(NVMatrix& actGrad, NVMatrix& input,
 								 NVMatrix& target, NVMatrix& target_m,
-								 int pin, int pout, int size_in, int size_out)
+								 int numFilters, int pin, int pout, int size_in, int size_out)
 {
 
     int inp_width = input.getNumCols(); 
     int inp_height = input.getNumRows();
 
+	int numFiltersPerGroup = numFilters/size_in;
 
-	int numPixelsPerGroup = inp_height/size_in;
-#define N_SUM 4
+#define SUM_MULT 4
+//	inp_height/SUM_MULT*ELTWISE_THREADS_Y be more than numPixels=inp_height/numFilters
+//=> SUM_MULT <= ELTWISE_THREADS_Y*numFilters
     dim3 blocks(std::min(NUM_BLOCKS_MAX, DIVUP(inp_width, ELTWISE_THREADS_X)),
-                std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup/N_SUM, ELTWISE_THREADS_Y)));
-#undef N_SUM
+                std::min(NUM_BLOCKS_MAX, DIVUP(inp_height, SUM_MULT*ELTWISE_THREADS_Y)));//number of Y block reduced by SUM_MULT
     dim3 threads(ELTWISE_THREADS_X, ELTWISE_THREADS_Y);
+#undef SUM_MULT
 
 	int sizeX = blocks.x*threads.x;
 	int sizeY = blocks.y*threads.y;
@@ -614,7 +621,7 @@ void computeEltwiseFuncParamGradSingle(NVMatrix& actGrad, NVMatrix& input,
 
 	kEltwiseFuncParamGradSingle<ELTWISE_THREADS_X, ELTWISE_THREADS_Y><<<blocks, threads>>>(actGrad.getDevData(),
 		input.getDevData(), target.getDevData(), target_m.getDevData(),
-		pin, pout, inp_height, inp_width,
+		pin, pout, inp_height, inp_width, numFilters, numFiltersPerGroup,
 		input.getStride(), actGrad.getStride(), target.getStride(),
 		size_in, size_out);
 
@@ -689,20 +696,11 @@ void computeEltwiseFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& pa
 	for(int i = 0; i < param.size(); i++)
 		temp[i] = param[i];
 	cudaMemcpyToSymbol(const_area, temp, sizeof(float)*param.size(), cudaMemcpyHostToDevice);
-//debug
-	Index<int> block_x;
-//debug
-BaseIndex<2> imgIndexBase_0;
-imgIndexBase_0<<out_height<<out_width;
-BaseIndex<3>  imgIndexBase_g = imgIndexBase_0.divisorSplit(0, size_in);
-
-imgIndexBase_g<<imgIndexBase_0;
 
 	int numPixelsPerGroup = out_height/size_out;
-#define N_SUM 4
+
     dim3 blocks(std::min(NUM_BLOCKS_MAX, DIVUP(out_width, ELTWISE_THREADS_X)),
-                std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup/N_SUM, ELTWISE_THREADS_Y)));
-#undef N_SUM
+                std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)));
     dim3 threads(ELTWISE_THREADS_X, ELTWISE_THREADS_Y);
 
 #define ELT_ACT(SIZE_ARR) \
@@ -748,10 +746,9 @@ void computeEltwiseFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target
 
 
 	int numPixelsPerGroup = inp_height/size_in;
-#define N_SUM 4
+
     dim3 blocks(std::min(NUM_BLOCKS_MAX, DIVUP(inp_width, ELTWISE_THREADS_X)),
-                std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup/N_SUM, ELTWISE_THREADS_Y)));
-#undef N_SUM
+                std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)));
     dim3 threads(ELTWISE_THREADS_X, ELTWISE_THREADS_Y);
 
 

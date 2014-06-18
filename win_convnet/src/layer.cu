@@ -832,8 +832,10 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	static int pin_prev = 0;
 	static int pout_prev = 0;
 
-	int pin = (pin_prev + 1 + rand()%3)%_sizeIn;
-	int pout = (pout_prev + 1 + rand()%3)%_sizeOut;
+	int pin = (pin_prev + 1 + rand()%2)%_sizeIn;
+	int pout = (pout_prev + 1 + rand()%2)%_sizeOut;
+	pin_prev = pin;
+	pout_prev = pout;
 
 	computeEltwiseFuncParamGradSingle(v, *_inputs[inpIdx],
 								  temp, temp_m,
