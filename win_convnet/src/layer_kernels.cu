@@ -601,24 +601,20 @@ void computeEltwiseFuncParamGradSingle(NVMatrix& actGrad, NVMatrix& input,
     dim3 threads(ELTWISE_THREADS_X, ELTWISE_THREADS_Y);
 
 	BaseIndex<4> baseInputInd;
-	int strideInp = input.getStride();
+	const int strideInp = input.getStride();
 	int yg_dummy = 0;
-	int x_dummy = 0, bx=0, by=0, tx=0, ty=0;
-	int inp_i = pin;
-	int BY = ELTWISE_THREADS_Y;
-	int BX = ELTWISE_THREADS_X;
-	baseInputInd<<Index(numPixelsPerGroup/(numPixelsPerGroup/4), inp_i)
-		<<Index((numPixelsPerGroup/4)/strideInp, yg_dummy)
-		<<Index(strideInp*BY, by)<<Index(strideInp, ty)
-		<<Index(BX, bx)<<Index(1, tx);
+	const int x_dummy = 0, bx=0, by=0, tx=0, ty=0;
+	const int inp_i = pin;
+	const int BY = ELTWISE_THREADS_Y;
+	const int BX = ELTWISE_THREADS_X;
 
-	BaseIndex<4> baseRInputInd;
+	BaseIndex<6> baseRInputInd;
 	baseRInputInd<<Index(numPixelsPerGroup, inp_i)
-		<<RIndex((numPixelsPerGroup/4), yg_dummy)
-		<<RIndex(strideInp*BY, by)
-		<<RIndex(strideInp, ty)
-		<<RIndex(BX, bx)
-		<<RIndex(1, tx);
+		<<Index((numPixelsPerGroup/4), yg_dummy)
+		<<Index(strideInp*BY, by)
+		<<Index(strideInp, ty)
+		<<Index(BX, bx)
+		<<Index(1, tx);
 
 	int sizeX = blocks.x*threads.x;
 	int sizeY = blocks.y*threads.y;

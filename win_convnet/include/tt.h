@@ -27,40 +27,15 @@
 #ifndef TENSOR_TEMPLATE_H
 #define	TENSOR_TEMPLATE_H
 #include <assert.h>
-//template<class IndexType>
-//struct Index
-//{
-//	IndexType _width;
-//	IndexType _i;
-//	Index(IndexType width, IndexType ind){_width = width; _i = ind;}
-//	Index(){_i = 0;};
-//};
-//
-//
-//
-//template<class IndexTypeIn, class IndexTypeOut>
-//void SplitCounter(IndexTypeIn& inIndex, int split, IndexTypeOut& outIndex1, IndexTypeOut& outIndex2)
-//{
-//	outIndex1 = IndexTypeOut(inIndex._width/split, inIndex._i/split);
-//	outIndex2 = IndexTypeOut(split, inIndex._i%split);
-//}
+
 
 struct Index
 {
-	int _width;
+	int _step;
 	int _ind;
 	Index(){_ind = 0;};
-	Index(int width){_width = width; _ind = 0;};
-	Index(int width, int ind){_width = width; _ind = ind;};
-};
-
-struct RIndex
-{
-	int _width;
-	int _ind;
-	RIndex(){_ind = 0;};
-	RIndex(int width){_width = width; _ind = 0;};
-	RIndex(int width, int ind){_width = width; _ind = ind;};
+	Index(const int step){_step = step; _ind = 0;};
+	Index(const int step, const int ind){_step = step; _ind = ind;};
 };
 
 template <int dims>
@@ -68,7 +43,7 @@ struct BaseIndex
 {
 	int _ndims;
 	int _dimSize;
-	int _dim[dims];
+	int _step[dims];
 	int _ind[dims];
 
 	BaseIndex(){_ndims = 0; _dimSize = dims; memset(_ind, 0, sizeof(_ind));}
@@ -79,14 +54,14 @@ struct BaseIndex
 
 //#pragma unroll
 		for (int i = 0; i < pos; i++)
-			b_div.Insert(_dim[i]);
+			b_div.Insert(_step[i]);
 
 			b_div.Insert(ngroups);
-			b_div.Insert(_dim[pos]/ngroups);
+			b_div.Insert(_step[pos]/ngroups);
 
 //#pragma unroll
 		for (int i = pos+1; i < _ndims; i++)
-			b_div.Insert(_dim[i]);
+			b_div.Insert(_step[i]);
 		
 		return b_div;
 	}
@@ -97,40 +72,28 @@ struct BaseIndex
 
 //#pragma unroll
 		for (int i = 0; i < pos; i++)
-			b_div.Insert(_dim[i]);
+			b_div.Insert(_step[i]);
 
-			b_div.Insert(_dim[pos]/quotient);
+			b_div.Insert(_step[pos]/quotient);
 			b_div.Insert(quotient);
 
 //#pragma unroll
 		for (int i = pos+1; i < _ndims; i++)
-			b_div.Insert(_dim[i]);
+			b_div.Insert(_step[i]);
 		
 		return b_div;
 	}
 
-	BaseIndex<dims>& Insert(int dim_size)
+	BaseIndex<dims>& Insert(int step)
 	{
-		_dim[_ndims] = dim_size;
+		_step[_ndims] = step;
 		_ndims++;
 		return *this;
 	}
 
 	BaseIndex<dims>& Insert(Index& indx)
 	{
-		_dim[_ndims] = indx._width;
-		_ind[_ndims] = indx._ind;
-		_ndims++;
-		return *this;
-	}
-
-	BaseIndex<dims>& Insert(RIndex& indx)
-	{
-		if(_ndims > 0)
-		{
-			_dim[_ndims-1] /=  indx._width;
-		}
-		_dim[_ndims] = indx._width;
+		_step[_ndims] = indx._step;
 		_ind[_ndims] = indx._ind;
 		_ndims++;
 		return *this;
@@ -142,7 +105,7 @@ struct BaseIndex
 //#pragma unroll
 		for(int k_ins = 0; k_ins < insBase._ndims; k_ins++)
 		{
-			_dim[_ndims + k_ins] = insBase._dim[k_ins];
+			_step[_ndims + k_ins] = insBase._step[k_ins];
 			_ind[_ndims + k_ins] = insBase._ind[k_ins];
 		}
 		_ndims+=insBase._ndims;
@@ -154,13 +117,13 @@ struct BaseIndex
 //#pragma unroll
 		for(int k_m = 0; k_m < _ndims-pos; k_m++)
 		{
-			_dim[pos + k_m + insBase._ndims] = _dim[pos + k_m];
+			_step[pos + k_m + insBase._ndims] = _step[pos + k_m];
 			_ind[pos + k_m + insBase._ndims] = _ind[pos + k_m];
 		}
 //#pragma unroll
 		for(int k_ins = 0; k_ins < insBase._ndims; k_ins++)
 		{
-			_dim[pos + k_ins] = insBase._dim[k_ins];
+			_step[pos + k_ins] = insBase._step[k_ins];
 			_ind[pos + k_ins] = insBase._ind[k_ins];
 		}
 		_ndims+=insBase._ndims;
@@ -178,14 +141,9 @@ struct BaseIndex
 		return Insert(insBase);
 	}
 
-	BaseIndex<dims>& operator<<(RIndex insBase)
+	BaseIndex<dims>& operator<<(int step)
 	{
-		return Insert(insBase);
-	}
-
-	BaseIndex<dims>& operator<<(int width)
-	{
-		return Insert(width);
+		return Insert(step);
 	}
 
 	void Assert()
