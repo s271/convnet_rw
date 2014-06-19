@@ -609,8 +609,8 @@ void computeEltwiseFuncParamGradSingle(NVMatrix& actGrad, NVMatrix& input,
 	const int BX = ELTWISE_THREADS_X;
 
 	BaseIndex<6> baseRInputInd;
-	baseRInputInd<<Index(numPixelsPerGroup, inp_i)
-		<<Index((numPixelsPerGroup/4), yg_dummy)
+	baseRInputInd<<Index(strideInp*numPixelsPerGroup, inp_i)
+		<<Index(strideInp*blocks.y*BY, yg_dummy)
 		<<Index(strideInp*BY, by)
 		<<Index(strideInp, ty)
 		<<Index(BX, bx)
