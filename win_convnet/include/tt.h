@@ -31,11 +31,18 @@
 
 struct Index
 {
+	int _width;
 	int _step;
 	int _ind;
 	Index(){_ind = 0;};
 	Index(const int step){_step = step; _ind = 0;};
-	Index(const int step, const int ind){_step = step; _ind = ind;};
+	Index(const int step, const int ind){_step = step; _width = -1; _ind = ind;};
+	Index(const int step, const int size, const int ind){_step = step; _width = size; _ind = ind;};
+};
+
+struct Count : public Index
+{
+	Count(const int step, const int ind){_step = step; _width = -1; _ind = ind;};
 };
 
 template <int dims>
@@ -44,6 +51,7 @@ struct BaseIndex
 	int _ndims;
 	int _dimSize;
 	int _step[dims];
+	int _width[dims];
 	int _ind[dims];
 
 	BaseIndex(){_ndims = 0; _dimSize = dims; memset(_ind, 0, sizeof(_ind));}
@@ -94,6 +102,7 @@ struct BaseIndex
 	BaseIndex<dims>& Insert(Index& indx)
 	{
 		_step[_ndims] = indx._step;
+		_width[_ndims] = indx._width;
 		_ind[_ndims] = indx._ind;
 		_ndims++;
 		return *this;
@@ -106,25 +115,8 @@ struct BaseIndex
 		for(int k_ins = 0; k_ins < insBase._ndims; k_ins++)
 		{
 			_step[_ndims + k_ins] = insBase._step[k_ins];
+			_width[_ndims + k_ins] = insBase._width[k_ins];
 			_ind[_ndims + k_ins] = insBase._ind[k_ins];
-		}
-		_ndims+=insBase._ndims;
-		return *this;
-	}
-
-	template <class TBase>
-	int Insert(TBase insBase, int pos){
-//#pragma unroll
-		for(int k_m = 0; k_m < _ndims-pos; k_m++)
-		{
-			_step[pos + k_m + insBase._ndims] = _step[pos + k_m];
-			_ind[pos + k_m + insBase._ndims] = _ind[pos + k_m];
-		}
-//#pragma unroll
-		for(int k_ins = 0; k_ins < insBase._ndims; k_ins++)
-		{
-			_step[pos + k_ins] = insBase._step[k_ins];
-			_ind[pos + k_ins] = insBase._ind[k_ins];
 		}
 		_ndims+=insBase._ndims;
 		return *this;
@@ -145,12 +137,18 @@ struct BaseIndex
 	{
 		return Insert(step);
 	}
-
+#ifndef CUDA_KERNEL
 	void Assert()
 	{
 		assert(_ndims == _dimSize);
 	}
 
+	void StepAssert(int pos)
+	{
+		if(pos > 0)
+			assert(_step[pos] == _width[pos-1]);
+	}
+#endif
 };
 
 

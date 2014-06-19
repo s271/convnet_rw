@@ -602,7 +602,7 @@ void computeEltwiseFuncParamGradSingle(NVMatrix& actGrad, NVMatrix& input,
 
 	BaseIndex<4> baseInputInd;
 	const int strideInp = input.getStride();
-	int yg_dummy = 0;
+	int yg_start = 0;
 	const int x_dummy = 0, bx=0, by=0, tx=0, ty=0;
 	const int inp_i = pin;
 	const int BY = ELTWISE_THREADS_Y;
@@ -610,11 +610,12 @@ void computeEltwiseFuncParamGradSingle(NVMatrix& actGrad, NVMatrix& input,
 
 	BaseIndex<6> baseRInputInd;
 	baseRInputInd<<Index(strideInp*numPixelsPerGroup, inp_i)
-		<<Index(strideInp*blocks.y*BY, yg_dummy)
+		<<Index(strideInp*blocks.y*BY, yg_start)
 		<<Index(strideInp*BY, by)
 		<<Index(strideInp, ty)
 		<<Index(BX, bx)
 		<<Index(1, tx);
+	baseRInputInd.Assert();
 
 	int sizeX = blocks.x*threads.x;
 	int sizeY = blocks.y*threads.y;
