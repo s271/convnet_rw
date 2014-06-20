@@ -35,14 +35,9 @@ struct Index
 	int _step;
 	int _ind;
 	Index(){_ind = 0;};
-	Index(const int step){_step = step; _ind = 0;};
+	Index(const int step){_step = step; _width = -1; _ind = 0;};
 	Index(const int step, const int ind){_step = step; _width = -1; _ind = ind;};
-	Index(const int step, const int size, const int ind){_step = step; _width = size; _ind = ind;};
-};
-
-struct Count : public Index
-{
-	Count(const int step, const int ind){_step = step; _width = -1; _ind = ind;};
+	Index(const int step, const int width, const int ind){_step = step; _width = width; _ind = ind;};
 };
 
 template <int dims>
@@ -149,6 +144,25 @@ struct BaseIndex
 			assert(_step[pos] == _width[pos-1]);
 	}
 #endif
+
+	void Finalize()
+	{
+#ifndef CUDA_KERNEL
+		Assert();
+#endif
+
+		for (int k = 1; k < _ndims-1; k++)
+		{
+			if(_width[k] == -1)
+				_width[k] = _step[k-1];
+		}
+
+		for (int k = _ndims-2; k >= 0; k--)
+		{
+			if(_step[k] == -1)
+				_step[k] = _width[k+1];
+		}
+	}
 };
 
 
