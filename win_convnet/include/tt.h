@@ -28,6 +28,12 @@
 #define	TENSOR_TEMPLATE_H
 #include <assert.h>
 
+struct Shift
+{
+	int _ishift;
+	int _sshift;
+	Shift(int ishift, int sshift){_ishift = ishift, _sshift = sshift;};
+};
 
 struct Index
 {
@@ -36,6 +42,18 @@ struct Index
 	Index(){_ind = 0;};
 	Index(const int step){_step = step; _ind = 0;};
 	Index(const int step, const int ind){_step = step; _ind = ind;};
+	Index& operator<<(int shift)
+	{
+		_step <<= shift;
+		return *this;
+	}
+
+	Index& operator<<(const Shift& shift)
+	{
+		_step <<= shift._sshift;
+		_ind <<= shift._ishift;
+		return *this;
+	}
 };
 
 template <int dims>
@@ -113,24 +131,42 @@ struct BaseIndex
 	}
 
 	template <class TBase>
-	BaseIndex<dims>& operator<<(TBase insBase)
+	BaseIndex<dims>& operator<(TBase insBase)
 	{
 		return Insert<TBase>(insBase);
 	}
 
-	BaseIndex<dims>& operator<<(Index insBase)
+	BaseIndex<dims>& operator<(Index insBase)
 	{
 		return Insert(insBase);
 	}
 
-	BaseIndex<dims>& operator<<(int step)
+	BaseIndex<dims>& operator<(int step)
 	{
 		return Insert(step);
 	}
+
+	BaseIndex<dims>& operator<<(int shift)
+	{
+		for(int k = 0; k < _ndims; k++);
+			_step[k] <<= shift;
+		return *this;
+	}
+
+	BaseIndex<dims>& operator<<(const Shift& shift)
+	{
+		for(int k = 0; k < _ndims; k++);
+		{
+			_step[k] <<= shift._sshift;
+			_ind[k] <<= shift._ishift;
+		}
+		return *this;
+	}
+
 #ifndef CUDA_KERNEL
 	void Assert()
 	{
-		assert(_ndims == _dimSize);
+		assert(_ndims == dims);
 	}
 
 #endif
@@ -176,12 +212,12 @@ struct BaseDimIndex
 		return *this;
 	}
 
-	BaseDimIndex<dims>& operator<<(DimIndex insBase)
+	BaseDimIndex<dims>& operator<(DimIndex insBase)
 	{
 		return Insert(insBase);
 	}
 
-	BaseDimIndex<dims>& operator<<(int dim)
+	BaseDimIndex<dims>& operator<(int dim)
 	{
 		return Insert(dim);
 	}

@@ -609,20 +609,20 @@ void computeEltwiseFuncParamGradSingle(NVMatrix& actGrad, NVMatrix& input,
 	const int BX = ELTWISE_THREADS_X;
 
 	BaseIndex<6> baseRInputInd;
-	baseRInputInd<<Index(strideInp*numPixelsPerGroup, inp_i)
-		<<Index(strideInp*blocks.y*BY, yg_start);
-		//<<Index(strideInp*BY, by)
-		//<<Index(strideInp, ty)
-		//<<Index(BX, bx)
-		//<<Index(1, tx);
+	baseRInputInd<Index(strideInp*numPixelsPerGroup, inp_i)
+		< Index(strideInp*blocks.y*BY, yg_start);
+		//< Index(strideInp*BY, by)
+		//< Index(strideInp, ty)
+		//< Index(BX, bx)
+		//< Index(1, tx);
 
 BaseDimIndex<2> test;
-		test<<DimIndex(blocks.y, by)
-		<<DimIndex(BY, ty)
-		<<DimIndex(strideInp/BX, bx)
-		<<DimIndex(BX, tx);
+		test < DimIndex(blocks.y, by)
+		< DimIndex(BY, ty)
+		< DimIndex(strideInp/BX, bx)
+		< DimIndex(BX, tx);
 
-		baseRInputInd<<test;
+		baseRInputInd<test;
 
 
 	baseRInputInd.Assert();
