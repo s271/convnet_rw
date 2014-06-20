@@ -31,13 +31,11 @@
 
 struct Index
 {
-	int _width;
 	int _step;
 	int _ind;
 	Index(){_ind = 0;};
-	Index(const int step){_step = step; _width = -1; _ind = 0;};
-	Index(const int step, const int ind){_step = step; _width = -1; _ind = ind;};
-	Index(const int step, const int width, const int ind){_step = step; _width = width; _ind = ind;};
+	Index(const int step){_step = step; _ind = 0;};
+	Index(const int step, const int ind){_step = step; _ind = ind;};
 };
 
 template <int dims>
@@ -46,7 +44,6 @@ struct BaseIndex
 	int _ndims;
 	int _dimSize;
 	int _step[dims];
-	int _width[dims];
 	int _ind[dims];
 
 	BaseIndex(){_ndims = 0; _dimSize = dims; memset(_ind, 0, sizeof(_ind));}
@@ -97,7 +94,6 @@ struct BaseIndex
 	BaseIndex<dims>& Insert(Index& indx)
 	{
 		_step[_ndims] = indx._step;
-		_width[_ndims] = indx._width;
 		_ind[_ndims] = indx._ind;
 		_ndims++;
 		return *this;
@@ -110,7 +106,6 @@ struct BaseIndex
 		for(int k_ins = 0; k_ins < insBase._ndims; k_ins++)
 		{
 			_step[_ndims + k_ins] = insBase._step[k_ins];
-			_width[_ndims + k_ins] = insBase._width[k_ins];
 			_ind[_ndims + k_ins] = insBase._ind[k_ins];
 		}
 		_ndims+=insBase._ndims;
@@ -138,31 +133,78 @@ struct BaseIndex
 		assert(_ndims == _dimSize);
 	}
 
-	void StepAssert(int pos)
-	{
-		if(pos > 0)
-			assert(_step[pos] == _width[pos-1]);
-	}
 #endif
 
-	void Finalize()
+};
+
+struct DimIndex
+{
+	int _dim;
+	int _ind;
+	DimIndex(){_ind = 0;};
+	DimIndex(const int dim){_dim = dim; _ind = 0;};
+	DimIndex(const int dim, const int ind){_dim = dim; _ind = ind;};
+};
+
+template <int dims>
+struct BaseDimIndex
+{
+	int _ndims;
+	int _dimSize;
+	int _step[dims];
+	int _dim[dims];
+	int _ind[dims];
+
+	BaseDimIndex(){_ndims = 0; _dimSize = dims; memset(_ind, 0, sizeof(_ind));}
+
+	BaseDimIndex<dims>& Insert(int dim)
+	{
+		_dim[_ndims] = dim;
+		_ndims++;
+		if(_ndims == dims)
+			Finalize();
+		return *this;
+	}
+
+	BaseDimIndex<dims>& Insert(DimIndex& indx)
+	{
+		_dim[_ndims] = indx._dim;
+		_ind[_ndims] = indx._ind;
+		_ndims++;
+		if(_ndims == dims)
+			Finalize();
+		return *this;
+	}
+
+	BaseDimIndex<dims>& operator<<(DimIndex insBase)
+	{
+		return Insert(insBase);
+	}
+
+	BaseDimIndex<dims>& operator<<(int dim)
+	{
+		return Insert(dim);
+	}
+
+	void Finalize(int stepLow = 1)
 	{
 #ifndef CUDA_KERNEL
 		Assert();
 #endif
+		_step[dims-1] = stepLow;
 
-		for (int k = 1; k < _ndims-1; k++)
-		{
-			if(_width[k] == -1)
-				_width[k] = _step[k-1];
-		}
-
-		for (int k = _ndims-2; k >= 0; k--)
-		{
-			if(_step[k] == -1)
-				_step[k] = _width[k+1];
-		}
+		for(int k = dims-2; k >= 0; k--)
+			_step[k] = _dim[k]*_step[k+1];
 	}
+
+#ifndef CUDA_KERNEL
+	void Assert()
+	{
+		assert(_ndims == _dimSize);
+	}
+
+#endif
+
 };
 
 
