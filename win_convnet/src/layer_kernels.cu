@@ -371,9 +371,7 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 								const uint strideInp, const uint strideTag,
 								const uint sizeIn, const uint sizeOut) {
 
-	const int numPixelsPerGroup = imgInPixels/sizeIn;
-
-	
+	const int numPixelsPerGroup = imgInPixels/sizeIn;	
 
 	SIndex yg_ind(numCases*blockDim.y*B_Y, numPixelsPerGroup);
 	SIndex x_ind(blockDim.x*B_X, numCases);
@@ -405,17 +403,13 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 			float inpVal[sizeArr];//use shared instead?
 
 			for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {	
-				int yt = offset + inp_i*numPixelsPerGroup*strideInp;
-				float val = input[yt];
+				float val = input[offset + inp_i*numPixelsPerGroup*strideInp];
 				inpVal[inp_i] = val;
 			}
 		
 			for (uint out_i = 0; out_i < sizeOut; out_i++) {
 				int out_par = out_i*sizeIn*2;
 				
-				int yo = out_i*numPixelsPerGroup*strideInp;
-				int offseTag = offset + yo;
-
 				float output = 0;
 
 				for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {		
@@ -425,7 +419,7 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 					output += param*val + paramM*fmax(val, 0);
 
 				}
-				target[offseTag] = output;
+				target[offset + out_i*numPixelsPerGroup*strideTag] = output;
 
 			}
         }
