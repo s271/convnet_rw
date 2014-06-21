@@ -383,16 +383,9 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 		< x_ind
 		< Index(B_X, blockIdx.x)
 		< Index(1, threadIdx.x);
-
-	SIndex pin_ind(numPixelsPerGroup, sizeIn*numPixelsPerGroup*numCases);
-
-	BaseIndex<7> baseInputInd;
-	baseInputInd < pin_ind < baseInd;
-
-	SIndex pout_ind(numPixelsPerGroup, sizeOut*numPixelsPerGroup*numCases);
-
-	BaseIndex<7> baseOutInd;
-	baseOutInd < pout_ind < baseInd;
+//sizes for counters
+	const int inStep = numPixelsPerGroup*strideInp;
+	const int tagStep = numPixelsPerGroup*strideTag;
 
 	BASE_LOOP(yg_, yg_ind, baseInd)
 	{
@@ -403,7 +396,7 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 			float inpVal[sizeArr];//use shared instead?
 
 			for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {	
-				float val = input[offset + inp_i*numPixelsPerGroup*strideInp];
+				float val = input[offset + inp_i*inStep];
 				inpVal[inp_i] = val;
 			}
 		
@@ -419,7 +412,7 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 					output += param*val + paramM*fmax(val, 0);
 
 				}
-				target[offset + out_i*numPixelsPerGroup*strideTag] = output;
+				target[offset + out_i*tagStep] = output;
 
 			}
         }
