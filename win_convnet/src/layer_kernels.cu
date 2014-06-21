@@ -467,9 +467,56 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 template <int B_X, int B_Y, int sizeArr>
 __global__ void kEltwiseFuncGrad(const float* actGrad, const float* input, float* const target,
 								const uint imgInPixels, const uint numCases,
-								const uint strideInp, const uint strideTag,
+								const uint strideInp, const uint strideOut,
 								const uint sizeIn, const uint sizeOut) {
 
+
+	const int numPixelsPerGroup = imgInPixels/sizeIn;	
+
+	SIndex yg_ind(numCases*blockDim.y*B_Y, numPixelsPerGroup);
+	SIndex x_ind(blockDim.x*B_X, numCases);
+
+	BaseIndex<6> baseInd;
+	baseInd < yg_ind
+		< Index(numCases*B_Y, blockIdx.y)
+		< Index(numCases, threadIdx.y)
+		< x_ind
+		< Index(B_X, blockIdx.x)
+		< Index(1, threadIdx.x);
+//sizes for counters
+	const int inStep = numPixelsPerGroup*strideInp;
+	const int outStep = numPixelsPerGroup*strideOut;
+
+
+    BASE_LOOP(yg_, yg_ind, baseInd)
+	{
+		int offset = yg_;
+		BASE_LOOP(x_, x_ind, baseInd)
+		{
+			offset += x_;
+
+			float grad_next[sizeArr];
+
+			for (uint out_i = 0; out_i < sizeOut; out_i++)
+				grad_next[out_i] = actGrad[offset+ out_i*outStep];
+
+			for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {	
+				int inp_offset = offset+ inp_i*inStep;
+
+				float val = input[offset+ inp_i*inStep];
+				float vsign = (val > 0);
+				float sum_grad = 0;
+				
+				for (uint out_i = 0; out_i < sizeOut; out_i++)	
+					sum_grad += grad_next[out_i]*vsign*const_area[out_i*sizeIn*2 + sizeIn + inp_i]
+						+ const_area[out_i*sizeIn*2 + inp_i];
+
+				target[inp_offset] = sum_grad;
+			}	
+		}
+   }
+
+/*
 //go over output group
     const uint idxX = blockIdx.x * B_X + threadIdx.x;
 
@@ -521,6 +568,7 @@ __global__ void kEltwiseFuncGrad(const float* actGrad, const float* input, float
 
 		}
    }
+*/
 }
 
 template <int B_X, int B_Y>
@@ -722,19 +770,6 @@ void computeEltwiseFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& pa
     //int numCases = input.getNumCols(); 
     //int numIn = input.getNumRows(); 
 
-	//BaseIndex<4> baseInputInd;
-	//const int strideInp = input.getStride();
-	//int yg_start = 0;
-	//const int x_dummy = 0, bx=0, by=0, tx=0, ty=0;
-	//const int inp_i = pin;
-	//const int BY = ELTWISE_THREADS_Y;
-	//const int BX = ELTWISE_THREADS_X;
-//BaseDimIndex<2> test;
-//		test < DimIndex(blocks.y, by)
-//		< DimIndex(BY, ty)
-//		< DimIndex(strideInp/BX, bx)
-//		< DimIndex(BX, tx);
-
 
     int inp_width = input.getNumCols(); 
     int inp_height = input.getNumRows();
@@ -817,7 +852,7 @@ void computeEltwiseFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target
 			cudaFuncSetCacheConfig(kEltwiseFuncGrad<ELTWISE_THREADS_X, ELTWISE_THREADS_Y, SIZE_ARR>, cudaFuncCachePreferL1);\
 			kEltwiseFuncGrad<ELTWISE_THREADS_X, ELTWISE_THREADS_Y, SIZE_ARR><<<blocks, threads>>>(actGrad.getDevData(),\
 				input.getDevData(), target.getDevData(), inp_height, inp_width,\
-				input.getStride(), target.getStride(), size_in, size_out);};
+				input.getStride(), actGrad.getStride(), size_in, size_out);};
 		ELT_GRAD(1)
 		ELT_GRAD(2)
 		ELT_GRAD(3)
