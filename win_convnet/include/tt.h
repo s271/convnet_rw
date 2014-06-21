@@ -64,7 +64,9 @@ struct Index
 
 struct SIndex : Index
 {
+	int _size;
 	DEVICE SIndex(const int step){_step = step;};
+	DEVICE SIndex(const int step, const int size){_step = step; _size = size;};
 };
 
 template <int dims>
@@ -77,40 +79,20 @@ struct BaseIndex
 
 	DEVICE BaseIndex(){_ndims = 0; _dimSize = dims; memset(_ind, 0, sizeof(_ind));}
 
-	DEVICE BaseIndex<dims+1> divisorSplit(int ngroups, int pos)
+	DEVICE int GetLowBase(int pos)
 	{
-		BaseIndex<dims+1> b_div;
-
-//#pragma unroll
-		for (int i = 0; i < pos; i++)
-			b_div.Insert(_step[i]);
-
-			b_div.Insert(ngroups);
-			b_div.Insert(_step[pos]/ngroups);
-
-//#pragma unroll
-		for (int i = pos+1; i < _ndims; i++)
-			b_div.Insert(_step[i]);
-		
-		return b_div;
+		int offset = 0;
+#ifdef  __CUDACC__
+#pragma unroll
+#endif
+		for(int k = pos+1; k < _ndims; k++)
+			offset += _ind[k]*_step[k];
+		return offset;
 	}
 
-	DEVICE BaseIndex<dims+1> quotientSplit(int quotient, int pos)
+	DEVICE int GetStep(int pos)
 	{
-		BaseIndex<dims+1> b_div;
-
-//#pragma unroll
-		for (int i = 0; i < pos; i++)
-			b_div.Insert(_step[i]);
-
-			b_div.Insert(_step[pos]/quotient);
-			b_div.Insert(quotient);
-
-//#pragma unroll
-		for (int i = pos+1; i < _ndims; i++)
-			b_div.Insert(_step[i]);
-		
-		return b_div;
+		return _step[pos];
 	}
 
 	DEVICE BaseIndex<dims>& Insert(int step)
@@ -140,7 +122,9 @@ struct BaseIndex
 	template <int dims_ins>
 	DEVICE BaseIndex<dims>& Insert(const BaseIndex<dims_ins> insBase)
 	{
-//#pragma unroll
+#ifdef  __CUDACC__
+#pragma unroll
+#endif
 		for(int k_ins = 0; k_ins < insBase._ndims; k_ins++)
 		{
 			_step[_ndims + k_ins] = insBase._step[k_ins];
@@ -168,6 +152,9 @@ struct BaseIndex
 
 	DEVICE BaseIndex<dims>& operator<<(int shift)
 	{
+#ifdef  __CUDACC__
+#pragma unroll
+#endif
 		for(int k = 0; k < _ndims; k++);
 			_step[k] <<= shift;
 		return *this;
@@ -175,6 +162,9 @@ struct BaseIndex
 
 	DEVICE BaseIndex<dims>& operator<<(const Shift& shift)
 	{
+#ifdef  __CUDACC__
+#pragma unroll
+#endif
 		for(int k = 0; k < _ndims; k++);
 		{
 			_step[k] <<= shift._sshift;
@@ -192,6 +182,8 @@ struct BaseIndex
 #endif
 
 };
+
+#define BASE_LOOP(ii, indx, base) for (uint ii = base.GetLowBase(indx._ind); ii < indx._size; ii += base.GetStep(indx._ind)) 
 
 struct DimIndex
 {
@@ -245,7 +237,9 @@ struct BaseDimIndex : public BaseIndex<dims>
 		Assert();
 #endif
 		_step[dims-1] = stepLow;
-
+#ifdef  __CUDACC__
+#pragma unroll
+#endif
 		for(int k = dims-2; k >= 0; k--)
 			_step[k] = _dim[k]*_step[k+1];
 	}

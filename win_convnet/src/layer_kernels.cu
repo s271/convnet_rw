@@ -373,19 +373,63 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 
 	const int numPixelsPerGroup = imgInPixels/sizeIn;
 
-	int yg_start = 0;
-	int x_start = 0;
-	BaseIndex<6> baseInputInd;
+	
 
-	SIndex yg_ind(numCases*blockDim.y*B_Y);
-	SIndex x_ind(blockDim.x*B_X);
+	SIndex yg_ind(numCases*blockDim.y*B_Y, numPixelsPerGroup);
+	SIndex x_ind(blockDim.x*B_X, numCases);
 
-	baseInputInd < yg_ind
+	BaseIndex<6> baseInd;
+	baseInd < yg_ind
 		< Index(numCases*B_Y, blockIdx.y)
 		< Index(numCases, threadIdx.y)
 		< x_ind
-		< Index(B_X, x_start)
+		< Index(B_X, blockIdx.x)
 		< Index(1, threadIdx.x);
+
+	SIndex pin_ind(numPixelsPerGroup, sizeIn*numPixelsPerGroup*numCases);
+
+	BaseIndex<7> baseInputInd;
+	baseInputInd < pin_ind < baseInd;
+
+	SIndex pout_ind(numPixelsPerGroup, sizeOut*numPixelsPerGroup*numCases);
+
+	BaseIndex<7> baseOutInd;
+	baseOutInd < pout_ind < baseInd;
+
+	BASE_LOOP(yg_, yg_ind, baseInd)
+	{
+		int offset = yg_;
+		BASE_LOOP(x_, x_ind, baseInd)
+		{
+			offset += x_;
+			float inpVal[sizeArr];//use shared instead?
+
+			for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {	
+				int yt = offset + inp_i*numPixelsPerGroup*strideInp;
+				float val = input[yt];
+				inpVal[inp_i] = val;
+			}
+		
+			for (uint out_i = 0; out_i < sizeOut; out_i++) {
+				int out_par = out_i*sizeIn*2;
+				
+				int yo = out_i*numPixelsPerGroup*strideInp;
+				int offseTag = offset + yo;
+
+				float output = 0;
+
+				for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {		
+					float param = const_area[out_par + inp_i];
+					float paramM = const_area[out_par + inp_i + sizeIn];
+					float val = inpVal[inp_i];
+					output += param*val + paramM*fmax(val, 0);
+
+				}
+				target[offseTag] = output;
+
+			}
+        }
+    }
 
 
 /*
