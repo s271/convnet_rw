@@ -41,9 +41,14 @@ struct Shift
 	DEVICE Shift(int ishift, int sshift){_ishift = ishift, _sshift = sshift;};
 };
 
-struct Index
+struct IndexProto
 {
 	int _step;
+};
+
+struct Index : IndexProto
+{
+
 	int _ind;
 	DEVICE Index(){_ind = 0;};
 	DEVICE Index(const int step){_step = step; _ind = 0;};
@@ -62,11 +67,18 @@ struct Index
 	}
 };
 
-struct SIndex : Index
+struct SIndex : IndexProto
 {
 	int _size;
+	int _pos;
 	DEVICE SIndex(const int step){_step = step;};
 	DEVICE SIndex(const int step, const int size){_step = step; _size = size;};
+};
+
+struct CIndex : IndexProto
+{
+	int _size_count;
+	DEVICE CIndex(const int step, const int size){_step = step; _size_count = size;};
 };
 
 template <int dims>
@@ -114,7 +126,7 @@ struct BaseIndex
 	{
 		_step[_ndims] = indx._step;
 		_ind[_ndims] = 0;
-		indx._ind = _ndims;
+		indx._pos = _ndims;
 		_ndims++;
 		return *this;
 	}
@@ -141,6 +153,11 @@ struct BaseIndex
 	}
 
 	DEVICE BaseIndex<dims>& operator<(Index insBase)
+	{
+		return Insert(insBase);
+	}
+
+	DEVICE BaseIndex<dims>& operator<(SIndex insBase)
 	{
 		return Insert(insBase);
 	}
@@ -183,7 +200,7 @@ struct BaseIndex
 
 };
 
-#define BASE_LOOP(ii, indx, base) for (uint ii = base.GetLowBase(indx._ind); ii < indx._size; ii += base.GetStep(indx._ind)) 
+#define BASE_LOOP(ii, indx, base) for (uint ii = base.GetLowBase(indx._pos); ii < indx._size; ii += base.GetStep(indx._pos)) 
 
 struct DimIndex
 {
