@@ -28,32 +28,43 @@
 #define	TENSOR_TEMPLATE_H
 #include <assert.h>
 
+#ifdef  __CUDACC__
+#define DEVICE __device__ inline
+#else
+#define DEVICE
+#endif
+
 struct Shift
 {
 	int _ishift;
 	int _sshift;
-	Shift(int ishift, int sshift){_ishift = ishift, _sshift = sshift;};
+	DEVICE Shift(int ishift, int sshift){_ishift = ishift, _sshift = sshift;};
 };
 
 struct Index
 {
 	int _step;
 	int _ind;
-	Index(){_ind = 0;};
-	Index(const int step){_step = step; _ind = 0;};
-	Index(const int step, const int ind){_step = step; _ind = ind;};
-	Index& operator<<(int shift)
+	DEVICE Index(){_ind = 0;};
+	DEVICE Index(const int step){_step = step; _ind = 0;};
+	DEVICE Index(const int step, const int ind){_step = step; _ind = ind;};
+	DEVICE Index& operator<<(int shift)
 	{
 		_step <<= shift;
 		return *this;
 	}
 
-	Index& operator<<(const Shift& shift)
+	DEVICE Index& operator<<(const Shift& shift)
 	{
 		_step <<= shift._sshift;
 		_ind <<= shift._ishift;
 		return *this;
 	}
+};
+
+struct SIndex : Index
+{
+	DEVICE SIndex(const int step){_step = step;};
 };
 
 template <int dims>
@@ -64,9 +75,9 @@ struct BaseIndex
 	int _step[dims];
 	int _ind[dims];
 
-	BaseIndex(){_ndims = 0; _dimSize = dims; memset(_ind, 0, sizeof(_ind));}
+	DEVICE BaseIndex(){_ndims = 0; _dimSize = dims; memset(_ind, 0, sizeof(_ind));}
 
-	BaseIndex<dims+1> divisorSplit(int ngroups, int pos)
+	DEVICE BaseIndex<dims+1> divisorSplit(int ngroups, int pos)
 	{
 		BaseIndex<dims+1> b_div;
 
@@ -84,7 +95,7 @@ struct BaseIndex
 		return b_div;
 	}
 
-	BaseIndex<dims+1> quotientSplit(int quotient, int pos)
+	DEVICE BaseIndex<dims+1> quotientSplit(int quotient, int pos)
 	{
 		BaseIndex<dims+1> b_div;
 
@@ -102,14 +113,14 @@ struct BaseIndex
 		return b_div;
 	}
 
-	BaseIndex<dims>& Insert(int step)
+	DEVICE BaseIndex<dims>& Insert(int step)
 	{
 		_step[_ndims] = step;
 		_ndims++;
 		return *this;
 	}
 
-	BaseIndex<dims>& Insert(Index& indx)
+	DEVICE BaseIndex<dims>& Insert(const Index& indx)
 	{
 		_step[_ndims] = indx._step;
 		_ind[_ndims] = indx._ind;
@@ -117,8 +128,17 @@ struct BaseIndex
 		return *this;
 	}
 
-	template <class TBase>
-	BaseIndex<dims>& Insert(TBase insBase)
+	DEVICE BaseIndex<dims>& Insert(SIndex& indx)
+	{
+		_step[_ndims] = indx._step;
+		_ind[_ndims] = 0;
+		indx._ind = _ndims;
+		_ndims++;
+		return *this;
+	}
+
+	template <int dims_ins>
+	DEVICE BaseIndex<dims>& Insert(const BaseIndex<dims_ins> insBase)
 	{
 //#pragma unroll
 		for(int k_ins = 0; k_ins < insBase._ndims; k_ins++)
@@ -130,30 +150,30 @@ struct BaseIndex
 		return *this;
 	}
 
-	template <class TBase>
-	BaseIndex<dims>& operator<(TBase insBase)
+	template <int dims_ins>
+	DEVICE BaseIndex<dims>& operator<(const BaseIndex<dims_ins> insBase)
 	{
-		return Insert<TBase>(insBase);
+		return Insert<dims_ins>(insBase);
 	}
 
-	BaseIndex<dims>& operator<(Index insBase)
+	DEVICE BaseIndex<dims>& operator<(Index insBase)
 	{
 		return Insert(insBase);
 	}
 
-	BaseIndex<dims>& operator<(int step)
+	DEVICE BaseIndex<dims>& operator<(int step)
 	{
 		return Insert(step);
 	}
 
-	BaseIndex<dims>& operator<<(int shift)
+	DEVICE BaseIndex<dims>& operator<<(int shift)
 	{
 		for(int k = 0; k < _ndims; k++);
 			_step[k] <<= shift;
 		return *this;
 	}
 
-	BaseIndex<dims>& operator<<(const Shift& shift)
+	DEVICE BaseIndex<dims>& operator<<(const Shift& shift)
 	{
 		for(int k = 0; k < _ndims; k++);
 		{
@@ -163,7 +183,7 @@ struct BaseIndex
 		return *this;
 	}
 
-#ifndef CUDA_KERNEL
+#ifndef  __CUDACC__
 	void Assert()
 	{
 		assert(_ndims == dims);
@@ -177,23 +197,20 @@ struct DimIndex
 {
 	int _dim;
 	int _ind;
-	DimIndex(){_ind = 0;};
-	DimIndex(const int dim){_dim = dim; _ind = 0;};
-	DimIndex(const int dim, const int ind){_dim = dim; _ind = ind;};
+	DEVICE DimIndex(){_ind = 0;};
+	DEVICE DimIndex(const int dim){_dim = dim; _ind = 0;};
+	DEVICE DimIndex(const int dim, const int ind){_dim = dim; _ind = ind;};
 };
 
 template <int dims>
-struct BaseDimIndex
+struct BaseDimIndex : public BaseIndex<dims>
 {
-	int _ndims;
-	int _dimSize;
-	int _step[dims];
+
 	int _dim[dims];
-	int _ind[dims];
 
-	BaseDimIndex(){_ndims = 0; _dimSize = dims; memset(_ind, 0, sizeof(_ind));}
+	DEVICE BaseDimIndex(){_ndims = 0; _dimSize = dims; memset(_ind, 0, sizeof(_ind));}
 
-	BaseDimIndex<dims>& Insert(int dim)
+	DEVICE BaseDimIndex<dims>& Insert(int dim)
 	{
 		_dim[_ndims] = dim;
 		_ndims++;
@@ -202,7 +219,7 @@ struct BaseDimIndex
 		return *this;
 	}
 
-	BaseDimIndex<dims>& Insert(DimIndex& indx)
+	DEVICE BaseDimIndex<dims>& Insert(DimIndex& indx)
 	{
 		_dim[_ndims] = indx._dim;
 		_ind[_ndims] = indx._ind;
@@ -212,19 +229,19 @@ struct BaseDimIndex
 		return *this;
 	}
 
-	BaseDimIndex<dims>& operator<(DimIndex insBase)
+	DEVICE BaseDimIndex<dims>& operator<(DimIndex insBase)
 	{
 		return Insert(insBase);
 	}
 
-	BaseDimIndex<dims>& operator<(int dim)
+	DEVICE BaseDimIndex<dims>& operator<(int dim)
 	{
 		return Insert(dim);
 	}
 
-	void Finalize(int stepLow = 1)
+	DEVICE void Finalize(int stepLow = 1)
 	{
-#ifndef CUDA_KERNEL
+#ifndef  __CUDACC__
 		Assert();
 #endif
 		_step[dims-1] = stepLow;
@@ -232,14 +249,6 @@ struct BaseDimIndex
 		for(int k = dims-2; k >= 0; k--)
 			_step[k] = _dim[k]*_step[k+1];
 	}
-
-#ifndef CUDA_KERNEL
-	void Assert()
-	{
-		assert(_ndims == _dimSize);
-	}
-
-#endif
 
 };
 
