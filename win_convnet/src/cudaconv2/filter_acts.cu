@@ -258,7 +258,7 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 
 	< imgPixels*imgStride*SIndex(colorCache, oc) //sequential
 
-	< SIndex(imgPixels*imgStride, c_img) //1st synch inside:
+	< SIndex(imgPixels*imgStride, c_img) //parallel->seq color ->colorCache
 
 	< Index(moduleStride*imgSizeX*imgStride, SplitY(SpitX(blockIdx.y, filter_blocksPerModule), numModulesX) )//center
 
@@ -272,20 +272,29 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 	< Index(B_X * imgsPerThread , blockIdx.x * B_X)//myImgIdx
 	< SIndex(B_X, i) //1st synch inside:
 	< Index(1, threadIdx.x);//myImgIdx
-
 //--------------------------------
+ //shImages[threadIdx.y + c * B_Y][threadIdx.x + i * B_X] = m[c * imgStride * imgPixels + i * B_X];
+	BaseIndex shImageIndex;
+	shImageIndex 
+	< SIndex(B_Y, c_img) << BX //parallel->seq color ->colorCache
+	< Index(1, threadIdx.y) << BX //cases
+	< Index(BX, i) //cases ->imgsPerThread
+	< Index(1, threadIdx.x) //cases
+
+//------------------------------------
+
 	BaseIndex filterIndex;
 	filterIndex
 	< filterPixels*numFilters*Index(colorCache, oc) //sequential, color
 
-	< filterPixels*SIndex(numFilters, c_filter) //inside
+	< filterPixels*SIndex(numFilters, c_filter) //parallel->seq color
 
 	< numFilters*SIndex(B_Y, p) //1st synch outside, sequential B_Y pixel
 
 	< Index(numFilters, tidx / (B_Y * filtersPerThread)) //shFilterLoadY, pixel , make B_Y pixels parallel
 	< SIndex(B_X/filtersPerThread,  p2) //pixel parallel->seq
 
-	< Index(filtersPerThread * B_Y , blockIdx.y % blocksPerModule)
+	< Index(filtersPerThread * B_Y , blockIdx.y % blocksPerModule) //block of B_Y * filtersPerThread
 
 	< Index(1, tidx % (B_Y * filtersPerThread));//shFilterLoadX filter, parallel
 
@@ -293,7 +302,7 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
   // shFilters[B_Y*colorCache][B_Y * filtersPerThread]; // pre-load B_Y pixels from B_Y*filtersPerThread filters
 	BaseIndex shFilterIndex;
 	shFilterIndex
-	< SIndex(B_Y, c_filter)<<B_Y * filtersPerThread //1st synch inside: //colors
+	< SIndex(B_Y, c_filter)<<B_Y * filtersPerThread //parallel->seq color
 
 	< SIndex(B_X/filtersPerThread,  p2)<<B_Y * filtersPerThread // p2 ->B_Y pixel, make B_Y pixels parallel->seq
 	< Index(1, tidx /(B_Y * filtersPerThread))<<B_Y * filtersPerThread //shFilterLoadY pixel
@@ -302,13 +311,6 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 
 //--------------------------------
 
-
-//1st synch
-LOOP(c)
-if (p + p2 + shFilterLoadY < filterPixels)
-  shFilters[shFilterLoadY + p2 + c * B_Y][shFilterLoadX] = filters[((oc+c) * filterPixels + p + p2) * numFilters];
-else
-	shFilters[shFilterLoadY + p2 + c * B_Y][shFilterLoadX] = 0;
 
 	BaseIndex tagIndex;
 	tagIndex
