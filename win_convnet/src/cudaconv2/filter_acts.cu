@@ -251,37 +251,57 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 
 	filter_blocksPerModule = numFilters / (B_Y*filtersPerThread)
 
-
+//--------------------------------
 	BaseIndex imgIndex;
 	imgIndex
 	< Index(imgPixels*imgStride*numImgColors / numGroups, (filtersPerThread * B_Y * SpitY(blockIdx.y, filter_blocksPerModule) / numFiltersPerGroup))
 
-	< imgPixels*imgStride*SIndex(colorCache, oc) //1st synch outside:
+	< imgPixels*imgStride*SIndex(colorCache, oc) //sequential
 
 	< SIndex(imgPixels*imgStride, c_img) //1st synch inside:
 
 	< Index(moduleStride*imgSizeX*imgStride, SplitY(SpitX(blockIdx.y, filter_blocksPerModule), numModulesX) )//center
 
-	< SIndex(imgSizeX*imgStride, paddingStart + SplitY(p + threadIdx.y, filterSize) ) //1st synch outside //convolution
+	< SIndex(imgSizeX*imgStride, paddingStart + SplitY(p + threadIdx.y, filterSize) ) //sequential //convolution
 
 	< Index(moduleStride*imgStride, SplitX(SpitX(blockIdx.y, filter_blocksPerModule), numModulesX))//center
 
-	< SIndex(imgStride, paddingStart + SplitX(p + threadIdx.y, filterSize) )  //1st synch outside //convolution
+	< SIndex(imgStride, paddingStart + SplitX(p + threadIdx.y, filterSize) )  //sequentiale //convolution
 
 
 	< Index(B_X * imgsPerThread , blockIdx.x * B_X)//myImgIdx
 	< SIndex(B_X, i) //1st synch inside:
 	< Index(1, threadIdx.x);//myImgIdx
 
+//--------------------------------
 	BaseIndex filterIndex;
 	filterIndex
-	< filterPixels*numFilters*Index(colorCache, oc) //1st synch outside:
-	< SIndex(filterPixels*numFilters, c_filter) //1st synch inside:
-	< SIndex(numFilters*B_Y, p) //1st synch outside:
-	< Index(numFilters, tidx / (B_Y * filtersPerThread))
-	< SIndex(B_X/filtersPerThread,  p2)
+	< filterPixels*numFilters*Index(colorCache, oc) //sequential, color
+
+	< filterPixels*SIndex(numFilters, c_filter) //inside
+
+	< numFilters*SIndex(B_Y, p) //1st synch outside, sequential B_Y pixel
+
+	< Index(numFilters, tidx / (B_Y * filtersPerThread)) //shFilterLoadY, pixel , make B_Y pixels parallel
+	< SIndex(B_X/filtersPerThread,  p2) //pixel parallel->seq
+
 	< Index(filtersPerThread * B_Y , blockIdx.y % blocksPerModule)
-	< Index(1, tidx % (B_Y * filtersPerThread));
+
+	< Index(1, tidx % (B_Y * filtersPerThread));//shFilterLoadX filter, parallel
+
+//--------------------------------
+  // shFilters[B_Y*colorCache][B_Y * filtersPerThread]; // pre-load B_Y pixels from B_Y*filtersPerThread filters
+	BaseIndex shFilterIndex;
+	shFilterIndex
+	< SIndex(B_Y, c_filter)<<B_Y * filtersPerThread //1st synch inside: //colors
+
+	< SIndex(B_X/filtersPerThread,  p2)<<B_Y * filtersPerThread // p2 ->B_Y pixel, make B_Y pixels parallel->seq
+	< Index(1, tidx /(B_Y * filtersPerThread))<<B_Y * filtersPerThread //shFilterLoadY pixel
+
+	< Index(1, tidx % (B_Y * filtersPerThread)); //shFilterLoadX filter, parallel
+
+//--------------------------------
+
 
 //1st synch
 LOOP(c)
