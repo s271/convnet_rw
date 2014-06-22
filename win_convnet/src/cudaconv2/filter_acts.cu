@@ -246,7 +246,56 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
     const int shFilterLoadY = tidx / (B_Y * filtersPerThread);
     const int shFilterLoadX = tidx % (B_Y * filtersPerThread);
     const int myImgIdx = blockIdx.x * B_X * imgsPerThread + threadIdx.x;
+/*
+//all interior indices corrected here
 
+	blocksPerModule = numFilters / (B_Y*filtersPerThread)
+
+
+	BaseIndex imgIndex;
+	imgIndex
+	< Index(imgPixels*imgStride*numImgColors / numGroups, (filtersPerThread * B_Y * (blockIdx.y % blocksPerModule) / numFiltersPerGroup))
+
+	< imgPixels*imgStride*SIndex(colorCache, oc) //1st synch outside:
+
+	< SIndex(imgPixels*imgStride, c_img) //1st synch inside:
+	< Index(moduleStride*imgSizeX*imgStride, SplitX(blockIdx.y / blocksPerModule, numModulesX) )
+	< SIndex(imgSizeX*imgStride, paddingStart + SplitX(p + threadIdx.y, filterSize) ) //1st synch outside:
+	< Index(moduleStride*imgStride, SplitY(blockIdx.y / blocksPerModule, numModulesX))
+	< Index(imgStride, paddingStart + SplitY(p + threadIdx.y, filterSize) )  //1st synch outside:
+	< Index(B_X * imgsPerThread , blockIdx.x * B_X)//myImgIdx
+	< SIndex(B_X, i) //1st synch inside:
+	< Index(1, threadIdx.x);//myImgIdx
+
+	BaseIndex filterIndex;
+	filterIndex
+	< filterPixels*numFilters*Index(colorCache, oc) //1st synch outside:
+	< Index(filterPixels*numFilters, c_filter) //1st synch inside:
+	< Index(numFilters*B_Y, p) //1st synch outside:
+	< Index(numFilters, tidx / (B_Y * filtersPerThread))
+	< Index(B_X/filtersPerThread,  p2)
+	< Index(filtersPerThread * B_Y , blockIdx.y % blocksPerModule)
+	< Index(1, tidx % (B_Y * filtersPerThread));
+
+//1st synch
+LOOP(c)
+if (p + p2 + shFilterLoadY < filterPixels)
+  shFilters[shFilterLoadY + p2 + c * B_Y][shFilterLoadX] = filters[((oc+c) * filterPixels + p + p2) * numFilters];
+else
+	shFilters[shFilterLoadY + p2 + c * B_Y][shFilterLoadX] = 0;
+
+	BaseIndex tagIndex;
+	tagIndex
+	< Index(numImages * numModules * filtersPerThread * B_Y,  blockIdx.y % blocksPerModule)
+	< Index(B_Y*numImages * numModules, f)
+	< Index(numImages * numModules, threadIdx.y)
+	< Index(numImages, blockIdx.y / blocksPerModule) 
+	< Index(B_X * imgsPerThread , blockIdx.x * B_X)//myImgIdx
+	< Index(B_X, g)
+	< Index(1, threadIdx.x);//myImgIdx 
+
+
+*/
     images += blockColorIdx * imgPixels * imgStride + myImgIdx;
     filters +=blockFilterIdx
             + shFilterLoadY * numFilters + shFilterLoadX;
