@@ -249,20 +249,26 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 /*
 //all interior indices corrected here
 
-	blocksPerModule = numFilters / (B_Y*filtersPerThread)
+	filter_blocksPerModule = numFilters / (B_Y*filtersPerThread)
 
 
 	BaseIndex imgIndex;
 	imgIndex
-	< Index(imgPixels*imgStride*numImgColors / numGroups, (filtersPerThread * B_Y * (blockIdx.y % blocksPerModule) / numFiltersPerGroup))
+	< Index(imgPixels*imgStride*numImgColors / numGroups, (filtersPerThread * B_Y * SpitY(blockIdx.y, filter_blocksPerModule) / numFiltersPerGroup))
 
 	< imgPixels*imgStride*SIndex(colorCache, oc) //1st synch outside:
 
 	< SIndex(imgPixels*imgStride, c_img) //1st synch inside:
-	< Index(moduleStride*imgSizeX*imgStride, SplitX(blockIdx.y / blocksPerModule, numModulesX) )
-	< SIndex(imgSizeX*imgStride, paddingStart + SplitX(p + threadIdx.y, filterSize) ) //1st synch outside:
-	< Index(moduleStride*imgStride, SplitY(blockIdx.y / blocksPerModule, numModulesX))
-	< Index(imgStride, paddingStart + SplitY(p + threadIdx.y, filterSize) )  //1st synch outside:
+
+	< Index(moduleStride*imgSizeX*imgStride, SplitY(SpitX(blockIdx.y, filter_blocksPerModule), numModulesX) )//center
+
+	< SIndex(imgSizeX*imgStride, paddingStart + SplitY(p + threadIdx.y, filterSize) ) //1st synch outside //convolution
+
+	< Index(moduleStride*imgStride, SplitX(SpitX(blockIdx.y, filter_blocksPerModule), numModulesX))//center
+
+	< SIndex(imgStride, paddingStart + SplitX(p + threadIdx.y, filterSize) )  //1st synch outside //convolution
+
+
 	< Index(B_X * imgsPerThread , blockIdx.x * B_X)//myImgIdx
 	< SIndex(B_X, i) //1st synch inside:
 	< Index(1, threadIdx.x);//myImgIdx
@@ -270,10 +276,10 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 	BaseIndex filterIndex;
 	filterIndex
 	< filterPixels*numFilters*Index(colorCache, oc) //1st synch outside:
-	< Index(filterPixels*numFilters, c_filter) //1st synch inside:
-	< Index(numFilters*B_Y, p) //1st synch outside:
+	< SIndex(filterPixels*numFilters, c_filter) //1st synch inside:
+	< SIndex(numFilters*B_Y, p) //1st synch outside:
 	< Index(numFilters, tidx / (B_Y * filtersPerThread))
-	< Index(B_X/filtersPerThread,  p2)
+	< SIndex(B_X/filtersPerThread,  p2)
 	< Index(filtersPerThread * B_Y , blockIdx.y % blocksPerModule)
 	< Index(1, tidx % (B_Y * filtersPerThread));
 
@@ -287,11 +293,11 @@ else
 	BaseIndex tagIndex;
 	tagIndex
 	< Index(numImages * numModules * filtersPerThread * B_Y,  blockIdx.y % blocksPerModule)
-	< Index(B_Y*numImages * numModules, f)
+	< SIndex(B_Y*numImages * numModules, f)
 	< Index(numImages * numModules, threadIdx.y)
 	< Index(numImages, blockIdx.y / blocksPerModule) 
 	< Index(B_X * imgsPerThread , blockIdx.x * B_X)//myImgIdx
-	< Index(B_X, g)
+	< SIndex(B_X, g)
 	< Index(1, threadIdx.x);//myImgIdx 
 
 
