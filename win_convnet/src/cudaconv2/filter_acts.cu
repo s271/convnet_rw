@@ -254,7 +254,8 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 //--------------------------------
 	BaseIndex imgIndex;
 	imgIndex
-	< Index(imgPixels*imgStride*numImgColors / numGroups, (filtersPerThread * B_Y * SpitY(blockIdx.y, filter_blocksPerModule) / numFiltersPerGroup))
+	< Index(imgPixels*imgStride*(numImgColors / numGroups),
+		filtersPerThread * B_Y * SplitX(blockIdx.y, filter_blocksPerModule) / numFiltersPerGroup) //blockColorIdx
 
 	< imgPixels*imgStride*SIndex(colorCache, oc) //sequential
 
@@ -283,7 +284,7 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 
 //------------------------------------
 
-	BaseIndex filterIndex;
+	Index filterIndex;
 	filterIndex
 	< filterPixels*numFilters*Index(colorCache, oc) //sequential, color
 
@@ -300,7 +301,7 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 
 //--------------------------------
   // shFilters[B_Y*colorCache][B_Y * filtersPerThread]; // pre-load B_Y pixels from B_Y*filtersPerThread filters
-	BaseIndex shFilterIndex;
+	Index shFilterIndex;
 	shFilterIndex
 	< SIndex(B_Y, c_filter)<<B_Y * filtersPerThread //parallel->seq color
 
@@ -312,9 +313,9 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 //--------------------------------
 
 
-	BaseIndex tagIndex;
+	Index tagIndex;
 	tagIndex
-	< Index(numImages * numModules * filtersPerThread * B_Y,  blockIdx.y % blocksPerModule)
+	< Index(numImages * numModules,  filtersPerThread * B_Y*SplitX(blockIdx.y, blocksPerModule))
 	< SIndex(B_Y*numImages * numModules, f)
 	< Index(numImages * numModules, threadIdx.y)
 	< Index(numImages, blockIdx.y / blocksPerModule) 
