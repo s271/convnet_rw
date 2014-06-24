@@ -214,6 +214,9 @@ __global__ void filterActs_YxX_color(float* images, float* filters, float* targe
  * The imgSize here is the size of the actual image without the padding.
  *
  */
+
+#include "tt.h"
+
 template <int B_Y, int B_X, int imgsPerThread, int filtersPerThread, int colorCache,
           bool scale, bool checkImgBounds>
 __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targets,
@@ -246,12 +249,49 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
     const int shFilterLoadY = tidx / (B_Y * filtersPerThread);
     const int shFilterLoadX = tidx % (B_Y * filtersPerThread);
     const int myImgIdx = blockIdx.x * B_X * imgsPerThread + threadIdx.x;
+
+	const int numFiltersPerBlock = filtersPerThread * B_Y;
+
+	const int& bx = blockIdx.x;
+	const int& by = blockIdx.y;
+
+	SPLIT(by, blocksPerModule)
+	SPLIT(by_x, numModulesX)
+
+BaseIndex<4> imgIndex;
+	imgIndex
+	< Index(numFilterColors,  numFiltersPerBlock*by_x /numFiltersPerGroup);
+	LoopIndex oc(numFilterColors, colorCache); imgIndex < oc;
+	LoopIndex c_img(colorCache, 1);  imgIndex < c_img;
+
+	imgIndex << imgPixels;
+
+	//const int pixIdx = p + threadIdx.y;
+
+	imgIndex < Index(imgSizeX, by_x_y)// + pixIdx_y)//center + offset
+	< Index(1, by_x_x);// + pixIdx_x);
+
+	imgIndex<< moduleStride
+
+	< Index(1, paddingStart);
+	LoopIndex p(filterPixels, B_Y);  imgIndex < p;
+	//< SIndex(imgSizeX*imgStride, paddingStart + SplitY(p + threadIdx.y, filterSize) ) //sequential //convolution
+
+	imgIndex << imgStride
+	< Index(imgsPerThread , bx);//myImgIdx
+	LoopIndex i(imgsPerThread, 1);  imgIndex < i;
+	imgIndex << B_X;
+	imgIndex < Index(1, threadIdx.x);
+
+
 /*
 //all interior indices corrected here
 
 	filter_blocksPerModule = numFilters / (B_Y*filtersPerThread)
 
 //--------------------------------
+
+//-------
 	BaseIndex imgIndex;
 	imgIndex
 	< Index(imgPixels*imgStride*(numImgColors / numGroups),
@@ -263,7 +303,7 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 
 	< Index(moduleStride*imgSizeX*imgStride, SplitY(SpitX(blockIdx.y, filter_blocksPerModule), numModulesX) )//center
 
-	< SIndex(imgSizeX*imgStride, paddingStart + SplitY(p + threadIdx.y, filterSize) ) //sequential //convolution
+
 
 	< Index(moduleStride*imgStride, SplitX(SpitX(blockIdx.y, filter_blocksPerModule), numModulesX))//center
 

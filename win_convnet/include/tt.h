@@ -30,14 +30,25 @@
 
 #ifdef  __CUDACC__
 #define DEVICE __device__ inline
+#define DEVICE_ __device__
 #else
 #define DEVICE
+#define DEVICE_
 #endif
 
 typedef int CudaPos;
 typedef int LoopPos;
 
-DEVICE void Split(CudaPos t_ind, CudaPos t_split, CudaPos& x, CudaPos& y)
+struct FullShift
+{
+	int _shift;
+	DEVICE FullShift(int shift)
+	{
+		_shift = shift;
+	}
+};
+
+DEVICE void Split(const CudaPos t_ind, const CudaPos t_split, CudaPos& x, CudaPos& y)
 {
 	y = t_ind/t_split;
 	x = t_ind%t_split;
@@ -51,9 +62,17 @@ struct Index
 	CudaPos _ind;
 	DEVICE Index(const int step){_step = step; _ind = 0;};
 	DEVICE Index(const int step, const int ind){_step = step; _ind = ind;};
+
 	DEVICE Index& operator<<(int shift)
 	{
 		_step <<= shift;
+		return *this;
+	}
+
+	DEVICE Index& operator<<(FullShift shift)
+	{
+		_step <<= shift._shift;
+		_ind <<= shift._shift;
 		return *this;
 	}
 };
@@ -61,9 +80,11 @@ struct Index
 struct LoopIndex
 {
 	int _step;
+	int _size;
 	LoopPos _pos;
 	DEVICE LoopIndex(){};
 	DEVICE LoopIndex(const int step){_step = step;};
+	DEVICE LoopIndex(const int step, const int size){_step = step; _size = size;};
 	DEVICE LoopIndex& operator<<(int shift)
 	{
 		_step <<= shift;
@@ -77,11 +98,17 @@ struct BaseIndex
 	int _offset;
 	int _n_loop_dims;
 	LoopPos _loop_step[loop_dims];
+	int _size[loop_dims];
 	DEVICE BaseIndex(){_n_loop_dims = 0; _offset = 0;}
 
-	DEVICE int GetFreeStep(int pos)
+	DEVICE int GetLoopStep(int pos)
 	{
 		return _loop_step[pos];
+	}
+
+	DEVICE int GetLoopSsize(int pos)
+	{
+		return _size[pos];
 	}
 
 	DEVICE BaseIndex<loop_dims>& operator<(const Index indx)
@@ -93,8 +120,24 @@ struct BaseIndex
 	DEVICE BaseIndex<loop_dims>& operator<(LoopIndex& indx)
 	{
 		_loop_step[_n_loop_dims] = indx._step;
+		_size[_n_loop_dims] = indx._size;
 		indx._pos = _n_loop_dims;
 		_n_loop_dims++;
+		return *this;
+	}
+
+	DEVICE BaseIndex<loop_dims>& operator << (int shift)
+	{
+		_offset <<= shift;
+
+#ifdef  __CUDACC__
+#pragma unroll
+#endif
+		for (int k = 0; k < _n_loop_dims; k++)
+		{
+			_loop_step[k] <<= shift;
+			_size[k] <<= shift;
+		}
 		return *this;
 	}
 
