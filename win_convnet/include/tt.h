@@ -34,11 +34,21 @@
 #define DEVICE
 #endif
 
+typedef int CudaPos;
+typedef int LoopPos;
+
+DEVICE void Split(CudaPos t_ind, CudaPos t_split, CudaPos& x, CudaPos& y)
+{
+	y = t_ind/t_split;
+	x = t_ind%t_split;
+}
+
+#define SPLIT(src, split) CudaPos src##_x; CudaPos src##_y; Split(src, split, src##_x, src##_y);
 
 struct Index
 {
 	int _step;
-	int _ind;
+	CudaPos _ind;
 	DEVICE Index(const int step){_step = step; _ind = 0;};
 	DEVICE Index(const int step, const int ind){_step = step; _ind = ind;};
 	DEVICE Index& operator<<(int shift)
@@ -51,7 +61,7 @@ struct Index
 struct LoopIndex
 {
 	int _step;
-	int _pos;
+	LoopPos _pos;
 	DEVICE LoopIndex(){};
 	DEVICE LoopIndex(const int step){_step = step;};
 	DEVICE LoopIndex& operator<<(int shift)
@@ -66,7 +76,7 @@ struct BaseIndex
 {
 	int _offset;
 	int _n_loop_dims;
-	int _loop_step[loop_dims];
+	LoopPos _loop_step[loop_dims];
 	DEVICE BaseIndex(){_n_loop_dims = 0; _offset = 0;}
 
 	DEVICE int GetFreeStep(int pos)
