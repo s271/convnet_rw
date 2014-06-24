@@ -34,23 +34,11 @@
 #define DEVICE
 #endif
 
-struct Shift
-{
-	int _ishift;
-	int _sshift;
-	DEVICE Shift(int ishift, int sshift){_ishift = ishift, _sshift = sshift;};
-};
 
-struct IndexProto
+struct Index
 {
 	int _step;
-};
-
-struct Index : IndexProto
-{
-
 	int _ind;
-	DEVICE Index(){_ind = 0;};
 	DEVICE Index(const int step){_step = step; _ind = 0;};
 	DEVICE Index(const int step, const int ind){_step = step; _ind = ind;};
 	DEVICE Index& operator<<(int shift)
@@ -58,29 +46,52 @@ struct Index : IndexProto
 		_step <<= shift;
 		return *this;
 	}
+};
 
-	DEVICE Index& operator<<(const Shift& shift)
+struct LoopIndex
+{
+	int _step;
+	int _pos;
+	DEVICE LoopIndex(){};
+	DEVICE LoopIndex(const int step){_step = step;};
+	DEVICE LoopIndex& operator<<(int shift)
 	{
-		_step <<= shift._sshift;
-		_ind <<= shift._ishift;
+		_step <<= shift;
 		return *this;
 	}
 };
 
-struct SIndex : IndexProto
+template <int loop_dims>
+struct BaseIndex
 {
-	int _size;
-	int _pos;
-	DEVICE SIndex(const int step){_step = step;};
-	DEVICE SIndex(const int step, const int size){_step = step; _size = size;};
-};
+	int _offset;
+	int _n_loop_dims;
+	int _loop_step[loop_dims];
+	DEVICE BaseIndex(){_n_loop_dims = 0; _offset = 0;}
 
-struct CIndex : IndexProto
-{
-	int _size_count;
-	DEVICE CIndex(const int step, const int size){_step = step; _size_count = size;};
-};
+	DEVICE int GetFreeStep(int pos)
+	{
+		return _loop_step[pos];
+	}
 
+	DEVICE BaseIndex<loop_dims>& operator<(const Index indx)
+	{
+		_offset += indx._step*indx._ind;
+		return *this;
+	}
+
+	DEVICE BaseIndex<loop_dims>& operator<(LoopIndex& indx)
+	{
+		_loop_step[_n_loop_dims] = indx._step;
+		indx._pos = _n_loop_dims;
+		_n_loop_dims++;
+		return *this;
+	}
+
+
+};
+//---------
+/*
 template <int dims>
 struct BaseIndex
 {
@@ -264,7 +275,7 @@ struct BaseDimIndex : public BaseIndex<dims>
 };
 
 
-
+*/
 
 
 

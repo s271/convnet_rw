@@ -372,7 +372,7 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 								const uint sizeIn, const uint sizeOut) {
 
 	const int numPixelsPerGroup = imgInPixels/sizeIn;	
-
+/*
 	SIndex yg_ind(numCases*blockDim.y*B_Y, numPixelsPerGroup);
 	SIndex x_ind(blockDim.x*B_X, numCases);
 
@@ -417,7 +417,7 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 			}
         }
     }
-
+*/
 
 /*
 //go over output group
@@ -472,7 +472,8 @@ __global__ void kEltwiseFuncGrad(const float* actGrad, const float* input, float
 
 
 	const int numPixelsPerGroup = imgInPixels/sizeIn;	
-
+	BaseIndex<4> baseInd;
+/*
 	SIndex yg_ind(numCases*blockDim.y*B_Y, numPixelsPerGroup);
 	SIndex x_ind(blockDim.x*B_X, numCases);
 
@@ -515,7 +516,7 @@ __global__ void kEltwiseFuncGrad(const float* actGrad, const float* input, float
 			}	
 		}
    }
-
+*/
 /*
 //go over output group
     const uint idxX = blockIdx.x * B_X + threadIdx.x;
