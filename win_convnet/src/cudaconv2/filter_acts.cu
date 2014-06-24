@@ -257,6 +257,7 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 
 	SPLIT(by, blocksPerModule)
 	SPLIT(by_x, numModulesX)
+	SPLIT(moduleIdx, moduleStride)
 
 BaseIndex<4> imgIndex;
 	imgIndex
@@ -266,16 +267,25 @@ BaseIndex<4> imgIndex;
 
 	imgIndex << imgPixels;
 
+    //const int imgLoadModPosY = paddingStart + (moduleIdx / numModulesX) * moduleStride;
+    //const int imgLoadModPosX = paddingStart + (moduleIdx % numModulesX) * moduleStride;
 	//const int pixIdx = p + threadIdx.y;
+    //if (pixIdx < filterPixels) {
+    //    const int x = imgLoadModPosX + pixIdx % filterSize;
+    //    const int y = imgLoadModPosY + pixIdx / filterSize;
+    //    if (y >= 0 && y < imgSizeY && x >= 0 && x < imgSizeX) {
+    //        float* m = &images[imgStride * (oc * imgPixels + y * imgSizeX + x)];
+	imgIndex
+	< Index(moduleStride, moduleIdx_y)
+	< Index(1, paddingStart);// + pixIdx_y)//center + offset
 
-	imgIndex < Index(imgSizeX, by_x_y)// + pixIdx_y)//center + offset
-	< Index(1, by_x_x);// + pixIdx_x);
+	imgIndex << imgSizeX;
 
-	imgIndex<< moduleStride
+	imgIndex
+	< Index(moduleStride, moduleIdx_x)
+	< Index(1, paddingStart);// + pixIdx_x);
 
-	< Index(1, paddingStart);
-	LoopIndex p(filterPixels, B_Y);  imgIndex < p;
-	//< SIndex(imgSizeX*imgStride, paddingStart + SplitY(p + threadIdx.y, filterSize) ) //sequential //convolution
+	LoopIndex p(filterPixels, B_Y);  imgIndex < p; 
 
 	imgIndex << imgStride
 	< Index(imgsPerThread , bx);//myImgIdx
