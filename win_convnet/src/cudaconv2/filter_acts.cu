@@ -259,37 +259,44 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 	SPLIT(by_x, numModulesX)
 	SPLIT(moduleIdx, moduleStride)
 
+	int oc_, c_img_, p_, i_;
+	LoopBlock<4> loopBlock;
+	loopBlock < oc_ < LoopIndex(numFilterColors, colorCache) 
+	< c_img_ < LoopIndex (colorCache, 1) 
+	< p_ < LoopIndex (filterPixels, B_Y)
+	< i_ < LoopIndex (imgsPerThread, 1);
+
+
 BaseIndex<4> imgIndex;
 	imgIndex
 	< Index(numFilterColors,  numFiltersPerBlock*by_x /numFiltersPerGroup);
 	LoopIndex oc(numFilterColors, colorCache); imgIndex < oc;
 	LoopIndex c_img(colorCache, 1);  imgIndex < c_img;
 
-	imgIndex << imgPixels;
 
-    //const int imgLoadModPosY = paddingStart + (moduleIdx / numModulesX) * moduleStride;
-    //const int imgLoadModPosX = paddingStart + (moduleIdx % numModulesX) * moduleStride;
-	//const int pixIdx = p + threadIdx.y;
-    //if (pixIdx < filterPixels) {
-    //    const int x = imgLoadModPosX + pixIdx % filterSize;
-    //    const int y = imgLoadModPosY + pixIdx / filterSize;
-    //    if (y >= 0 && y < imgSizeY && x >= 0 && x < imgSizeX) {
-    //        float* m = &images[imgStride * (oc * imgPixels + y * imgSizeX + x)];
+	LoopIndex p(filterPixels, B_Y);
+
+	imgIndex << imgSizeY;
+	AddIndex pixIdx(threadIdx.y, p._pos);
+	SplitX pixIdx_x(filterSize, pixIdx._pos); 
+	SplitY pixIdx_y(filterSize, pixIdx._pos);
+
 	imgIndex
-	< Index(moduleStride, moduleIdx_y)
-	< Index(1, paddingStart);// + pixIdx_y)//center + offset
+	< Index(moduleStride, moduleIdx_y)//center + offset
+	< pixIdx_y
+	< Index(1, paddingStart);
 
 	imgIndex << imgSizeX;
 
 	imgIndex
 	< Index(moduleStride, moduleIdx_x)
-	< Index(1, paddingStart);// + pixIdx_x);
+	< pixIdx_x
+	< Index(1, paddingStart);
 
-	LoopIndex p(filterPixels, B_Y);  imgIndex < p; 
-
-	imgIndex << imgStride
+	imgIndex << imgStride/B_X
 	< Index(imgsPerThread , bx);//myImgIdx
-	LoopIndex i(imgsPerThread, 1);  imgIndex < i;
+	LoopIndex i(imgsPerThread, 1);
+	imgIndex < i;
 	imgIndex << B_X;
 	imgIndex < Index(1, threadIdx.x);
 

@@ -81,6 +81,7 @@ struct LoopIndex
 {
 	int _step;
 	int _size;
+	int _start;
 	LoopPos _pos;
 	DEVICE LoopIndex(){};
 	DEVICE LoopIndex(const int step){_step = step;};
@@ -90,6 +91,50 @@ struct LoopIndex
 		_step <<= shift;
 		return *this;
 	}
+};
+
+template <int loops>
+struct LoopBlock
+{
+	int _nloops;
+	LoopIndex _idx[loops];
+	DEVICE LoopBlock(){_nloops = 0;};
+	DEVICE LoopBlock<loops>& operator<(LoopIndex& indx)
+	{
+		_idx[_nloops] = indx;
+		_nloops++;
+		return *this;
+	}
+	DEVICE LoopBlock<loops>& operator<(int& name)
+	{
+		name = _nloops;
+		return *this;
+	}
+};
+
+struct AddIndex
+{
+	int _pos;
+	int _add;
+	DEVICE AddIndex(int add, int pos){ _add = add; _pos =pos;};
+};
+
+struct SplitIndex
+{
+	int _pos;
+	int _split;
+	int _step;
+	DEVICE SplitIndex(int split, int pos){ _split = split; _pos =pos;};
+};
+
+struct SplitX : SplitIndex
+{
+	DEVICE SplitX(int split, int pos): SplitIndex(split, pos){};
+};
+
+struct SplitY : SplitIndex
+{
+	DEVICE SplitY(int split, int pos): SplitIndex(split, pos){};
 };
 
 template <int loop_dims>
@@ -123,6 +168,12 @@ struct BaseIndex
 		_size[_n_loop_dims] = indx._size;
 		indx._pos = _n_loop_dims;
 		_n_loop_dims++;
+		return *this;
+	}
+
+	DEVICE BaseIndex<loop_dims>& operator<(SplitIndex& indx)
+	{
+		indx._step = _loop_step[_n_loop_dims];
 		return *this;
 	}
 
