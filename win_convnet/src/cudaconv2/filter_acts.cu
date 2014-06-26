@@ -267,38 +267,30 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 	< i_ < LoopIndex (imgsPerThread, 1);
 
 
-BaseIndex<4> imgIndex;
+BaseIndex<3, 1> imgIndex;
 	imgIndex
-	< Index(numFilterColors,  numFiltersPerBlock*by_x /numFiltersPerGroup);
-	LoopIndex oc(numFilterColors, colorCache); imgIndex < oc;
-	LoopIndex c_img(colorCache, 1);  imgIndex < c_img;
+	<< Index(numFilterColors,  numFiltersPerBlock*by_x /numFiltersPerGroup)
+	<< Ref(oc_)
+	<< Ref(c_img_)
 
+	<< imgSizeY
 
-	LoopIndex p(filterPixels, B_Y);
+	<< Index(moduleStride, moduleIdx_y)//center + offset
+	<< RefSplitY(filterSize, threadIdx.y, p_)
+	<< Index(1, paddingStart)
 
-	imgIndex << imgSizeY;
-	AddIndex pixIdx(threadIdx.y, p._pos);
-	SplitX pixIdx_x(filterSize, pixIdx._pos); 
-	SplitY pixIdx_y(filterSize, pixIdx._pos);
+	<< imgSizeX
+	
+	<< Index(moduleStride, moduleIdx_x)
+	<< RefSplitX(p_)
+	<< Index(1, paddingStart)
 
-	imgIndex
-	< Index(moduleStride, moduleIdx_y)//center + offset
-	< pixIdx_y
-	< Index(1, paddingStart);
+	<< imgStride/B_X
 
-	imgIndex << imgSizeX;
-
-	imgIndex
-	< Index(moduleStride, moduleIdx_x)
-	< pixIdx_x
-	< Index(1, paddingStart);
-
-	imgIndex << imgStride/B_X
-	< Index(imgsPerThread , bx);//myImgIdx
-	LoopIndex i(imgsPerThread, 1);
-	imgIndex < i;
-	imgIndex << B_X;
-	imgIndex < Index(1, threadIdx.x);
+	<< Index(imgsPerThread , bx)
+	<< Ref(i_)
+	<< B_X
+	<< Index(1, threadIdx.x);
 
 
 /*
