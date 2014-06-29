@@ -80,7 +80,7 @@ struct LoopBlock
 		_nloops++;
 		return *this;
 	}
-	DEVICE LoopBlock<loops>& operator<(int& name)
+	DEVICE LoopBlock<loops>& operator>(int& name)
 	{
 		name = _nloops;
 		return *this;
@@ -107,6 +107,10 @@ struct RefSplitX
 	DEVICE RefSplitX(int pos){_pos =pos;};
 };
 
+struct SplitPos
+{
+	int _pos;
+};
 
 template <int loop_dims, int split_dims>
 struct BaseIndex
@@ -186,6 +190,17 @@ struct BaseIndex
 		return *this;
 	}
 
+	DEVICE BaseIndex& operator >>(int& pos)
+	{
+		pos =_n_loop_dims;
+		return *this;
+	}
+
+	DEVICE BaseIndex& operator >>(SplitPos& split_pos)
+	{
+		split_pos._pos =_n_split_dims;
+		return *this;
+	}
 
 };
 //---------

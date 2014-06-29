@@ -261,22 +261,24 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 
 	int oc_, c_img_, p_, i_;
 	LoopBlock<4> loopBlock;
-	loopBlock < oc_ < LoopIndex(numFilterColors, colorCache) 
-	< c_img_ < LoopIndex (colorCache, 1) 
-	< p_ < LoopIndex (filterPixels, B_Y)
-	< i_ < LoopIndex (imgsPerThread, 1);
+	loopBlock > oc_ < LoopIndex(numFilterColors, colorCache) 
+	> c_img_ < LoopIndex (colorCache, 1) 
+	> p_ < LoopIndex (filterPixels, B_Y)
+	> i_ < LoopIndex (imgsPerThread, 1);
 
 
+	int oc_l, c_img_l;
+	SplitPos spl_l;
 BaseIndex<3, 1> imgIndex;
 	imgIndex
 	<< Index(numFilterColors,  numFiltersPerBlock*by_x /numFiltersPerGroup)
-	<< Ref(oc_)
-	<< Ref(c_img_)
+	>> oc_l << Ref(oc_)
+	>> c_img_l << Ref(c_img_)
 
 	<< imgSizeY
 
 	<< Index(moduleStride, moduleIdx_y)//center + offset
-	<< RefSplitY(filterSize, threadIdx.y, p_)
+	>> spl_l << RefSplitY(filterSize, threadIdx.y, p_)
 	<< Index(1, paddingStart)
 
 	<< imgSizeX
