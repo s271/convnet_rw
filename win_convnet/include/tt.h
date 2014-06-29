@@ -45,7 +45,8 @@ DEVICE void Split(const CudaPos t_ind, const CudaPos t_split, CudaPos& x, CudaPo
 	x = t_ind%t_split;
 }
 
-#define SPLIT(src, split) CudaPos src##_x; CudaPos src##_y; Split(src, split, src##_x, src##_y);
+//#define SPLIT(src, split) CudaPos src##_x; CudaPos src##_y; Split(src, split, src##_x, src##_y);
+#define SPLIT(src, split) CudaPos src##_##split##_x; CudaPos src##_##split##_y; Split(src, split, src##_##split##_x,  src##_##split##_y);
 
 struct Index
 {

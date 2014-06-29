@@ -252,15 +252,21 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 
 	const int numFiltersPerBlock = filtersPerThread * B_Y;
 
+//	dim3(DIVUP(numImages, BX * imgsPerThread), (numModules * numFilters) / (BY * filtersPerThread))
+//  const int blocksPerModule = numFilters / (B_Y*filtersPerThread);
+
 	const int& bx = blockIdx.x;
 	const int& by = blockIdx.y;
 
 	SPLIT(by, blocksPerModule)
-	SPLIT(by_x, numModulesX)
+	SPLIT(by_blocksPerModule_x, numModulesX)
+
+	//moduleIdx = by_y;
 	SPLIT(moduleIdx, moduleStride)
 
 	int oc_, c_img_, p_, i_;
 	LoopBlock<4> loopBlock;
+
 	loopBlock > oc_ < LoopIndex(numFilterColors, colorCache) 
 	> c_img_ < LoopIndex (colorCache, 1) 
 	> p_ < LoopIndex (filterPixels, B_Y)
@@ -269,21 +275,25 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 
 	int oc_l, c_img_l;
 	SplitPos spl_l;
-BaseIndex<3, 1> imgIndex;
+	BaseIndex<3, 1> imgIndex;
+
+	//blockFilterIdx= filtersPerThread * B_Y * (blockIdx.y % blocksPerModule);
+	//blockFilterIdx / numFiltersPerGroup;
+
 	imgIndex
-	<< Index(numFilterColors,  numFiltersPerBlock*by_x /numFiltersPerGroup)
+	<< Index(numFilterColors,  numFiltersPerBlock*by_blocksPerModule_x/numFiltersPerGroup)
 	>> oc_l << Ref(oc_)
 	>> c_img_l << Ref(c_img_)
 
 	<< imgSizeY
 
-	<< Index(moduleStride, moduleIdx_y)//center + offset
+	<< Index(moduleStride, moduleIdx_moduleStride_y)//center + offset
 	>> spl_l << RefSplitY(filterSize, threadIdx.y, p_)
 	<< Index(1, paddingStart)
 
 	<< imgSizeX
 	
-	<< Index(moduleStride, moduleIdx_x)
+	<< Index(moduleStride, moduleIdx_moduleStride_x)
 	<< RefSplitX(p_)
 	<< Index(1, paddingStart)
 
@@ -296,42 +306,6 @@ BaseIndex<3, 1> imgIndex;
 
 
 /*
-//all interior indices corrected here
-
-	filter_blocksPerModule = numFilters / (B_Y*filtersPerThread)
-
-//--------------------------------
-
-//-------
-	BaseIndex imgIndex;
-	imgIndex
-	< Index(imgPixels*imgStride*(numImgColors / numGroups),
-		filtersPerThread * B_Y * SplitX(blockIdx.y, filter_blocksPerModule) / numFiltersPerGroup) //blockColorIdx
-
-	< imgPixels*imgStride*SIndex(colorCache, oc) //sequential
-
-	< SIndex(imgPixels*imgStride, c_img) //parallel->seq color ->colorCache
-
-	< Index(moduleStride*imgSizeX*imgStride, SplitY(SpitX(blockIdx.y, filter_blocksPerModule), numModulesX) )//center
-
-
-
-	< Index(moduleStride*imgStride, SplitX(SpitX(blockIdx.y, filter_blocksPerModule), numModulesX))//center
-
-	< SIndex(imgStride, paddingStart + SplitX(p + threadIdx.y, filterSize) )  //sequentiale //convolution
-
-
-	< Index(B_X * imgsPerThread , blockIdx.x * B_X)//myImgIdx
-	< SIndex(B_X, i) //1st synch inside:
-	< Index(1, threadIdx.x);//myImgIdx
-//--------------------------------
- //shImages[threadIdx.y + c * B_Y][threadIdx.x + i * B_X] = m[c * imgStride * imgPixels + i * B_X];
-	BaseIndex shImageIndex;
-	shImageIndex 
-	< SIndex(B_Y, c_img) << BX //parallel->seq color ->colorCache
-	< Index(1, threadIdx.y) << BX //cases
-	< Index(BX, i) //cases ->imgsPerThread
-	< Index(1, threadIdx.x) //cases
 
 //------------------------------------
 
@@ -725,6 +699,10 @@ __global__ void filterActs_YxX_sparse_random(float* images, float* filters, floa
     assert(filters.isContiguous());
     assert(targets.isContiguous());
     int imgsPerThread = numImages % 128 == 0 ? 4 : numImages % 64 == 0 ? 2 : 1;
+
+//	numFiltersPerGroup % 32 == 0 ? filtersPerThread = 8
+//		: filtersPerThread = 4
+
 
     dim3 blocks = numFiltersPerGroup % 32 == 0 ? dim3(DIVUP(numImages, IMAGE_THREADS * imgsPerThread), (numModules * numFilters) / (FILTER_THREADS * 8))
                                                : dim3(DIVUP(numImages, IMAGE_THREADS * imgsPerThread), (numModules * numFilters) / (FILTER_THREADS * 4));
