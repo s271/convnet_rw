@@ -168,7 +168,7 @@ struct BaseIndex
 
 	DEVICE BaseIndex& operator << (int shift)
 	{
-		Insert(shif);
+		Insert(shift);
 		return *this;
 	}
 
@@ -229,7 +229,7 @@ struct SBaseIndex : BaseIndex<loop_dims>
 		}
 	};
 
-	DEVICE BaseIndex& operator >>(SplitPos& split_pos)
+	DEVICE SBaseIndex& operator >>(SplitPos& split_pos)
 	{
 		split_pos._pos =_n_split_dims;
 		return *this;

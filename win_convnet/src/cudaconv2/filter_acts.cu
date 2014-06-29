@@ -265,22 +265,22 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 	//moduleIdx = by_blocksPerModule_y;
 	SPLIT(moduleIdx, moduleStride)
 
-	int oc_, c_, p_, p2_, i_;
-	LoopBlock<5> loopBlock;
+	int oc_, c_, p_, p2_, i_, g_, f_;
+	LoopBlock<7> loopBlock;
 	loopBlock
 	> oc_ < LoopIndex(numFilterColors, colorCache) 
 	> c_ < LoopIndex (colorCache, 1) 
 	> p_ < LoopIndex (filterPixels, B_Y)
 	> p2_ < LoopIndex (B_Y, B_X/filtersPerThread)
-	> i_ < LoopIndex (imgsPerThread, 1);
+	> i_ < LoopIndex (filtersPerThread, 1)
+	> f_ < LoopIndex (filtersPerThread, 1)
+	> g_ < LoopIndex (imgsPerThread, 1);
 
 
 	int oc_l, c_l;
 	SplitPos spl_l;
 
-	SBaseIndex<3,1> imgIndex;
-	imgIndex << Index(numFilterColors,  blockFilterIdx/numFiltersPerGroup);
-/*
+
 	SBaseIndex<3, 1> imgIndex;
 
 	//blockColorIdx = numFilterColors * blockGroupIdx
@@ -331,7 +331,6 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 	<< numFilters
 
 	<< blockFilterIdx // numFiltersPerBlock * (1..numFilters / numFiltersPerBlock) X numModules
-
 	<< shFilterLoadX; //(1..numFiltersPerBlock) X B_X/numFilterPerThread
 
   // shFilters[B_Y*colorCache][B_Y * filtersPerThread]; // pre-load B_Y pixels from B_Y*filtersPerThread filters
@@ -343,23 +342,52 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 	>> c_l << Ref(c_)
 	<< B_Y
 	>> p2_l << Ref(p2_)
-	<< shFilterLoadY
+	<< shFilterLoadY //1.. B_X/numFilterPerThread
 	<< numFiltersPerBlock
-	<< shFilterLoadX;
+	<< shFilterLoadX; //1...B_Y*filtersPerThread=numFiltersPerBlock
 
-*/
+//shImages[B_Y*colorCache][B_X * imgsPerThread]; 
+// shImages[threadIdx.y + c * B_Y][threadIdx.x + i * B_X]
+	int i_l;
+	BaseIndex<2> shImagesIndex;
+
+	shImagesIndex
+	>> c_l << Ref(c_)
+	<< threadIdx.y
+	<< B_X * imgsPerThread
+	>> i_l << Ref(i_)
+	<< B_X
+	<< threadIdx.x;
+
+	int g_l, f_l;
+
+    //targets += moduleIdx * numImages
+    //        + (blockFilterIdx + threadIdx.y) * numImages * numModules
+    //        + myImgIdx;
+ //targets[g * B_X + f * B_Y * numImages * numModules] 
+
+	BaseIndex<3> tagIndex;
+
+	tagIndex
+	>> f_l << Ref(f_)
+	<< B_Y
+	<< threadIdx.y
+	<< blockFilterIdx  // numFiltersPerBlock * (1..numFilters / numFiltersPerBlock) X numModules
+	<< numModules
+	<< moduleIdx
+	<< numImages
+
+//should be separated into block
+	<< Index(imgsPerThread , bx)
+	>> g_l << Ref(g_)
+	<< B_X
+	<< Index(1, threadIdx.x);
+
+// LOOP(oc)
+// LOOP(p)
+// if (shFilterLoadY < B_Y) {
+//     #pragma unroll
 /*
-
-
-//--------------------------------
-	Index shFilterIndex;
-	shFilterIndex
-	< SIndex(B_Y, c_filter)<<B_Y * filtersPerThread //parallel->seq color
-
-	< SIndex(B_X/filtersPerThread,  p2)<<B_Y * filtersPerThread // p2 ->B_Y pixel, make B_Y pixels parallel->seq
-	< Index(1, tidx /(B_Y * filtersPerThread))<<B_Y * filtersPerThread //shFilterLoadY pixel
-
-	< Index(1, tidx % (B_Y * filtersPerThread)); //shFilterLoadX filter, parallel
 
 //--------------------------------
 
