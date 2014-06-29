@@ -113,7 +113,7 @@ struct SplitPos
 	int _pos;
 };
 
-template <int loop_dims, int split_dims>
+template <int loop_dims>
 struct BaseIndex
 {
 	int _offset;
@@ -121,12 +121,6 @@ struct BaseIndex
 	LoopPos _loop_step[loop_dims];
 	LoopPos _loop_ref[loop_dims];
 
-	int _n_split_dims;
-	int _split_stepX[split_dims];
-	int _split_stepY[split_dims];
-	int _split[split_dims];
-	int _split_add[split_dims];
-	int _split_ref[split_dims];
 
 	DEVICE BaseIndex(){_n_loop_dims = 0; _offset = 0;}
 
@@ -135,21 +129,76 @@ struct BaseIndex
 		return _loop_step[pos];
 	}
 
-	DEVICE BaseIndex& operator<<(const Index indx)
+	DEVICE void Insert(const Index indx)
 	{
 		_offset += indx._step*indx._ind;
+	}
+
+	DEVICE BaseIndex& operator<<(const Index indx)
+	{
+		Insert(indx);
 		return *this;
+	}
+
+	DEVICE void Insert(const Ref ref_indx)
+	{
+		_loop_step[_n_loop_dims] = 1;
+		_loop_ref[_n_loop_dims] = ref_indx._pos;
+		_n_loop_dims++;	
 	}
 
 	DEVICE BaseIndex& operator<<(Ref ref_indx)
 	{
-		_loop_step[_n_loop_dims] = 1;
-		_loop_ref[_n_loop_dims] = ref_indx._pos;
-		_n_loop_dims++;
+		Insert(ref_indx);
 		return *this;
 	}
 
-	DEVICE BaseIndex& operator<<(const RefSplitY& ref_indx)
+	DEVICE void Insert (int shift)
+	{
+		_offset <<= shift;
+
+#ifdef  __CUDACC__
+#pragma unroll
+#endif
+		for (int k = 0; k < _n_loop_dims; k++)
+		{
+			_loop_step[k] <<= shift;
+		}	
+	}
+
+	DEVICE BaseIndex& operator << (int shift)
+	{
+		Insert(shif);
+		return *this;
+	}
+
+	DEVICE void Out(int& pos)
+	{
+		pos =_n_loop_dims;
+	}
+
+	DEVICE BaseIndex& operator >>(int& pos)
+	{
+		Out(pos);
+		return *this;
+	}
+
+};
+
+template <int loop_dims, int split_dims>
+struct SBaseIndex : BaseIndex<loop_dims>
+{
+
+	int _n_split_dims;
+	int _split_stepX[split_dims];
+	int _split_stepY[split_dims];
+	int _split[split_dims];
+	int _split_add[split_dims];
+	int _split_ref[split_dims];
+
+	DEVICE SBaseIndex() : BaseIndex<loop_dims>() {_n_split_dims = 0;}
+
+	DEVICE SBaseIndex& operator<<(const RefSplitY& ref_indx)
 	{
 		_split_stepX[_n_split_dims] = 1;
 		_split_stepY[_n_split_dims] = 0;
@@ -160,7 +209,7 @@ struct BaseIndex
 		return *this;
 	}
 
-	DEVICE BaseIndex& operator<<(RefSplitX ref_indx)
+	DEVICE SBaseIndex& operator<<(RefSplitX ref_indx)
 	{
 		for(int k =0; k < _n_split_dims; k++)
 		if(_split_ref[k] == ref_indx._pos)
@@ -168,19 +217,9 @@ struct BaseIndex
 		return *this;
 	}
 
-	DEVICE BaseIndex& operator << (int shift)
+	DEVICE void ShiftOther(int shift)
 	{
-		_offset <<= shift;
-
-#ifdef  __CUDACC__
-#pragma unroll
-#endif
-		for (int k = 0; k < _n_loop_dims; k++)
-		{
-			_loop_step[k] <<= shift;
-		}
-
-#ifdef  __CUDACC__
+		#ifdef  __CUDACC__
 #pragma unroll
 #endif
 		for (int k = 0; k < _n_split_dims; k++)
@@ -188,14 +227,7 @@ struct BaseIndex
 			_split_stepX[k] <<= shift;
 			_split_stepY[k] <<= shift;
 		}
-		return *this;
-	}
-
-	DEVICE BaseIndex& operator >>(int& pos)
-	{
-		pos =_n_loop_dims;
-		return *this;
-	}
+	};
 
 	DEVICE BaseIndex& operator >>(SplitPos& split_pos)
 	{
@@ -203,193 +235,33 @@ struct BaseIndex
 		return *this;
 	}
 
-};
-//---------
-/*
-template <int dims>
-struct BaseIndex
-{
-	int _ndims;
-	int _dimSize;
-	int _step[dims];
-	int _ind[dims];
-
-	DEVICE BaseIndex(){_ndims = 0; _dimSize = dims; memset(_ind, 0, sizeof(_ind));}
-
-	DEVICE int GetLowBase(int pos)
+	DEVICE SBaseIndex& operator<<(const Index indx) 
 	{
-		int offset = 0;
-#ifdef  __CUDACC__
-#pragma unroll
-#endif
-		for(int k = pos+1; k < _ndims; k++)
-			offset += _ind[k]*_step[k];
-		return offset;
-	}
-
-	DEVICE int GetStep(int pos)
-	{
-		return _step[pos];
-	}
-
-	DEVICE BaseIndex<dims>& Insert(int step)
-	{
-		_step[_ndims] = step;
-		_ndims++;
+		Insert(indx);
 		return *this;
 	}
 
-	DEVICE BaseIndex<dims>& Insert(const Index& indx)
+	DEVICE SBaseIndex& operator<<(const Ref ref_indx)
 	{
-		_step[_ndims] = indx._step;
-		_ind[_ndims] = indx._ind;
-		_ndims++;
+		Insert(ref_indx);
 		return *this;
 	}
 
-	DEVICE BaseIndex<dims>& Insert(SIndex& indx)
+	DEVICE SBaseIndex& operator << (int shift)
 	{
-		_step[_ndims] = indx._step;
-		_ind[_ndims] = 0;
-		indx._pos = _ndims;
-		_ndims++;
+		Insert(shift);
+		ShiftOther(shift);
 		return *this;
 	}
 
-	template <int dims_ins>
-	DEVICE BaseIndex<dims>& Insert(const BaseIndex<dims_ins> insBase)
+	DEVICE SBaseIndex& operator >>(int& pos)
 	{
-#ifdef  __CUDACC__
-#pragma unroll
-#endif
-		for(int k_ins = 0; k_ins < insBase._ndims; k_ins++)
-		{
-			_step[_ndims + k_ins] = insBase._step[k_ins];
-			_ind[_ndims + k_ins] = insBase._ind[k_ins];
-		}
-		_ndims+=insBase._ndims;
+		Out(pos);
 		return *this;
-	}
-
-	template <int dims_ins>
-	DEVICE BaseIndex<dims>& operator<(const BaseIndex<dims_ins> insBase)
-	{
-		return Insert<dims_ins>(insBase);
-	}
-
-	DEVICE BaseIndex<dims>& operator<(Index insBase)
-	{
-		return Insert(insBase);
-	}
-
-	DEVICE BaseIndex<dims>& operator<(SIndex insBase)
-	{
-		return Insert(insBase);
-	}
-
-	DEVICE BaseIndex<dims>& operator<(int step)
-	{
-		return Insert(step);
-	}
-
-	DEVICE BaseIndex<dims>& operator<<(int shift)
-	{
-#ifdef  __CUDACC__
-#pragma unroll
-#endif
-		for(int k = 0; k < _ndims; k++);
-			_step[k] <<= shift;
-		return *this;
-	}
-
-	DEVICE BaseIndex<dims>& operator<<(const Shift& shift)
-	{
-#ifdef  __CUDACC__
-#pragma unroll
-#endif
-		for(int k = 0; k < _ndims; k++);
-		{
-			_step[k] <<= shift._sshift;
-			_ind[k] <<= shift._ishift;
-		}
-		return *this;
-	}
-
-#ifndef  __CUDACC__
-	void Assert()
-	{
-		assert(_ndims == dims);
-	}
-
-#endif
-
-};
-
-#define BASE_LOOP(ii, indx, base) for (uint ii = base.GetLowBase(indx._pos); ii < indx._size; ii += base.GetStep(indx._pos)) 
-
-struct DimIndex
-{
-	int _dim;
-	int _ind;
-	DEVICE DimIndex(){_ind = 0;};
-	DEVICE DimIndex(const int dim){_dim = dim; _ind = 0;};
-	DEVICE DimIndex(const int dim, const int ind){_dim = dim; _ind = ind;};
-};
-
-template <int dims>
-struct BaseDimIndex : public BaseIndex<dims>
-{
-
-	int _dim[dims];
-
-	DEVICE BaseDimIndex(){_ndims = 0; _dimSize = dims; memset(_ind, 0, sizeof(_ind));}
-
-	DEVICE BaseDimIndex<dims>& Insert(int dim)
-	{
-		_dim[_ndims] = dim;
-		_ndims++;
-		if(_ndims == dims)
-			Finalize();
-		return *this;
-	}
-
-	DEVICE BaseDimIndex<dims>& Insert(DimIndex& indx)
-	{
-		_dim[_ndims] = indx._dim;
-		_ind[_ndims] = indx._ind;
-		_ndims++;
-		if(_ndims == dims)
-			Finalize();
-		return *this;
-	}
-
-	DEVICE BaseDimIndex<dims>& operator<(DimIndex insBase)
-	{
-		return Insert(insBase);
-	}
-
-	DEVICE BaseDimIndex<dims>& operator<(int dim)
-	{
-		return Insert(dim);
-	}
-
-	DEVICE void Finalize(int stepLow = 1)
-	{
-#ifndef  __CUDACC__
-		Assert();
-#endif
-		_step[dims-1] = stepLow;
-#ifdef  __CUDACC__
-#pragma unroll
-#endif
-		for(int k = dims-2; k >= 0; k--)
-			_step[k] = _dim[k]*_step[k+1];
 	}
 
 };
-
-
-*/
+//---------
 
 
 
