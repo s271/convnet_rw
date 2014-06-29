@@ -366,15 +366,20 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
     //        + myImgIdx;
  //targets[g * B_X + f * B_Y * numImages * numModules] 
 
-	BaseIndex<3> tagIndex;
+	BaseIndex<2> tagIndex;
 
 	tagIndex
+	<< Index(filtersPerThread, by_blocksPerModule_x)  //(1..numFilters / numFiltersPerBlock) = blockFilterIdx= numFiltersPerBlock *xx  X numModules
 	>> f_l << Ref(f_)
+
 	<< B_Y
-	<< threadIdx.y
-	<< blockFilterIdx  // numFiltersPerBlock * (1..numFilters / numFiltersPerBlock) X numModules
+
+	<< Index(1, threadIdx.y)
+
 	<< numModules
-	<< moduleIdx
+
+	<< Index(1, moduleIdx)
+
 	<< numImages
 
 //should be separated into block
@@ -388,19 +393,6 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 // if (shFilterLoadY < B_Y) {
 //     #pragma unroll
 /*
-
-//--------------------------------
-
-
-	Index tagIndex;
-	tagIndex
-	< Index(numImages * numModules,  filtersPerThread * B_Y*SplitX(blockIdx.y, blocksPerModule))
-	< SIndex(B_Y*numImages * numModules, f)
-	< Index(numImages * numModules, threadIdx.y)
-	< Index(numImages, blockIdx.y / blocksPerModule) 
-	< Index(B_X * imgsPerThread , blockIdx.x * B_X)//myImgIdx
-	< SIndex(B_X, g)
-	< Index(1, threadIdx.x);//myImgIdx 
 
 
 */
