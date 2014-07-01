@@ -46,7 +46,7 @@ DEVICE void Split(const int t_ind, const int t_split, int& x, int& y)
 
 #define LOOP(i, loopBlock) for (int i = 0; i < loopBlock._idx[i##_]._size; i += loopBlock._idx[i##_]._step) 
 #define OFFSET(i, indBlock) (i*indBlock._loop_step[i##_l])
-#define OFFSETN(i, name, indBlock) (i*indBlock._loop_step[name])
+#define OFFSETN(i, indBlock) (i*indBlock._loop_step[i##_##indBlock])
 
 struct Index
 {
