@@ -227,6 +227,11 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
                                        const int numGroups, 
                                        const float scaleTargets, const float scaleOutputs,
                                        const bool conv) {
+
+    __shared__ float shFilters_[B_Y*colorCache*B_Y * filtersPerThread]; // pre-load B_Y pixels from B_Y*filtersPerThread filters
+    __shared__ float shImages_[B_Y*colorCache*B_X * imgsPerThread]; // pre-load B_Y pixels from B_X*imgsPerThread images
+
+
     __shared__ float shFilters[B_Y*colorCache][B_Y * filtersPerThread]; // pre-load B_Y pixels from B_Y*filtersPerThread filters
     __shared__ float shImages[B_Y*colorCache][B_X * imgsPerThread]; // pre-load B_Y pixels from B_X*imgsPerThread images
     const int imgPixels = imgSizeY * imgSizeX;
@@ -276,11 +281,9 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 	> g_ < LoopIndex (imgsPerThread, 1);
 
 
-	int oc_l, c_l;
-	SplitPos spl_l;
+	int oc_l, c_l, xo_l, yo_l, i_l;	
 
-
-	SBaseIndex<3, 1> imgIndex;
+	BaseIndex<5> imgIndex;
 
 	//blockColorIdx = numFilterColors * blockGroupIdx
 	//blockGroupIdx = blockFilterIdx / numFiltersPerGroup;
@@ -297,19 +300,17 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 	<< imgSizeY
 
 	<< Index(moduleStride, moduleIdx_moduleStride_y)//center + offset
-	>> spl_l << RefSplitY(filterSize, threadIdx.y, p_)
-	<< Index(1, paddingStart)
+	>> yo_l << Index(1, paddingStart)
 
 	<< imgSizeX
 	
 	<< Index(moduleStride, moduleIdx_moduleStride_x)
-	<< RefSplitX(p_)
-	<< Index(1, paddingStart)
+	>> xo_l << Index(1, paddingStart)
 
 	<< imgStride/B_X
 
 	<< Index(imgsPerThread , bx)
-	<< Ref(i_)
+	>> i_l << Ref(i_)
 	<< B_X
 	<< Index(1, threadIdx.x);
 
@@ -323,8 +324,8 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 
 	<< filterPixels
 
-	>> p_l << Ref(p_)
-	>> p2_l << Ref(p2_)
+	>> p_l << Ref(p_)  //LoopIndex (filterPixels, B_Y)
+	>> p2_l << Ref(p2_) //LoopIndex (B_Y, B_X/filtersPerThread)
 	<< shFilterLoadY //1.. B_X/numFilterPerThread
 
 	<< numFilters
@@ -334,27 +335,27 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 
   // shFilters[B_Y*colorCache][B_Y * filtersPerThread]; // pre-load B_Y pixels from B_Y*filtersPerThread filters
 //  shFilters[shFilterLoadY + p2 + c * B_Y][shFilterLoadX] = filters[((oc+c) * filterPixels + p + p2) * numFilters];
-	int c_fl_l;
+	int c_fl_l, p2_fl_l;
 	BaseIndex<2> shFilterIndex;
 	
 	shFilterIndex
 	>> c_fl_l << Ref(c_)
 	<< B_Y
-	>> p2_l << Ref(p2_)
+	>> p2_fl_l << Ref(p2_)
 	<< shFilterLoadY //1.. B_X/numFilterPerThread
 	<< numFiltersPerBlock
 	<< shFilterLoadX; //1...B_Y*filtersPerThread=numFiltersPerBlock
 
 //shImages[B_Y*colorCache][B_X * imgsPerThread]; 
 // shImages[threadIdx.y + c * B_Y][threadIdx.x + i * B_X]
-	int i_l, c_im_l;
+	int i_im_l, c_im_l;
 	BaseIndex<2> shImagesIndex;
 
 	shImagesIndex
 	>> c_im_l << Ref(c_)
 	<< threadIdx.y
 	<< B_X * imgsPerThread
-	>> i_l << Ref(i_)
+	>> i_im_l << Ref(i_)
 	<< B_X
 	<< threadIdx.x;
 
@@ -387,59 +388,95 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 	<< B_X
 	<< Index(1, threadIdx.x);
 
-// LOOP(oc)
-// LOOP(p)
-//	if (shFilterLoadY < B_Y) {
-//     #pragma unroll
-//	   LOOP(p2)
-//  		if (p + p2 + shFilterLoadY < filterPixels) {
-//				LOOP(c)
-//					shFilters[OFF_shF(c) + OFF_shF(p2)] = filters[OFF_F(oc) + OFF_F(c) + OFF_F(p) + OFF_F(p2)];}
-//			else
-//				shFilters[OFF_shF(c) + OFF_shF(p2)] = 0; }
-//	const int pixIdx = GetSplit(imgIndex, p)
-//	if (pixIdx < filterPixels) {
-//		x = SplitX(imgIndex, p)
-//		y = SplitY(imgIndex, p)
-//		if (y >= 0 && y < imgSizeY && x >= 0 && x < imgSizeX) {
-//			LOOP(i)
-//                  if (!checkImgBounds || myImgIdx + i * B_X < numImages) {
-//                           #pragma unroll
-//                            LOOP(c) {
-//                                shImages[OFF_shI(c) + OFF_hI(i)] = Image[ OFF_(oc) + OFF_(c) + OFF_(x) + OFF_(y) + OFF_(i_];
-//                            }
-//                        } else {
-//                            #pragma unroll
-//                            LOOP(c) {
-//                                shImages[OFF_shI(c) + OFF_hI(i)] = 0;
-//                            }
-//                        }
-//                    }
-//      } else { // Padding
-//         #pragma unroll
-//        LOOP(i) {
-//             #pragma unroll
-//             for (int c = 0; c < colorCache; c++) {
-//                  shImages[OFF_shI(c) + OFF_hI(i)] = 0;
-//              }
-//          }
-//      }
-//            __syncthreads();
-//            #pragma unroll
-//            for (int i = 0; i < B_Y*colorCache; i++) {
-//                #pragma unroll
-//                for(int f = 0; f < filtersPerThread; f++) {
-//                    #pragma unroll
-//                    for(int g = 0; g < imgsPerThread; g++) {
-//                        prod[f][g] += shImages[i][g * B_X + threadIdx.x] * shFilters[i][threadIdx.y + f * B_Y];
-//                    }
-//                }
-//
-//            }
-//            __syncthreads();
-//        }
-//    }
+	LOOP(oc, loopBlock)
+	{
+		LOOP(p, loopBlock)
+		{
+			if (shFilterLoadY < B_Y) {
+				#pragma unroll
+				LOOP(p2, loopBlock)
+				{
+					const int pixel = p + p2 + shFilterLoadY;
+                    if (pixel < filterPixels) {
+                        #pragma unroll
+                        LOOP(c, loopBlock)
+						{
+							shFilters_[OFFSETN(c, c_fl_l, shImagesIndex)
+								+ OFFSETN(p2, p2_fl_l, shImagesIndex)]
+							=
+								filters[OFFSET(oc,filterIndex)
+								+ OFFSET(c,filterIndex)
+								+ OFFSET(p,filterIndex)
+								+ OFFSET(p2,filterIndex)];
+                        }
+                    } else {
+                        #pragma unroll
+		                LOOP(c, loopBlock)
+						{
+							shFilters_[OFFSETN(c, c_fl_l, shImagesIndex)
+								+ OFFSETN(p2, p2_fl_l, shImagesIndex)] = 0;
+                        }
+                    }
+				}
+			}//if (shFilterLoadY < B_Y)
 
+           /*
+             * Load B_Y pixels from B_X*imgsPerThread images
+             */
+            const int pixIdx = p + threadIdx.y;
+            if (pixIdx < filterPixels) {
+                const int xo = pixIdx % filterSize;
+                const int yo = pixIdx / filterSize;
+                const int x = imgLoadModPosX + xo;
+                const int y = imgLoadModPosY + yo;
+
+                if (y >= 0 && y < imgSizeY && x >= 0 && x < imgSizeX) {
+                    #pragma unroll
+                    LOOP(i, loopBlock)
+					{	
+						int imgIdx = myImgIdx + i * B_X;
+                        if (!checkImgBounds || imgIdx < numImages) {
+                            #pragma unroll
+                            LOOP(c, loopBlock)
+							{
+
+							shImages_[OFFSETN(c, c_im_l, shFilterIndex)
+								+ OFFSETN(i, i_im_l, shFilterIndex)]
+							=
+									images[ OFFSET(oc, imgIndex)
+									+ OFFSET(c, imgIndex)
+									+ OFFSET(yo, imgIndex)
+									+ OFFSET(xo, imgIndex)
+									+ OFFSET(i, imgIndex)];
+                            }
+                        } else {
+                            #pragma unroll
+                            LOOP(c, loopBlock)
+							{
+								shImages_[OFFSETN(c, c_im_l, shFilterIndex)
+								+ OFFSETN(i, i_im_l, shFilterIndex)] = 0;
+                            }
+                        }
+                    }
+                } else { // Padding
+                    #pragma unroll
+                    LOOP(i, loopBlock)
+					{
+                        #pragma unroll
+                        LOOP(c, loopBlock)
+						{
+								shImages_[OFFSETN(c, c_im_l, shFilterIndex)
+								+ OFFSETN(i, i_im_l, shFilterIndex)] = 0;
+                        }
+                    }
+                }
+            }
+            __syncthreads();
+
+		}
+	}
+
+//--------------------
 
     images += blockColorIdx * imgPixels * imgStride + myImgIdx;
     filters +=blockFilterIdx

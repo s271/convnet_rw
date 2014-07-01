@@ -36,22 +36,22 @@
 #define DEVICE_
 #endif
 
-typedef int CudaPos;
-typedef int LoopPos;
-
-DEVICE void Split(const CudaPos t_ind, const CudaPos t_split, CudaPos& x, CudaPos& y)
+DEVICE void Split(const int t_ind, const int t_split, int& x, int& y)
 {
 	y = t_ind/t_split;
 	x = t_ind%t_split;
 }
 
-//#define SPLIT(src, split) CudaPos src##_x; CudaPos src##_y; Split(src, split, src##_x, src##_y);
-#define SPLIT(src, split) CudaPos src##_##split##_x; CudaPos src##_##split##_y; Split(src, split, src##_##split##_x,  src##_##split##_y);
+#define SPLIT(src, split) int src##_##split##_x; int src##_##split##_y; Split(src, split, src##_##split##_x,  src##_##split##_y);
+
+#define LOOP(i, loopBlock) for (int i = 0; i < loopBlock._idx[i##_]._size; i += loopBlock._idx[i##_]._step) 
+#define OFFSET(i, indBlock) (i*indBlock._loop_step[i##_l])
+#define OFFSETN(i, name, indBlock) (i*indBlock._loop_step[name])
 
 struct Index
 {
 	int _step;
-	CudaPos _ind;
+	int _ind;
 	DEVICE Index(const int step){_step = step; _ind = 0;};
 	DEVICE Index(const int step, const int ind){_step = step; _ind = ind;};
 
@@ -62,7 +62,7 @@ struct LoopIndex
 	int _step;
 	int _size;
 	int _start;
-	LoopPos _pos;
+	int _pos;
 	DEVICE LoopIndex(){};
 	DEVICE LoopIndex(const int step){_step = step;};
 	DEVICE LoopIndex(const int step, const int size){_step = step; _size = size;};
@@ -94,32 +94,13 @@ struct Ref
 	DEVICE Ref(int pos){_pos =pos;};
 };
 
-struct RefSplitY
-{
-	int _pos;
-	int _split;
-	int _add;
-	DEVICE RefSplitY(int split, int add, int pos){ _split = split; _add = add; _pos =pos;};
-};
-
-struct RefSplitX
-{
-	int _pos;
-	DEVICE RefSplitX(int pos){_pos =pos;};
-};
-
-struct SplitPos
-{
-	int _pos;
-};
-
 template <int loop_dims>
 struct BaseIndex
 {
 	int _offset;
 	int _n_loop_dims;
-	LoopPos _loop_step[loop_dims];
-	LoopPos _loop_ref[loop_dims];
+	int _loop_step[loop_dims];
+	int _loop_ref[loop_dims];
 
 
 	DEVICE BaseIndex(){_n_loop_dims = 0; _offset = 0;}
@@ -185,82 +166,6 @@ struct BaseIndex
 
 };
 
-template <int loop_dims, int split_dims>
-struct SBaseIndex : BaseIndex<loop_dims>
-{
-
-	int _n_split_dims;
-	int _split_stepX[split_dims];
-	int _split_stepY[split_dims];
-	int _split[split_dims];
-	int _split_add[split_dims];
-	int _split_ref[split_dims];
-
-	DEVICE SBaseIndex() : BaseIndex<loop_dims>() {_n_split_dims = 0;}
-
-	DEVICE SBaseIndex& operator<<(const RefSplitY& ref_indx)
-	{
-		_split_stepX[_n_split_dims] = 1;
-		_split_stepY[_n_split_dims] = 0;
-		_split_ref[_n_split_dims] = ref_indx._pos;
-		_split_add[_n_split_dims] = ref_indx._add;
-		_split[_n_split_dims] = ref_indx._split;
-		_n_split_dims++;
-		return *this;
-	}
-
-	DEVICE SBaseIndex& operator<<(RefSplitX ref_indx)
-	{
-		for(int k =0; k < _n_split_dims; k++)
-		if(_split_ref[k] == ref_indx._pos)
-			_split_stepY[k] = 1;
-		return *this;
-	}
-
-	DEVICE void ShiftOther(int shift)
-	{
-		#ifdef  __CUDACC__
-#pragma unroll
-#endif
-		for (int k = 0; k < _n_split_dims; k++)
-		{
-			_split_stepX[k] <<= shift;
-			_split_stepY[k] <<= shift;
-		}
-	};
-
-	DEVICE SBaseIndex& operator >>(SplitPos& split_pos)
-	{
-		split_pos._pos =_n_split_dims;
-		return *this;
-	}
-
-	DEVICE SBaseIndex& operator<<(const Index indx) 
-	{
-		Insert(indx);
-		return *this;
-	}
-
-	DEVICE SBaseIndex& operator<<(const Ref ref_indx)
-	{
-		Insert(ref_indx);
-		return *this;
-	}
-
-	DEVICE SBaseIndex& operator << (int shift)
-	{
-		Insert(shift);
-		ShiftOther(shift);
-		return *this;
-	}
-
-	DEVICE SBaseIndex& operator >>(int& pos)
-	{
-		Out(pos);
-		return *this;
-	}
-
-};
 //---------
 
 
