@@ -281,7 +281,7 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 	> g_ < LoopIndex (imgsPerThread, 1);
 
 
-	int oc_l, c_l, xo_l, yo_l, i_l;	
+	int oc_l, c_l, xo_l, yo_l, g_l;	
 
 	BaseIndex<5> imgIndex;
 
@@ -310,12 +310,12 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 	<< imgStride/B_X
 
 	<< Index(imgsPerThread , bx)
-	>> i_l << Ref(i_)
+	>> g_l << Ref(g_)
 	<< B_X
 	<< Index(1, threadIdx.x);
 
 //------------------------------------
-	int p_l, p2_l;
+	int p_l, p2_l, i_l;
 	BaseIndex<4> filterIndex;
 	filterIndex <<Index(0,0)
 
@@ -348,18 +348,18 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 
 //shImages[B_Y*colorCache][B_X * imgsPerThread]; 
 // shImages[threadIdx.y + c * B_Y][threadIdx.x + i * B_X]
-	int i_shImageIndex, c_shImageIndex;
+	int g_shImageIndex, c_shImageIndex;
 	BaseIndex<2> shImageIndex;
 
 	shImageIndex
 	>> c_shImageIndex << Ref(c_)
 	<< threadIdx.y
 	<< B_X * imgsPerThread
-	>> i_shImageIndex << Ref(i_)
+	>> g_shImageIndex << Ref(g_)
 	<< B_X
 	<< threadIdx.x;
 
-	int g_l, f_l;
+	int  f_l;
 
 //targets += moduleIdx * numImages
 //        + (blockFilterIdx + threadIdx.y) * numImages * numModules
@@ -387,6 +387,9 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 	>> g_l << Ref(g_)
 	<< B_X
 	<< Index(1, threadIdx.x);
+
+    float prod_[filtersPerThread][imgsPerThread];
+	memset(prod_, 0, sizeof(prod_));
 
 	LOOP(oc, loopBlock)
 	{
@@ -432,47 +435,59 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 
                 if (y >= 0 && y < imgSizeY && x >= 0 && x < imgSizeX) {
                     #pragma unroll
-                    LOOP(i, loopBlock)
+                    LOOP(g, loopBlock)
 					{	
-						int imgIdx = myImgIdx + i * B_X;
+						int imgIdx = myImgIdx + g* B_X;
                         if (!checkImgBounds || imgIdx < numImages) {
                             #pragma unroll
                             LOOP(c, loopBlock)
 							{
 
 							shImages_[OFFSETN(c, shImageIndex)
-								+ OFFSETN(i, shImageIndex)]
+								+ OFFSETN(g, shImageIndex)]
 							=
 									images[ OFFSET(oc, imgIndex)
 									+ OFFSET(c, imgIndex)
 									+ OFFSET(yo, imgIndex)
 									+ OFFSET(xo, imgIndex)
-									+ OFFSET(i, imgIndex)];
+									+ OFFSET(g, imgIndex)];
                             }
                         } else {
                             #pragma unroll
                             LOOP(c, loopBlock)
 							{
 								shImages_[OFFSETN(c, shImageIndex)
-								+ OFFSETN(i, shImageIndex)] = 0;
+								+ OFFSETN(g, shImageIndex)] = 0;
                             }
                         }
                     }
                 } else { // Padding
                     #pragma unroll
-                    LOOP(i, loopBlock)
+                    LOOP(g, loopBlock)
 					{
                         #pragma unroll
                         LOOP(c, loopBlock)
 						{
 								shImages_[OFFSETN(c, shImageIndex)
-								+ OFFSETN(i, shImageIndex)] = 0;
+								+ OFFSETN(g, shImageIndex)] = 0;
                         }
                     }
                 }
             }
             __syncthreads();
 
+            #pragma unroll
+            for (int cc = 0; cc < B_Y*colorCache; cc++) {
+                #pragma unroll
+                for(int i = 0; i < filtersPerThread; i++) {
+                    #pragma unroll
+                    for(int g = 0; g < imgsPerThread; g++) {
+                        prod_[i][g] += shImages_[cc*(B_X*imgsPerThread) + g * B_X + threadIdx.x] * shFilters_[cc*(B_Y*filtersPerThread) + threadIdx.y + i * B_Y];
+                    }
+                }
+
+            }
+            __syncthreads();
 		}
 	}
 
