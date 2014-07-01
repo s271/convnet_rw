@@ -265,7 +265,7 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 	//moduleIdx = by_blocksPerModule_y;
 	SPLIT(moduleIdx, moduleStride)
 
-	int oc_, c_, p_, p2_, i_, g_, f_;
+	int oc_, c_, p_, p2_, i_, g_;
 	LoopBlock<7> loopBlock;
 	loopBlock
 	> oc_ < LoopIndex(numFilterColors, colorCache) 
@@ -273,7 +273,6 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 	> p_ < LoopIndex (filterPixels, B_Y)
 	> p2_ < LoopIndex (B_Y, B_X/filtersPerThread)
 	> i_ < LoopIndex (filtersPerThread, 1)
-	> f_ < LoopIndex (filtersPerThread, 1)
 	> g_ < LoopIndex (imgsPerThread, 1);
 
 
@@ -326,7 +325,7 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 
 	>> p_l << Ref(p_)
 	>> p2_l << Ref(p2_)
-	<< shFilterLoadY
+	<< shFilterLoadY //1.. B_X/numFilterPerThread
 
 	<< numFilters
 
@@ -335,11 +334,11 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 
   // shFilters[B_Y*colorCache][B_Y * filtersPerThread]; // pre-load B_Y pixels from B_Y*filtersPerThread filters
 //  shFilters[shFilterLoadY + p2 + c * B_Y][shFilterLoadX] = filters[((oc+c) * filterPixels + p + p2) * numFilters];
-
+	int c_fl_l;
 	BaseIndex<2> shFilterIndex;
 	
 	shFilterIndex
-	>> c_l << Ref(c_)
+	>> c_fl_l << Ref(c_)
 	<< B_Y
 	>> p2_l << Ref(p2_)
 	<< shFilterLoadY //1.. B_X/numFilterPerThread
@@ -348,11 +347,11 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 
 //shImages[B_Y*colorCache][B_X * imgsPerThread]; 
 // shImages[threadIdx.y + c * B_Y][threadIdx.x + i * B_X]
-	int i_l;
+	int i_l, c_im_l;
 	BaseIndex<2> shImagesIndex;
 
 	shImagesIndex
-	>> c_l << Ref(c_)
+	>> c_im_l << Ref(c_)
 	<< threadIdx.y
 	<< B_X * imgsPerThread
 	>> i_l << Ref(i_)
@@ -361,16 +360,16 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 
 	int g_l, f_l;
 
-    //targets += moduleIdx * numImages
-    //        + (blockFilterIdx + threadIdx.y) * numImages * numModules
-    //        + myImgIdx;
- //targets[g * B_X + f * B_Y * numImages * numModules] 
+//targets += moduleIdx * numImages
+//        + (blockFilterIdx + threadIdx.y) * numImages * numModules
+//        + myImgIdx;
+//targets[g * B_X + f * B_Y * numImages * numModules] 
 
 	BaseIndex<2> tagIndex;
 
 	tagIndex
-	<< Index(filtersPerThread, by_blocksPerModule_x)  //(1..numFilters / numFiltersPerBlock) = blockFilterIdx= numFiltersPerBlock *xx  X numModules
-	>> f_l << Ref(f_)
+	<< Index(filtersPerThread, by_blocksPerModule_x)  // numModules X (1..numFilters / numFiltersPerBlock)*numFiltersPerBlock~numFilters
+	>> f_l << Ref(i_) // 1..filtersPerThread
 
 	<< B_Y
 
@@ -390,12 +389,58 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 
 // LOOP(oc)
 // LOOP(p)
-// if (shFilterLoadY < B_Y) {
+//	if (shFilterLoadY < B_Y) {
 //     #pragma unroll
-/*
+//	   LOOP(p2)
+//  		if (p + p2 + shFilterLoadY < filterPixels) {
+//				LOOP(c)
+//					shFilters[OFF_shF(c) + OFF_shF(p2)] = filters[OFF_F(oc) + OFF_F(c) + OFF_F(p) + OFF_F(p2)];}
+//			else
+//				shFilters[OFF_shF(c) + OFF_shF(p2)] = 0; }
+//	const int pixIdx = GetSplit(imgIndex, p)
+//	if (pixIdx < filterPixels) {
+//		x = SplitX(imgIndex, p)
+//		y = SplitY(imgIndex, p)
+//		if (y >= 0 && y < imgSizeY && x >= 0 && x < imgSizeX) {
+//			LOOP(i)
+//                  if (!checkImgBounds || myImgIdx + i * B_X < numImages) {
+//                           #pragma unroll
+//                            LOOP(c) {
+//                                shImages[OFF_shI(c) + OFF_hI(i)] = Image[ OFF_(oc) + OFF_(c) + OFF_(x) + OFF_(y) + OFF_(i_];
+//                            }
+//                        } else {
+//                            #pragma unroll
+//                            LOOP(c) {
+//                                shImages[OFF_shI(c) + OFF_hI(i)] = 0;
+//                            }
+//                        }
+//                    }
+//      } else { // Padding
+//         #pragma unroll
+//        LOOP(i) {
+//             #pragma unroll
+//             for (int c = 0; c < colorCache; c++) {
+//                  shImages[OFF_shI(c) + OFF_hI(i)] = 0;
+//              }
+//          }
+//      }
+//            __syncthreads();
+//            #pragma unroll
+//            for (int i = 0; i < B_Y*colorCache; i++) {
+//                #pragma unroll
+//                for(int f = 0; f < filtersPerThread; f++) {
+//                    #pragma unroll
+//                    for(int g = 0; g < imgsPerThread; g++) {
+//                        prod[f][g] += shImages[i][g * B_X + threadIdx.x] * shFilters[i][threadIdx.y + f * B_Y];
+//                    }
+//                }
+//
+//            }
+//            __syncthreads();
+//        }
+//    }
 
 
-*/
     images += blockColorIdx * imgPixels * imgStride + myImgIdx;
     filters +=blockFilterIdx
             + shFilterLoadY * numFilters + shFilterLoadX;
