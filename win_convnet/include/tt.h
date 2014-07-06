@@ -47,13 +47,14 @@ DEVICE void Split(const int t_ind, const int t_split, int& x, int& y)
 #define LOOP(i, loopBlock) for (int i = 0; i < loopBlock._idx[i##_]._size; i += loopBlock._idx[i##_]._step) 
 #define OFFSET(i, indBlock) (i*indBlock._loop_step[i##_l])
 #define OFFSETN(i, indBlock) (i*indBlock._loop_step[i##_##indBlock])
+#define OFFSET_(i, l, indBlock) (i*indBlock._loop_step[l])
 
 struct Index
 {
 	int _step;
 	int _ind;
-	DEVICE Index(const int step){_step = step; _ind = 0;};
 	DEVICE Index(const int step, const int ind){_step = step; _ind = ind;};
+	DEVICE Index(const int ind){_step = 1; _ind = ind;};
 
 };
 
@@ -94,37 +95,52 @@ struct Ref
 	DEVICE Ref(int pos){_pos =pos;};
 };
 
-template <int loop_dims>
-struct BaseIndex
+struct Offset
 {
 	int _offset;
-	int _n_loop_dims;
-	int _loop_step[loop_dims];
-	int _loop_ref[loop_dims];
 
-
-	DEVICE BaseIndex(){_n_loop_dims = 0; _offset = 0;}
-
-	DEVICE int GetLoopStep(int pos)
-	{
-		return _loop_step[pos];
-	}
+	DEVICE Offset(){_offset = 0;}
 
 	DEVICE void Insert(const Index indx)
 	{
 		_offset += indx._step*indx._ind;
 	}
 
-	DEVICE BaseIndex& operator<<(const Index indx)
+	DEVICE Offset& operator<<(const Index indx)
 	{
 		Insert(indx);
+		return *this;
+	}
+
+	DEVICE Offset& operator << (int shift)
+	{
+		_offset <<= shift;
+		return *this;
+	}
+};
+
+template <int loop_dims>
+struct BaseIndex : Offset
+{
+	int _n_loop_dims;
+	int _loop_step[loop_dims];
+
+	DEVICE BaseIndex() : Offset() {_n_loop_dims = 0;}
+
+	DEVICE int GetLoopStep(int pos)
+	{
+		return _loop_step[pos];
+	}
+
+	DEVICE BaseIndex& operator<<(const Index indx)
+	{
+		Offset::Insert(indx);
 		return *this;
 	}
 
 	DEVICE void Insert(const Ref ref_indx)
 	{
 		_loop_step[_n_loop_dims] = 1;
-		_loop_ref[_n_loop_dims] = ref_indx._pos;
 		_n_loop_dims++;	
 	}
 

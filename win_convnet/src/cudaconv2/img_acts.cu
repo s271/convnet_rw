@@ -25,7 +25,7 @@
  */
 
 #include <cudaconv2.cuh>
-
+#include "tt.h"
 /*
  * Block size: 16x16.
  * blockIdx.x determines case in batches of 16*imgsPerThread.
@@ -398,10 +398,13 @@ __global__ void conv_img_acts_manycolor(const float* hidActs, const float* filte
     __shared__ float shFilters[colorsPerThread*B_Y][16 + 1]; // TODO: perhaps reconsider this 16
     __shared__ float shHidActs[16][B_X*imgsPerThread];
 
-    const int numImgBlocks = DIVUP(numImages,B_X*imgsPerThread);
-    const int blockCaseIdx = (blockIdx.x % numImgBlocks) * B_X*imgsPerThread;
+	const int numColorsPerBlock = B_Y*colorsPerThread;
+	const int numImagesPerBlock = B_X*imgsPerThread;
+
+    const int numImgBlocks = DIVUP(numImages, numImagesPerBlock);
+    const int blockCaseIdx = (blockIdx.x % numImgBlocks) * numImagesPerBlock;
     
-    const int imgColorIdx = (blockIdx.x / numImgBlocks) * B_Y*colorsPerThread; // color idx globally
+    const int imgColorIdx = (blockIdx.x / numImgBlocks) * numColorsPerBlock; // color idx globally
     const int numFilterColors = numImgColors / numGroups;
     const int blockGroupIdx = imgColorIdx / numFilterColors;
     const int filterColorIdx = imgColorIdx % numFilterColors; // color idx within group
@@ -418,6 +421,127 @@ __global__ void conv_img_acts_manycolor(const float* hidActs, const float* filte
     const int hidActLoadY = tidx / 32, hidActLoadX = tidx % 32;
     const int filtersLoadY = tidx / 16, filtersLoadX = tidx % 16;
     const int numModules = numModulesY * numModulesX;
+//-------------
+{
+	int i_img_l, j_l, f_l, moduleIdx_l;
+
+	//numImgBlocks = DIVUP(numImages, numImagesPerBlock);
+	//blocks = dim3(numImgBlocks * (numImgColors/numColorsPerBlock), imgPixels);
+	//imgColorIdx = (blockIdx.x / numImgBlocks) * numColorsPerBlock
+	//blockCaseIdx=(blockIdx.x % numImgBlocks) * numImagesPerBlock;
+	//block.x = bx_img_block + numImgBlocks * bx_color_block
+	//moduleIdx = my * numModulesX + mx;
+	//imgColorIdx = bx_color_block * numColorsPerBlock; // color idx globally
+
+	
+	BaseIndex<3> hidIndex;
+	hidIndex
+	<< Index(numFiltersPerGroup, blockGroupIdx)  //= blockFilterIdx, blockGroupIdx = imgColorIdx / numFilterColors;
+	>>f_l //16 < numFiltersPerGroup
+	>>j_l  //B_X*B_Y/32 < 16
+	<< Index(1, hidActLoadY) // < B_X*B_Y/32
+
+	<< numModules
+
+	>>moduleIdx_l //=my * numModulesX + mx < numModules
+
+	<< numImages
+
+	<< Index(numImagesPerBlock, (blockIdx.x % numImgBlocks)) //blockCaseIdx
+	>> i_img_l//step 32 < numImagesPerBlock
+	<< Index(1, hidActLoadX);//tidx % 32;
+
+//------------------
+	int pxIdxInFilter_l, i_clr_l;
+	BaseIndex<3> filterIndex;
+	filterIndex 
+	<< Index(1, filterColorIdx) //=  imgColorIdx % numFilterColors; // color idx within group
+//fLoad[i * filterPixels * numFilters];
+	>> i_clr_l // B_X*B_Y/16, < numColorsPerBlock
+	<< Index(1, filtersLoadY) //< B_X*B_Y/16
+	<< filterPixels
+
+//filters[pxIdxInFilter * numFilters + f]
+	>> pxIdxInFilter_l
+	<< numFilters
+
+	<< Index(numFiltersPerGroup, blockGroupIdx) //blockFilterIdx
+	>> f_l // 16 < numFiltersPerGroup
+	<< Index(1, filtersLoadX); // < 16
+//------------------
+//c * B_Y * imgPixels * numImages + i * B_X
+	int c_t_l, i_t_l;
+	BaseIndex<2> targetIndex;
+	targetIndex
+	<< Index(1, imgColorIdx) //(blockIdx.x / numImgBlocks) * numColorsPerBlock
+	>> c_t_l // *B_Y
+	<< Index(1, threadIdx.y)
+
+	<< imgPixels
+
+	<< Index(1, blockPixelIdx)
+
+	<< numImages
+
+	<< Index(1, blockCaseIdx)// (blockIdx.x % numImgBlocks) * numImagesPerBlock;
+	>> i_t_l // *B_X
+	<< Index(1, threadIdx.x);
+
+    __shared__ float shFilters_[numColorsPerBlock][16 + 1]; // TODO: perhaps reconsider this 16
+    __shared__ float shHidActs_[16][numImagesPerBlock];
+
+    float prod[colorsPerThread][imgsPerThread];
+	memset(prod, 0, sizeof(prod));
+
+    const int startY = blockPixelIdxY - paddingStart < filterSize ? 0
+                        : 1 + (blockPixelIdxY - paddingStart - filterSize) / moduleStride;
+    const int endY = MIN(numModulesY, 1 + (blockPixelIdxY - paddingStart) / moduleStride);
+
+    const int startX = blockPixelIdxX - paddingStart < filterSize ? 0
+                        : 1 + (blockPixelIdxX - paddingStart - filterSize) / moduleStride;
+    const int endX = MIN(numModulesX, 1 + (blockPixelIdxX - paddingStart) / moduleStride);
+
+
+
+    for (int my = startY; my < endY; my++) {
+        const int moduleTop = paddingStart + my * moduleStride;
+        const int pxInFilterY = blockPixelIdxY - moduleTop;
+
+        for (int mx = startX; mx < endX; mx++) {
+            const int moduleIdx = my * numModulesX + mx;
+            const int moduleLeft = paddingStart + mx * moduleStride;
+            const int pxInFilterX = blockPixelIdxX - moduleLeft;
+
+            const int pxIdxInFilter = pxInFilterY * filterSize + pxInFilterX;
+
+           for (int f = 0; f < numFiltersPerGroup; f += 16) { // multiply with 16 filters at a time
+
+                for (int i = 0; i < numImagesPerBlock; i += 32) {
+                    if (!checkCaseBounds || blockCaseIdx + hidActLoadX + i < numImages) {
+                        #pragma unroll
+                        for (int j = 0; j < 16; j += B_X*B_Y/32) { // load 16 rows of imgsPerThread*16 cols, 8 * 32 elements at a time.
+
+                            shHidActs_[j + hidActLoadY][i + hidActLoadX] 
+							= hidActs[
+								OFFSET(f, hidIndex) +
+								OFFSET(j, hidIndex) +
+								OFFSET_(moduleIdx, moduleIdx_l, hidIndex) +
+								OFFSET_(i, i_img_l, hidIndex)];
+                        }
+                    } else {
+                        #pragma unroll
+                        for (int j = 0; j < 16; j += B_X*B_Y/32) { // load 16 rows of imgsPerThread*16 cols, 8 * 32 elements at a time.
+                            shHidActs_[j + hidActLoadY][i + hidActLoadX] = 0;
+                        }
+                    }
+                }
+
+		   }//f
+		}//mx
+	}//my
+}
+
+//------------------
 
     hidActs += blockCaseIdx + (blockFilterIdx + hidActLoadY) * numImages * numModules + hidActLoadX;
     filters += blockFilterIdx + (filterColorIdx + filtersLoadY) * filterPixels * numFilters + filtersLoadX;

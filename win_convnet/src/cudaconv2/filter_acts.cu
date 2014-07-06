@@ -228,10 +228,6 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
                                        const float scaleTargets, const float scaleOutputs,
                                        const bool conv) {
 
-    __shared__ float shFilters_[B_Y*colorCache*B_Y * filtersPerThread]; // pre-load B_Y pixels from B_Y*filtersPerThread filters
-    __shared__ float shImages_[B_Y*colorCache*B_X * imgsPerThread]; // pre-load B_Y pixels from B_X*imgsPerThread images
-
-
     __shared__ float shFilters[B_Y*colorCache][B_Y * filtersPerThread]; // pre-load B_Y pixels from B_Y*filtersPerThread filters
     __shared__ float shImages[B_Y*colorCache][B_X * imgsPerThread]; // pre-load B_Y pixels from B_X*imgsPerThread images
     const int imgPixels = imgSizeY * imgSizeX;
@@ -254,12 +250,15 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
     const int shFilterLoadY = tidx / (B_Y * filtersPerThread);
     const int shFilterLoadX = tidx % (B_Y * filtersPerThread);
     const int myImgIdx = blockIdx.x * B_X * imgsPerThread + threadIdx.x;
-
+/*
 	const int numFiltersPerBlock = filtersPerThread * B_Y;
 
 //const int numAllFiltersModules = numModules * numFilters
 //	dim3(DIVUP(numImages, BX * imgsPerThread), (numModules * numFilters) / (BY * filtersPerThread))
 //  const int blocksPerModule = numFilters / (B_Y*filtersPerThread);
+
+	__shared__ float shFilters_[B_Y*colorCache*B_Y * filtersPerThread]; // pre-load B_Y pixels from B_Y*filtersPerThread filters
+    __shared__ float shImages_[B_Y*colorCache*B_X * imgsPerThread]; // pre-load B_Y pixels from B_X*imgsPerThread images
 
 	const int& bx = blockIdx.x;
 	const int& by = blockIdx.y;
@@ -423,9 +422,9 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 				}
 			}//if (shFilterLoadY < B_Y)
 
-           /*
-             * Load B_Y pixels from B_X*imgsPerThread images
-             */
+           
+             //Load B_Y pixels from B_X*imgsPerThread images
+             
             const int pixIdx = p + threadIdx.y;
             if (pixIdx < filterPixels) {
                 const int xo = pixIdx % filterSize;
@@ -480,9 +479,15 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
             for (int cc = 0; cc < B_Y*colorCache; cc++) {
                 #pragma unroll
                 for(int i = 0; i < filtersPerThread; i++) {
+					Offset fl;
+					fl << cc << filtersPerThread << i << B_Y << threadIdx.y;
+					
                     #pragma unroll
                     for(int g = 0; g < imgsPerThread; g++) {
-                        prod_[i][g] += shImages_[cc*(B_X*imgsPerThread) + g * B_X + threadIdx.x] * shFilters_[cc*(B_Y*filtersPerThread) + threadIdx.y + i * B_Y];
+						Offset im;
+						im << cc << imgsPerThread << g << B_X << threadIdx.x;
+
+                        prod_[i][g] += shImages_[im._offset] * shFilters_[fl._offset];
                     }
                 }
 
@@ -490,7 +495,7 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
             __syncthreads();
 		}
 	}
-
+*/
 //--------------------
 
     images += blockColorIdx * imgPixels * imgStride + myImgIdx;
