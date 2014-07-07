@@ -421,6 +421,7 @@ __global__ void conv_img_acts_manycolor(const float* hidActs, const float* filte
     const int hidActLoadY = tidx / 32, hidActLoadX = tidx % 32;
     const int filtersLoadY = tidx / 16, filtersLoadX = tidx % 16;
     const int numModules = numModulesY * numModulesX;
+/*
 //-------------
 {
 	int i_img_l, j_l, f_l, moduleIdx_l;
@@ -487,9 +488,6 @@ __global__ void conv_img_acts_manycolor(const float* hidActs, const float* filte
 	>> i_t_l // *B_X
 	<< Index(1, threadIdx.x);
 
-    __shared__ float shFilters_[numColorsPerBlock][16 + 1]; // TODO: perhaps reconsider this 16
-    __shared__ float shHidActs_[16][numImagesPerBlock];
-
     float prod[colorsPerThread][imgsPerThread];
 	memset(prod, 0, sizeof(prod));
 
@@ -500,8 +498,6 @@ __global__ void conv_img_acts_manycolor(const float* hidActs, const float* filte
     const int startX = blockPixelIdxX - paddingStart < filterSize ? 0
                         : 1 + (blockPixelIdxX - paddingStart - filterSize) / moduleStride;
     const int endX = MIN(numModulesX, 1 + (blockPixelIdxX - paddingStart) / moduleStride);
-
-
 
     for (int my = startY; my < endY; my++) {
         const int moduleTop = paddingStart + my * moduleStride;
@@ -521,8 +517,8 @@ __global__ void conv_img_acts_manycolor(const float* hidActs, const float* filte
                         #pragma unroll
                         for (int j = 0; j < 16; j += B_X*B_Y/32) { // load 16 rows of imgsPerThread*16 cols, 8 * 32 elements at a time.
 
-                            shHidActs_[j + hidActLoadY][i + hidActLoadX] 
-							= hidActs[
+                            shHidActs[j + hidActLoadY][i + hidActLoadX] 
+							= hidActs[hidIndex._offset +
 								OFFSET(f, hidIndex) +
 								OFFSET(j, hidIndex) +
 								OFFSET_(moduleIdx, moduleIdx_l, hidIndex) +
@@ -531,16 +527,66 @@ __global__ void conv_img_acts_manycolor(const float* hidActs, const float* filte
                     } else {
                         #pragma unroll
                         for (int j = 0; j < 16; j += B_X*B_Y/32) { // load 16 rows of imgsPerThread*16 cols, 8 * 32 elements at a time.
-                            shHidActs_[j + hidActLoadY][i + hidActLoadX] = 0;
+                            shHidActs[j + hidActLoadY][i + hidActLoadX] = 0;
                         }
                     }
                 }
-
+//no local connection here!
+               // const float* fLoad = conv ? &filters[pxIdxInFilter * numFilters + f]
+               //                          : &filters[moduleIdx * numFilterColors * filterPixels * numFilters + pxIdxInFilter * numFilters + f];
+                #pragma unroll
+                for (int i = 0; i < colorsPerThread*B_Y; i+= B_X*B_Y/16) {
+                    if ((colorsPerThread*B_Y) % (B_X*B_Y/16) == 0 || i + filtersLoadY < colorsPerThread*B_Y) {
+                        shFilters[filtersLoadY + i][filtersLoadX] =
+							filters[filterIndex._offset +
+							OFFSET_(i, i_clr_l, filterIndex) +
+							OFFSET(pxIdxInFilter,filterIndex) +
+							OFFSET(f,filterIndex)];
+                    }
+                }
+                
+                __syncthreads();
+                #pragma unroll
+                for (int c = 0; c < colorsPerThread; c++) {
+                    #pragma unroll
+                    for (int w = 0; w < 16; w++) {
+                        #pragma unroll
+                        for (int i = 0; i < imgsPerThread; i++) {
+                            prod[c][i] += shFilters[c * B_Y + threadIdx.y][w] * shHidActs[w][threadIdx.x + i * B_X];
+                        }
+                    }
+                }
+                __syncthreads();
 		   }//f
 		}//mx
 	}//my
-}
 
+    if (scale) {
+        #pragma unroll
+        for (int i = 0; i < imgsPerThread; i++) {
+            if (!checkCaseBounds || blockCaseIdx + threadIdx.x + i * B_X < numImages) {
+                #pragma unroll
+                for (int c = 0; c < colorsPerThread; c++) {
+					int toff = targetIndex._offset + OFFSET_(c, c_t_l, targetIndex) + OFFSET_(i, i_t_l, targetIndex);
+                    targets[toff] 					
+						= scaleTargets * targets[toff] + scaleOutputs * prod[c][i];
+                } //c
+            } //if
+        } //i
+    } else {
+        #pragma unroll
+        for (int i = 0; i < imgsPerThread; i++) {
+            if (!checkCaseBounds || blockCaseIdx + threadIdx.x + i * B_X < numImages) {
+                #pragma unroll
+                for (int c = 0; c < colorsPerThread; c++) {
+					int toff = targetIndex._offset + OFFSET_(c, c_t_l, targetIndex) + OFFSET_(i, i_t_l, targetIndex);
+                    targets[toff] = scaleOutputs * prod[c][i];
+                } //c
+            }// if
+        } // i
+    }// if scale
+}
+*/
 //------------------
 
     hidActs += blockCaseIdx + (blockFilterIdx + hidActLoadY) * numImages * numModules + hidActLoadX;

@@ -250,9 +250,9 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
     const int shFilterLoadY = tidx / (B_Y * filtersPerThread);
     const int shFilterLoadX = tidx % (B_Y * filtersPerThread);
     const int myImgIdx = blockIdx.x * B_X * imgsPerThread + threadIdx.x;
-/*
-	const int numFiltersPerBlock = filtersPerThread * B_Y;
 
+	const int numFiltersPerBlock = filtersPerThread * B_Y;
+/*
 //const int numAllFiltersModules = numModules * numFilters
 //	dim3(DIVUP(numImages, BX * imgsPerThread), (numModules * numFilters) / (BY * filtersPerThread))
 //  const int blocksPerModule = numFilters / (B_Y*filtersPerThread);
@@ -314,7 +314,7 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
 	<< Index(1, threadIdx.x);
 
 //------------------------------------
-	int p_l, p2_l, i_l;
+	int p_l, p2_l;
 	BaseIndex<4> filterIndex;
 	filterIndex <<Index(0,0)
 
@@ -403,20 +403,23 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
                         #pragma unroll
                         LOOP(c, loopBlock)
 						{
-							shFilters_[OFFSETN(c, shFilterIndex)
-								+ OFFSETN(p2, shFilterIndex)]
+							shFilters_[shFilterIndex._offset +
+								OFFSETN(c, shFilterIndex) +
+								OFFSETN(p2, shFilterIndex)]
 							=
-								filters[OFFSET(oc,filterIndex)
-								+ OFFSET(c,filterIndex)
-								+ OFFSET(p,filterIndex)
-								+ OFFSET(p2,filterIndex)];
+								filters[filterIndex._offset +
+								OFFSET(oc,filterIndex) +
+								OFFSET(c,filterIndex) +
+								OFFSET(p,filterIndex) +
+								OFFSET(p2,filterIndex)];
                         }
                     } else {
                         #pragma unroll
 		                LOOP(c, loopBlock)
 						{
-							shFilters_[OFFSETN(c, shFilterIndex)
-								+ OFFSETN(p2, shFilterIndex)] = 0;
+							shFilters_[shFilterIndex._offset +
+								OFFSETN(c, shFilterIndex) +
+								OFFSETN(p2, shFilterIndex)] = 0;
                         }
                     }
 				}
@@ -442,21 +445,24 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
                             LOOP(c, loopBlock)
 							{
 
-							shImages_[OFFSETN(c, shImageIndex)
-								+ OFFSETN(g, shImageIndex)]
+							shImages_[shImageIndex._offset +
+								OFFSETN(c, shImageIndex) +
+								OFFSETN(g, shImageIndex)]
 							=
-									images[ OFFSET(oc, imgIndex)
-									+ OFFSET(c, imgIndex)
-									+ OFFSET(yo, imgIndex)
-									+ OFFSET(xo, imgIndex)
-									+ OFFSET(g, imgIndex)];
+									images[imgIndex._offset +
+										OFFSET(oc, imgIndex) + 
+									OFFSET(c, imgIndex) +
+									OFFSET(yo, imgIndex) +
+									OFFSET(xo, imgIndex) +
+									OFFSET(g, imgIndex)];
                             }
                         } else {
                             #pragma unroll
                             LOOP(c, loopBlock)
 							{
-								shImages_[OFFSETN(c, shImageIndex)
-								+ OFFSETN(g, shImageIndex)] = 0;
+								shImages_[shImageIndex._offset +
+									OFFSETN(c, shImageIndex) +
+								OFFSETN(g, shImageIndex)] = 0;
                             }
                         }
                     }
@@ -467,8 +473,9 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
                         #pragma unroll
                         LOOP(c, loopBlock)
 						{
-								shImages_[OFFSETN(c, shImageIndex)
-								+ OFFSETN(g, shImageIndex)] = 0;
+								shImages_[shImageIndex._offset +
+									OFFSETN(c, shImageIndex) +
+								OFFSETN(g, shImageIndex)] = 0;
                         }
                     }
                 }
