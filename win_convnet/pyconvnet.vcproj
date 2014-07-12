@@ -436,6 +436,14 @@
 				<File
 					RelativePath=".\src\cudaconv2\weight_acts.cu"
 					>
+					<FileConfiguration
+						Name="Release|x64"
+						>
+						<Tool
+							Name="Cudart Build Rule"
+							AdditionalOptions=""
+						/>
+					</FileConfiguration>
 				</File>
 			</Filter>
 			<Filter

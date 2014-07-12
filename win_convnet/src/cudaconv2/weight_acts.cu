@@ -194,6 +194,7 @@ __global__ void conv_weight_acts_c(float* images, float* hidActs, float* targets
     }
 }
 
+#include "tt.h"
 /*
  * Each block computes weight gradients for B_Y pixels and B_X * filtersPerThread filters
  * threadIdx.x determines filter
@@ -235,16 +236,18 @@ __global__ void conv_weight_acts_mc_mf(float* images, float* hidActs, float* tar
     __shared__ float shImages[colorsPerThread * B_Y][preloadCases]; // preload preloadCases cases of B_Y * pixelsPerThread pixels
     __shared__ float shHidActs[filtersPerThread * B_X][preloadCases + 1]; // preload preloadCases cases of B_X hidacts
 
+	const int numFiltersPerBlock = B_X*filtersPerThread;
+
     const int tidx = B_X * threadIdx.y + threadIdx.x;
     const int loadY = tidx / preloadCases, loadX = tidx % preloadCases;
 
     const int filterPixels = filterSize * filterSize;
     const int imgPixels = imgSizeY * imgSizeX;
 
-    const int numFilterBlocks = numFilters / (B_X * filtersPerThread);
+    const int numFilterBlocks = numFilters / numFiltersPerBlock;
     const int outputModuleIdx = blockIdx.x / numFilterBlocks;
     const int moduleIdx = partialSum * outputModuleIdx;
-    const int blockFilterIdx = filtersPerThread * B_X * (blockIdx.x % numFilterBlocks);
+    const int blockFilterIdx = numFiltersPerBlock * (blockIdx.x % numFilterBlocks);
     const int numModules = numModulesY * numModulesX;
     
     const int numFiltersPerGroup = numFilters / numGroups;
@@ -254,7 +257,182 @@ __global__ void conv_weight_acts_mc_mf(float* images, float* hidActs, float* tar
     const int blockPixelOffset = (blockIdx.y / (numFilterColors/colorsPerThread)) * B_Y;
     const int filterColorIdx = (blockIdx.y % (numFilterColors/colorsPerThread)) * colorsPerThread;
     const int imgColorIdx = filterColorIdx + blockGroupIdx * numFilterColors;
+//-------------------
+{
+	// blocks = dim3((numModules/partialSum)*(numFilters/(bx*filtersPerThread)), DIVUP(filterPixels, by) * (numFilterColors / colorsPerThread));
 
+	int caseIdx_l, c_l, pixIdx_l, y_l;
+
+	BaseIndex<3> imgIndex;
+	imgIndex
+	//imgColorIdx
+	<< Index(blockGroupIdx)
+	<< numFilterColors
+	<< Index(filterColorIdx)
+	>> c_l //colorsPerThread
+	<< imgPixels
+	//pixIdx = (pxY * imgSizeX + pxX) * imgStride;
+	>> pixIdx_l // = y + LoadY, < imgPixels;
+	<< imgStride
+	>> caseIdx_l // preloadCases, < numImages (numImages~imgStride)
+	<< loadX;// < preloadCases
+
+	int m_l, y_h_l;
+	BaseIndex<3> hidIndex;
+	hidIndex
+	<< Index(blockFilterIdx)// numFiltersPerBlock * (blockIdx.x % numFilterBlocks);
+	>> y_h_l //(B_X * B_Y) / preloadCases, y < numFiltersPerBlock
+	<< Index(loadY) // tidx / preloadCases
+	<< numModules
+	<< Index(moduleIdx) // + m_l
+	>> m_l // partial sums
+	<< numImages
+	>> caseIdx_l // preloadCases, < numImages (numImages~imgStride)
+	<< Index(loadX);
+
+
+	int f_t_l, c_t_l;
+	BaseIndex<2> tagIndex;
+	tagIndex
+	<< Index(outputModuleIdx) //blockIdx.x / numFilterBlocks;
+	<< numFilterColors
+	<< Index(blockIdx.y % (numFilterColors/colorsPerThread)) //filterColorIdx
+	<< Index(colorsPerThread)
+	>> c_t_l //  < colorsPerThread
+	<< filterPixels
+	<< Index(blockPixelOffset) //=(blockIdx.y / (numFilterColors/colorsPerThread)) * B_Y < DIVUP(filterPixels, by)*B_Y
+	<< Index(threadIdx.y)
+
+	<< numFilters/numFiltersPerBlock //temporary, make flag skip offst
+
+	<< Index(blockIdx.x % numFilterBlocks) //blockFilterIdx/numFiltersPerThread
+	<< numFiltersPerBlock
+
+	>> f_t_l // < filtersPerThread
+	<< B_X
+	<< Index(threadIdx.x);
+
+    images += imgIndex._offset;
+    hidActs += hidIndex._offset;
+    targets += tagIndex._offset;
+
+    float prod[colorsPerThread][filtersPerThread];
+	memset(prod, 0, sizeof(prod));
+
+    // This avoids doing a division in an inner loop
+    __shared__ int pxDivs[B_Y];
+    if (tidx < B_Y) {
+        pxDivs[tidx] = (((blockPixelOffset + tidx) / filterSize) << 16) + (blockPixelOffset + tidx) % filterSize;
+    }
+    __syncthreads();
+    for (int m = moduleIdx; m < moduleIdx + partialSum; m++) {
+        const int imgLoadModPosY = paddingStart + (m / numModulesX) * moduleStride;
+        const int imgLoadModPosX = paddingStart + (m % numModulesX) * moduleStride;
+        for (int caseIdx = 0; caseIdx < numImages; caseIdx += preloadCases) {
+            if (loadY < B_Y) {
+				for (int y = 0; y < B_Y; y += (B_X * B_Y) / preloadCases) {
+                    // Make sure number of rows in the array is divisible by number of rows filled per iteration
+                    if (B_Y % (B_X * B_Y / preloadCases) == 0 || y + loadY < B_Y) {
+                /*
+                 * As long as B_Y * B_X is divisible by preloadCases this will loop the right
+                 * number of times.
+                 *
+                 * This will load some images from filter pixels that don't exist (it'll set those to 0),
+                 * but the code does not produce any output for those pixels (see last lines).
+                 */
+	                    const int pxIdx = loadY + y; // pixel idx in filter; tidx/preloadCases + (B_X*B_Y)/preloadCases*k_y
+						//pxIdx + blockPixelOffset ~ B_Y_ind + B_Y*DIVUP(filterPixels, by)_ind
+                        if (pxIdx + blockPixelOffset < filterPixels && (!checkCaseBounds || caseIdx + loadX < numImages)) {
+                            const int pxY = imgLoadModPosY + HI16(pxDivs[pxIdx]);//pxIdx / filterSize; // pixel x,y coords in image
+                            const int pxX = imgLoadModPosX + LO16(pxDivs[pxIdx]);
+                            if (pxY >= 0 && pxY < imgSizeY && pxX >= 0 && pxX < imgSizeX) {
+                                const int pixIdx = (pxY * imgSizeX + pxX) * imgStride; // pixel idx in image
+                                #pragma unroll
+                                for (int c = 0; c < colorsPerThread; c++) {
+									Offset shImgY;
+									shImgY << c << B_Y << y << loadY;
+                                    shImages[shImgY._offset][loadX] =
+										images[
+											OFFSET(caseIdx, imgIndex) +
+											OFFSET(c, imgIndex) +
+											+ pixIdx];
+                                }
+                            } else {
+                                #pragma unroll
+                                for (int c = 0; c < colorsPerThread; c++) {
+									Offset shImgY;
+									shImgY << c << B_Y << y << loadY;
+                                    shImages[shImgY._offset][loadX] = 0;
+                                }
+                            }//if (pxY >= 0 &&
+
+                        } else {
+                            #pragma unroll
+                            for (int c = 0; c < colorsPerThread; c++) {
+									Offset shImgY;
+									shImgY << c << B_Y << y << loadY;
+                                    shImages[shImgY._offset][loadX] = 0;
+                            }// c loop
+						}//if (pxIdx + blockPixelOffset 
+					} // if (B_Y%...
+				}// y loop
+			}//if (loadY < B_Y)
+
+            if (loadY < numFiltersPerBlock && (!checkCaseBounds || caseIdx + loadX < numImages)) {
+                #pragma unroll
+                for (int y = 0; y < B_X * filtersPerThread; y += (B_X * B_Y) / preloadCases) {
+                    // Make sure number of rows in the array is divisible by number of rows filled per iteration
+                    if ((B_X * filtersPerThread) % (B_X * B_Y / preloadCases) == 0 || y + loadY < B_X * filtersPerThread) {
+                        shHidActs[y + loadY][loadX] 
+							= hidActs[OFFSET_(y, y_h_l, hidIndex) +
+										OFFSET(caseIdx, hidIndex) +
+										OFFSET(m-moduleIdx, hidIndex)];
+                    }
+                }
+            }//if (loadY < B_X * filtersPerThread && (!checkCaseBounds 
+            __syncthreads();
+
+            #pragma unroll
+            for (int c = 0; c < colorsPerThread; c++) {
+                #pragma unroll
+                for (int i = 0; i < preloadCases; i++) {
+                    #pragma unroll
+                    for (int f = 0; f < filtersPerThread; f++) {
+                        prod[c][f] += shImages[threadIdx.y + c * B_Y][i] * shHidActs[threadIdx.x + f * B_X][i];
+                    }//f loop
+                }// i preload cases loop
+            }// c loop
+            __syncthreads();
+		}// caseIdx loop
+		//hidActs += numImages;
+	}// m loop for moduleIdx
+    if (blockPixelOffset + threadIdx.y < filterPixels) {
+        if (scale) {
+            #pragma unroll
+            for (int f = 0; f < filtersPerThread; f++) {
+                #pragma unroll
+                for (int c = 0; c < colorsPerThread; c++) {
+					int tind = OFFSET_(c, c_t_l, tagIndex) +
+						OFFSET_(f, f_t_l, tagIndex);
+
+                    targets[tind] = scaleTargets * targets[tind] + scaleOutputs * prod[c][f];
+                }//c
+            }//f
+        } else {
+            #pragma unroll
+            for (int f = 0; f < filtersPerThread; f++) {
+                #pragma unroll
+                for (int c = 0; c < colorsPerThread; c++) {
+                    targets[OFFSET_(c, c_t_l, tagIndex) +
+						OFFSET_(f, f_t_l, tagIndex)] = scaleOutputs * prod[c][f];
+                }//c
+            }//f
+        }//scale
+    }// if (blockPixelOffset + threadIdx.y
+
+
+}
+//---------------------
     images += imgColorIdx * imgPixels * imgStride + loadX;
 
     hidActs += moduleIdx * numImages
