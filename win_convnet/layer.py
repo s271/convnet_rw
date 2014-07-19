@@ -632,18 +632,16 @@ class EltwiseFuncParser(LayerWithInputParser):
     def __init__(self):
         LayerWithInputParser.__init__(self)
         
-     def add_params(self, mcp):
+    def add_params(self, mcp):
         LayerWithInputParser.add_params(self, mcp)
 
         dic, name = self.dic, self.dic['name'] 
-        dic['epsP'] = mcp.safe_get_int(name, 'epsP')      
-        dic['wc'] = mcp.safe_get_int(name, 'wc')    
-        dic['mom'] = mcp.safe_get_int(name, 'mom')     
+        dic['epsP'] = mcp.safe_get_float(name, 'epsP')      
+        dic['wc'] = mcp.safe_get_float(name, 'wc')    
+        dic['mom'] = mcp.safe_get_float(name, 'mom')     
         
     def parse(self, name, mcp, prev_layers, model):
         dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
-        if len(dic['inputs']) < 2:
-            raise LayerParsingError("Layer '%s': elementwise func layer must have at least 2 inputs, got %d." % (name, len(dic['inputs'])))
         if len(set(dic['numInputs'])) != 1:
             raise LayerParsingError("Layer '%s': all inputs must have the same dimensionality. Got dimensionalities: %s" % (name, ", ".join(str(s) for s in dic['numInputs'])))
         
@@ -658,9 +656,9 @@ class EltwiseFuncParser(LayerWithInputParser):
         meta_param = [0]*size_param     
             
         for j in range(dic['size_out']):   
-            meta_param[j*2*dic['size_in'] + 2]=1
-            meta_param[j*2*dic['size_in'] + dic['size_in']]=1 
-            meta_param[j*2*dic['size_in'] + dic['size_in'] + 1]=1            
+            meta_param[j*2*dic['size_in'] + 2]=1.
+            meta_param[j*2*dic['size_in'] + dic['size_in']]=1. 
+            meta_param[j*2*dic['size_in'] + dic['size_in'] + 1]=1.            
         
         meta_param_inc = [0]*size_param
 
@@ -797,7 +795,7 @@ class WeightLayerParser(LayerWithInputParser):
         dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
         dic['requiresParams'] = True
         dic['gradConsumer'] = True
-        dic['initW'] =
+        dic['initW'] = mcp.safe_get_float_list(name, 'initW', default=0.01)
         dic['initB'] = mcp.safe_get_float(name, 'initB', default=0)
         dic['initWFunc'] = mcp.safe_get(name, 'initWFunc', default="")
         dic['initBFunc'] = mcp.safe_get(name, 'initBFunc', default="")
