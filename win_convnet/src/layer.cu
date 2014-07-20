@@ -533,7 +533,7 @@ ConvLayer::ConvLayer(ConvNet* convNet, PyObject* paramsDict) : LocalLayer(convNe
 void ConvLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
 //debug
-	printf(" conv fprop name %s \n", _name.c_str());
+//	printf(" conv fprop name %s \n", _name.c_str());
 
 
     if (_randSparse->at(inpIdx)) {
@@ -822,8 +822,6 @@ void EltwiseFuncLayer::copyToCPU()
 };
 
 void EltwiseFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
-	printf(" computeEltwiseFuncAct \n");
-
 	computeEltwiseFuncAct(*_inputs[inpIdx],  getActs(), _param, _sizeIn, _sizeOut);
 }
 //debug
@@ -840,28 +838,28 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	int pout = (pout_prev + 1 + rand()%2)%_sizeOut;
 	pin_prev = pin;
 	pout_prev = pout;
-	printf(" computeEltwiseFuncParamGradSingle \n");
+//	printf(" computeEltwiseFuncParamGradSingle \n");
 
 	computeEltwiseFuncParamGradSingle(v, *_inputs[inpIdx],
 								  temp, temp_m,
 								 pin, pout,  _sizeIn, _sizeOut);
 
-	printf(" temp %i pin %i pout %i  \n", temp.getNumElements(), pin, pout);
+//	printf(" temp %i pin %i pout %i  \n", temp.getNumElements(), pin, pout);
 	
 	double grad = temp.sum();
 
-	printf(" temp_m %i  \n", temp_m.getNumElements());
+//	printf(" temp_m %i  \n", temp_m.getNumElements());
 
 	double grad_m = temp_m.sum();
 	int ind_p = pin + pout*2*_sizeIn;
 	int ind_p_m = ind_p + _sizeIn;
 
-	printf(" grad %f grad_m %f   \n", grad, grad_m);
+//	printf(" grad %f grad_m %f   \n", grad, grad_m);
 
 	_param_inc[ind_p] = _mom*_param_inc[ind_p] + _epsP*grad - _wc*_param[ind_p];
 	_param_inc[ind_p_m] = _mom*_param_inc[ind_p_m] + _epsP*grad_m - _wc*_param[ind_p_m];
 
-	printf(" _param_inc %f _param_inc_M %f   \n", _param_inc[ind_p], _param_inc[ind_p_m]);
+//	printf(" _param_inc %f _param_inc_M %f   \n", _param_inc[ind_p], _param_inc[ind_p_m]);
 
 
 //
@@ -906,7 +904,6 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 //			printf(" _param after %f %f %f  %f %f %f\n", _param[0] , _param[1] , _param[2] , _param[3] , _param[4], _param[5]);
 //
 //		}
-	printf(" computeEltwiseFuncGrad \n");
 
 		computeEltwiseFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(), _param, _sizeIn, _sizeOut);
 
