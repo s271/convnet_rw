@@ -502,6 +502,28 @@ __global__ void filterActs_YxX_sparse(float* images, float* filters, float* targ
             __syncthreads();
 		}
 	}
+
+    if (scale) {
+        #pragma unroll
+        for (int g = 0; g < imgsPerThread; g++) {
+            if (!checkImgBounds || myImgIdx + g * B_X < numImages) {
+                #pragma unroll
+                for (int f = 0; f < filtersPerThread; f++) {
+                    targets[g * B_X + f * B_Y * numImages * numModules] = scaleTargets * targets[g * B_X + f * B_Y * numImages * numModules] + scaleOutputs * prod[f][g];
+                }
+            }
+        }
+    } else {
+        #pragma unroll
+        for (int g = 0; g < imgsPerThread; g++) {
+            if (!checkImgBounds || myImgIdx + g * B_X < numImages) {
+                #pragma unroll
+                for (int f = 0; f < filtersPerThread; f++) {
+                    targets[g * B_X + f * B_Y * numImages * numModules] = scaleOutputs * prod[f][g];
+                }
+            }
+        }
+    }
 */
 //--------------------
 

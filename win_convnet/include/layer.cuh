@@ -206,6 +206,7 @@ protected:
 	PyObject* hParamListInc;
 	float _epsP, _wc, _mom;
 	int _sizeIn, _sizeOut, _updates;
+	NVMatrix _temp, _temp_m;
 
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);

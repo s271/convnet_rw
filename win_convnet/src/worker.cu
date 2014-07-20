@@ -107,11 +107,12 @@ void TrainingWorker::run() {
 //if (!_test)
 //printf(" eps %f \n", _eps_scale);
 //debug
-	for (int ki = 0; ki < 1; ki++) {
+	for (int ki = 0; ki < 17; ki++) {
     //for (int ki = 0; ki < _dp->getNumMinibatches(); ki++) {
 		int mini_ind = shaffle[ki];
 //debug
 minibatch=ki;
+printf("mini_ind %i \n", mini_ind);
 
 		if(_eps_scale > 0)
 			_convNet->setParam(_eps_scale);

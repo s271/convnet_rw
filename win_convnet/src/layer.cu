@@ -821,15 +821,18 @@ void EltwiseFuncLayer::copyToCPU()
 	}
 };
 
-void EltwiseFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
-	computeEltwiseFuncAct(*_inputs[inpIdx],  getActs(), _param, _sizeIn, _sizeOut);
-}
 //debug
 extern int minibatch;
 
-void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
+void EltwiseFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
+	printf(" EltwiseFuncLayer fpropActs minibatch %i \n", minibatch);
 
-	NVMatrix temp, temp_m;
+	computeEltwiseFuncAct(*_inputs[inpIdx],  getActs(), _param, _sizeIn, _sizeOut);
+
+	printf(" EltwiseFuncLayer fpropActs end\n");
+}
+
+void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
 	static int pin_prev = 0;
 	static int pout_prev = 0;
@@ -838,19 +841,19 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	int pout = (pout_prev + 1 + rand()%2)%_sizeOut;
 	pin_prev = pin;
 	pout_prev = pout;
-//	printf(" computeEltwiseFuncParamGradSingle \n");
-
+	printf(" bpropActs \n");
+/*
 	computeEltwiseFuncParamGradSingle(v, *_inputs[inpIdx],
-								  temp, temp_m,
+								  _temp, _temp_m,
 								 pin, pout,  _sizeIn, _sizeOut);
 
 //	printf(" temp %i pin %i pout %i  \n", temp.getNumElements(), pin, pout);
 	
-	double grad = temp.sum();
 
 //	printf(" temp_m %i  \n", temp_m.getNumElements());
 
-	double grad_m = temp_m.sum();
+	double grad = _temp.sum();
+	double grad_m = _temp_m.sum();
 	int ind_p = pin + pout*2*_sizeIn;
 	int ind_p_m = ind_p + _sizeIn;
 
@@ -861,7 +864,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 //	printf(" _param_inc %f _param_inc_M %f   \n", _param_inc[ind_p], _param_inc[ind_p_m]);
 
-
+*/
 //
 //
 //		NVMatrix temp0, temp1, temp2, temp3, temp4, temp5;
@@ -905,8 +908,18 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 //
 //		}
 
-		computeEltwiseFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(), _param, _sizeIn, _sizeOut);
 
+    int inp_width = ( *_inputs[inpIdx]).getNumCols(); 
+    int inp_height = ( *_inputs[inpIdx]).getNumRows();
+
+NVMatrix& target = _prev[inpIdx]->getActsGrad();
+    if (target.getNumCols() != inp_width || target.getNumRows() != inp_height) {
+        target.resize(inp_height, inp_width);
+    }
+
+		//computeEltwiseFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(), _param, _sizeIn, _sizeOut);
+
+		printf(" bpropActs end\n");
 }
 
 
