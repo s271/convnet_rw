@@ -536,20 +536,22 @@ __global__ void kEltwiseFuncGrad_t(const float* actGrad, const float* input, flo
     const uint idxY = blockIdx.y * B_Y + threadIdx.y;
 
 	const int numPixelsPerGroup = imgInPixels/sizeIn;
+	const int inStep = strideInp*numPixelsPerGroup;
+	const int outStep = strideOut*numPixelsPerGroup;
 
 	//gridDim.y is DIVUP(numOutPixelsPerGroup, ELTWISE_THREADS_Y)
-    for (uint yg = idxY; yg < numPixelsPerGroup; yg += gridDim.y * B_Y) {
+    for (uint iy = idxY; iy < numPixelsPerGroup; iy += gridDim.y * B_Y) {
 
-        for (uint x = idxX; x < numCases; x += gridDim.x * B_X) {
+        for (uint ix = idxX; ix < numCases; ix += gridDim.x * B_X) {
 
 			float grad_next[sizeArr];
 
 			for (uint out_i = 0; out_i < sizeOut; out_i++)
-				grad_next[out_i] = actGrad[(yg + out_i*numPixelsPerGroup)*strideOut + x];
+				grad_next[out_i] = actGrad[(iy + out_i*numPixelsPerGroup)*strideOut + ix];
 
 			for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {	
-				int yt = yg + inp_i*numPixelsPerGroup;
-				int offset = yt * strideInp + x;
+				int yt = iy + inp_i*numPixelsPerGroup;
+				int offset = yt * strideInp + ix;
 				float val = input[offset];
 				float vsign = (val > 0);
 				float sum_grad = 0;
@@ -559,6 +561,7 @@ __global__ void kEltwiseFuncGrad_t(const float* actGrad, const float* input, flo
 						+ const_area[out_i*sizeIn*2 + inp_i]); //optimize away later
 
 				target[offset] = sum_grad;
+
 			}	
 
 			//int offset = y * stride + x;
