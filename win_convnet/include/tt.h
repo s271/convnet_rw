@@ -114,7 +114,7 @@ struct Offset
 
 	DEVICE Offset& operator << (int shift)
 	{
-		_offset <<= shift;
+		_offset *= shift;
 		return *this;
 	}
 };

@@ -442,11 +442,15 @@ __global__ void kEltwiseFuncAct_t(const float* input, float* const target,
     const uint idxY = blockIdx.y * B_Y + threadIdx.y;
 
 	//gridDim.y is DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)
-    for (uint yg = idxY; yg < numPixelsPerGroup; yg += gridDim.y * B_Y) {
+    for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDim.y * B_Y) {
 
-        for (uint x = idxX; x < numCases; x += gridDim.x * B_X) {	
-			
-			float inpVal[sizeArr];//use shared instead?
+        for (uint ix = 0; ix < numCases; ix += gridDim.x * B_X) {	
+
+		float inpVal[sizeArr];//use shared instead?
+
+/*			
+			uint x = idxX + ix;
+			uint yg = idxY + iy;
 
 			for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {	
 				int yt = yg + inp_i*numPixelsPerGroup;
@@ -470,11 +474,38 @@ __global__ void kEltwiseFuncAct_t(const float* input, float* const target,
 
 				}
 				target[offseTag] = output;
-
 			}
+*/
+
+			uint x = idxX + ix;
+			uint yg = idxY + iy;
+
+			for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {	
+				int yt = yg + inp_i*numPixelsPerGroup;
+				float val = input[yt * strideInp + x];
+				inpVal[inp_i] = val;
+			}		
+	
+			for (uint out_i = 0; out_i < sizeOut; out_i++) {
+				int out_par = out_i*sizeIn*2;
+
+				float output = 0;
+			
+				for (uint inp_i = 0; inp_i < sizeIn; inp_i++)
+				{		
+					float param = const_area[out_par + inp_i];
+					float paramM = const_area[out_par + sizeIn + inp_i];
+					float val = inpVal[inp_i];
+					output += param*val + paramM*fmax(val, 0);
+				}// inp_i
+
+				int yo = yg + out_i*numPixelsPerGroup;
+				int offseTag = yo * strideTag + x;
+				target[offseTag] = output;
+			}//out_i
+
         }
     }
-
 }
 
 template <int B_X, int B_Y, int sizeArr>
