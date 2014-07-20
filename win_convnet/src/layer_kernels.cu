@@ -629,8 +629,6 @@ __global__ void kEltwiseFuncParamGradSingle(float* actGrad, float* input, float*
 	float sum = 0;
 	float sum_m = 0;
 
-    const uint idxX = blockIdx.x * B_X + threadIdx.x;
-    const uint idxY = blockIdx.y * B_Y + threadIdx.y;
 	
     for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDim.y*B_Y) {
       for (uint ix = 0; ix < numCases; ix += gridDim.x*B_X) {	
@@ -729,9 +727,9 @@ __global__ void kEltwiseFuncParamGradSingle_t(float* actGrad, float* input, floa
 #pragma unroll
         for (uint x = idxX; x < numCases; x += gridDim.x * B_X) {
 			int offset = y * strideInp + x;
-			float in_val = input[offset + pin*numPixelsPerGroup];
+			float in_val = input[offset + pin*numPixelsPerGroup* strideInp ];
 
-			float grad_next = actGrad[y * strideOut + x + pout*numPixelsPerGroup];
+			float grad_next = actGrad[y * strideOut + x + pout*numPixelsPerGroup* strideInp ];
 
 			float val_m = fmax(in_val, 0);
 			sum += grad_next*in_val;
@@ -881,7 +879,10 @@ void computeEltwiseFuncParamGradSingle(NVMatrix& actGrad, NVMatrix& input,
 
 	float rr11 = target.sum();
 	float rr21 = target_m.sum();
-	printf(" sum1 aft %f %f \n", rr11, rr21);
+	printf(" sum aft %f %f \n", rr11, rr21);
+
+
+	printf("sum1 actGrad  %f input %f \n", ar1, ir2);
 
 	kEltwiseFuncParamGradSingle<ELTWISE_THREADS_X, ELTWISE_THREADS_Y><<<blocks, threads>>>(actGrad.getDevData(),
 		input.getDevData(), target.getDevData(), target_m.getDevData(),
@@ -891,7 +892,7 @@ void computeEltwiseFuncParamGradSingle(NVMatrix& actGrad, NVMatrix& input,
 
 	float rr1 = target.sum();
 	float rr2 = target_m.sum();
-	printf(" sum aft %f %f \n", rr1, rr2);
+	printf(" sum1 aft %f %f \n", rr1, rr2);
 
  /*       int height = input0.getFollowingDim(), width = input0.getLeadingDim();
 
