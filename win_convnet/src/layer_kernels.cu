@@ -448,35 +448,6 @@ __global__ void kEltwiseFuncAct_t(const float* input, float* const target,
 
 		float inpVal[sizeArr];//use shared instead?
 
-/*			
-			uint x = idxX + ix;
-			uint yg = idxY + iy;
-
-			for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {	
-				int yt = yg + inp_i*numPixelsPerGroup;
-				float val = input[yt * strideInp + x];
-				inpVal[inp_i] = val;
-			}
-		
-			for (uint out_i = 0; out_i < sizeOut; out_i++) {
-				int out_par = out_i*sizeIn*2;
-				
-				int yo = yg + out_i*numPixelsPerGroup;
-				int offseTag = yo * strideTag + x;
-
-				float output = 0;
-
-				for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {		
-					float param = const_area[out_par + inp_i];
-					float paramM = const_area[out_par + inp_i + sizeIn];
-					float val = inpVal[inp_i];
-					output += param*val + paramM*fmax(val, 0);
-
-				}
-				target[offseTag] = output;
-			}
-*/
-
 			uint x = idxX + ix;
 			uint yg = idxY + iy;
 
@@ -683,45 +654,7 @@ __global__ void kEltwiseFuncParamGradSingle_t(float* actGrad, float* input, floa
 
 	float sum = 0;
 	float sum_m = 0;
-/*
-    for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDim.y*B_Y) {
-      for (uint ix = 0; ix < numCases; ix += gridDim.x*B_X) {	
 
-			Offset offsetInp;
-			offsetInp
-			<< Index(pin)
-			<< numPixelsPerGroup
-			<< Index(iy) << Index(B_Y, blockIdx.y) << Index(threadIdx.y)
-			<< strideInp
-			<< Index(ix ) << Index(B_X, blockIdx.x) << Index(threadIdx.x);
-			
-			float in_val = input[offsetInp._offset];
-
-			Offset offsetOut;
-			offsetOut
-			<< Index(pout)
-			<< numPixelsPerGroup
-			<< Index(iy) << Index(B_Y, blockIdx.y) << Index(threadIdx.y)
-			<< strideOut
-			<< Index(ix ) << Index(B_X, blockIdx.x) << Index(threadIdx.x);
-
-			float grad_next = actGrad[offsetOut._offset];
-
-			float val_m = fmax(in_val, 0);
-			sum += grad_next*in_val;
-			sum_m += grad_next*val_m;
-		}
-	}
-
-	Offset offsetTag;
-	offsetTag
-	<< Index(B_Y, blockIdx.y) << Index(threadIdx.y)
-	<< strideTag
-	<< Index(B_X, blockIdx.x) << Index(threadIdx.x);
-
-	target[offsetTag._offset] = sum;
-	target_m[offsetTag._offset] = sum_m;
-*/
 #pragma unroll
     for (uint y = idxY; y < numPixelsPerGroup; y += gridDim.y * B_Y) {
 #pragma unroll
