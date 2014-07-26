@@ -533,7 +533,7 @@ ConvLayer::ConvLayer(ConvNet* convNet, PyObject* paramsDict) : LocalLayer(convNe
 void ConvLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
 //debug
-//	printf(" conv fprop name %s \n", _name.c_str());
+	printf(" conv fprop name %s \n", _name.c_str());
 
 
     if (_randSparse->at(inpIdx)) {
@@ -598,6 +598,10 @@ void ConvLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType) {
 }
 
 void ConvLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
+
+//debug
+	printf(" conv bpropActs name %s \n", _name.c_str());
+
     if (_randSparse->at(inpIdx)) {
         NVMatrix& tgt = _overSample->at(inpIdx) > 1 ? _actGradTmp : _prev[inpIdx]->getActsGrad();
         convImgActsSparse(v, *_weights[inpIdx], tgt, _filterConns->at(inpIdx).dFilterConns,
@@ -842,7 +846,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	pin_prev = pin;
 	pout_prev = pout;
 	printf(" bpropActs \n");
-/*
+
 	computeEltwiseFuncParamGradSingle(v, *_inputs[inpIdx],
 								  _temp, _temp_m,
 								 pin, pout,  _sizeIn, _sizeOut);
@@ -857,14 +861,14 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	int ind_p = pin + pout*2*_sizeIn;
 	int ind_p_m = ind_p + _sizeIn;
 
-//	printf(" grad %f grad_m %f   \n", grad, grad_m);
+	printf(" grad %f grad_m %f   \n", grad, grad_m);
 
 	_param_inc[ind_p] = _mom*_param_inc[ind_p] + _epsP*grad - _wc*_param[ind_p];
 	_param_inc[ind_p_m] = _mom*_param_inc[ind_p_m] + _epsP*grad_m - _wc*_param[ind_p_m];
 
-//	printf(" _param_inc %f _param_inc_M %f   \n", _param_inc[ind_p], _param_inc[ind_p_m]);
+	printf(" _param_inc %f _param_inc_M %f   \n", _param_inc[ind_p], _param_inc[ind_p_m]);
 
-*/
+
 //
 //
 //		NVMatrix temp0, temp1, temp2, temp3, temp4, temp5;
@@ -917,7 +921,7 @@ NVMatrix& target = _prev[inpIdx]->getActsGrad();
         target.resize(inp_height, inp_width);
     }
 
-		//computeEltwiseFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(), _param, _sizeIn, _sizeOut);
+		computeEltwiseFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(), _param, _sizeIn, _sizeOut);
 
 		printf(" bpropActs end\n");
 }

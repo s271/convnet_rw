@@ -911,20 +911,20 @@ void computeEltwiseFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& pa
                 std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)));
 
 //debug
-//	printf("kEltwiseFuncAct -------------\n");
-//	printf("temp %f %f %f  %f %f %f \n", temp[0],temp[1],temp[2],temp[3],temp[4],temp[5]);
-//	//input.nan2zero();
-//	float sum = input.sum();
-//	printf(" size_in %i size_out %i sum %f \n", size_in, size_out, sum);
+	printf("kEltwiseFuncAct -------------\n");
+	printf("temp %f %f %f  %f %f %f \n", temp[0],temp[1],temp[2],temp[3],temp[4],temp[5]);
+	//input.nan2zero();
+	float sum = input.sum();
+	printf(" size_in %i size_out %i sum %f \n", size_in, size_out, sum);
 //	const int numPixelsPerGroup1 = inp_height/size_in;
 //	printf(" numPixelsPerGroup %i numPixelsPerGroup1 %i target.getNumRows %i \n", numPixelsPerGroup, numPixelsPerGroup1, target.getNumRows());
 //	//cudaMemset(target.getDevData(), 0, target.getNumElements()*sizeof(float));
 printf(" target.getStride() %i target.getNumRows() %i target.getNumCols() %i \n", target.getStride(), target.getNumRows(), target.getNumCols());
-//
-//	kEltwiseFuncAct_t<ELTWISE_THREADS_X, ELTWISE_THREADS_Y, 3><<<blocks, threads>>>(input.getDevData(),
-//	target.getDevData(), inp_height, inp_width, input.getStride(), target.getStride(), size_in, size_out);
-////float sumt0 = target.sum();
-//	printf("kEltwiseFuncAct_t sumt_0 %f \n", sumt0);
+
+	//kEltwiseFuncAct_t<ELTWISE_THREADS_X, ELTWISE_THREADS_Y, 3><<<blocks, threads>>>(input.getDevData(),
+	//target.getDevData(), inp_height, inp_width, input.getStride(), target.getStride(), size_in, size_out);
+	//float sumt0 = target.sum();
+	//printf("kEltwiseFuncAct_t sumt_0 %f \n", sumt0);
 
 
 #define ELT_ACT(SIZE_ARR) \
@@ -942,8 +942,8 @@ printf(" target.getStride() %i target.getNumRows() %i target.getNumCols() %i \n"
 	ELT_ACT(16)
 #undef ELT_ACT
 
-//float sumt = target.sum();
-//	printf("kEltwiseFuncAct sumt %f \n", sumt);
+float sumt = target.sum();
+	printf("kEltwiseFuncAct sumt %f \n", sumt);
 
 	cutilCheckMsg("computeEltwiseFuncAct: Kernel execution failed");
 }
@@ -980,20 +980,20 @@ void computeEltwiseFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target
     dim3 blocks(std::min(NUM_BLOCKS_MAX, (int)DIVUP(inp_width, threads.x)),
                 std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)));
 
-	//printf("computeEltwiseFuncGrad numPixelsPerGroup %i --------------------\n", numPixelsPerGroup);
-	//float sumA = actGrad.sum();
-	//float sumI = input.sum();
+	printf("computeEltwiseFuncGrad numPixelsPerGroup %i --------------------\n", numPixelsPerGroup);
+	float sumA = actGrad.sum();
+	float sumI = input.sum();
 
-	//printf("sum actGrad %f input %f \n", sumA, sumI);
+	printf("sum actGrad %f input %f \n", sumA, sumI);
 	//printf(" size_in %i size_out %i tag size %i sumt %f \n", size_in, size_out,  target.getNumElements());
 	//printf(" target.getStride() %i actGrad  %i input %i \n", target.getStride(), actGrad.getNumRows(), input.getNumRows());
 
-	//kEltwiseFuncGrad_t<ELTWISE_THREADS_X, ELTWISE_THREADS_Y, 3><<<blocks, threads>>>(actGrad.getDevData(),
-	//	input.getDevData(), target.getDevData(), inp_height, inp_width,
-	//	input.getStride(), actGrad.getStride(), size_in, size_out);
+	kEltwiseFuncGrad_t<ELTWISE_THREADS_X, ELTWISE_THREADS_Y, 3><<<blocks, threads>>>(actGrad.getDevData(),
+		input.getDevData(), target.getDevData(), inp_height, inp_width,
+		input.getStride(), actGrad.getStride(), size_in, size_out);
 
-	//float sumtt = target.sum();
-	//printf("sum_test_tag %f \n", sumtt);
+	float sumtt = target.sum();
+	printf("sum_test_tag %f \n", sumtt);
 
 
 #define ELT_GRAD(SIZE_ARR) \
@@ -1012,7 +1012,7 @@ void computeEltwiseFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target
 		ELT_GRAD(16)
 #undef ELT_GRAD
 
-//	float sumt = target.sum();
+	float sumt = target.sum();
 
 //	printf("sum_tag %f \n", sumt);
 
