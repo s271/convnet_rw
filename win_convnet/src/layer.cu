@@ -869,12 +869,20 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	//printf(" _param_inc %f _param_inc_M %f   \n", _param_inc[ind_p], _param_inc[ind_p_m]);
 
 	_param[ind_p] += _param_inc[ind_p];
-	_param[ind_p] = fmin(fmax(_param[ind_p], -1), 1);
+	//_param[ind_p] = fmin(fmax(_param[ind_p], -1), 1);
 
 	_param[ind_p_m] += _param_inc[ind_p_m];
-	_param[ind_p_m] = fmin(fmax(_param[ind_p_m], -1), 1);
+	//_param[ind_p_m] = fmin(fmax(_param[ind_p_m], -1), 1);
 
-	//debug
+//renormalize
+	double sumScale = 3;
+	double l1sum = 0;
+	for(int i =0; i < _param.size(); i++)
+		l1sum += fabs(_param[i]);
+
+	for(int i =0; i < _param.size(); i++)
+		_param[i] *= sumScale/l1sum;
+	////debug
 	if(minibatch == 0)
 	{
 		int numl = (_param.size()+8)/8;
@@ -887,7 +895,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 		}
 	}
 
-//renormalize
+
 
 
 //

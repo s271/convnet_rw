@@ -382,7 +382,7 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
         for (uint ix = 0; ix < numCases; ix += gridDim.x*blockDim.x) {	
 			
 			float inpVal[sizeArr];//use shared instead?
-
+#pragma unroll
 			for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {	
 				Offset inpOffset;
 				inpOffset << Index(inp_i)
@@ -394,12 +394,12 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 				float val = input[inpOffset._offset];
 				inpVal[inp_i] = val;
 			}
-		
+#pragma unroll		
 			for (uint out_i = 0; out_i < sizeOut; out_i++) {
 				int out_par = out_i*sizeIn*2;
 
 				float output = 0;
-			
+#pragma unroll			
 				for (uint inp_i = 0; inp_i < sizeIn; inp_i++)
 				{		
 					float param = const_area[out_par + inp_i];
@@ -601,8 +601,9 @@ __global__ void kEltwiseFuncParamGradSingle(float* actGrad, float* input, float*
 	float sum = 0;
 	float sum_m = 0;
 
-	
+#pragma unroll	
     for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDim.y*blockDim.y) {
+#pragma unroll
       for (uint ix = 0; ix < numCases; ix += gridDim.x*blockDim.x) {	
 
 			Offset offsetInp;
@@ -766,7 +767,7 @@ void computeEltwiseFuncParamGradSingle(NVMatrix& actGrad, NVMatrix& input,
 
 	int numPixelsPerGroup = inp_height/size_in;
 //	printf("inp_height %i numPixelsPerGroup %i \n", inp_height, numPixelsPerGroup);
-#define N_SUM 4
+#define N_SUM 1
     dim3 threads(min(ELTWISE_THREADS_X, inp_width), ELTWISE_THREADS_Y);
     dim3 blocks(std::min(NUM_BLOCKS_MAX, (int)DIVUP(inp_width, threads.x)),
                 std::min(NUM_BLOCKS_MAX, (int)DIVUP(numPixelsPerGroup/N_SUM, ELTWISE_THREADS_Y)));
