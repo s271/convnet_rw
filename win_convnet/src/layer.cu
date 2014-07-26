@@ -533,7 +533,7 @@ ConvLayer::ConvLayer(ConvNet* convNet, PyObject* paramsDict) : LocalLayer(convNe
 void ConvLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
 //debug
-	printf(" conv fprop name %s \n", _name.c_str());
+	//printf(" conv fprop name %s \n", _name.c_str());
 
 
     if (_randSparse->at(inpIdx)) {
@@ -600,7 +600,7 @@ void ConvLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType) {
 void ConvLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
 //debug
-	printf(" conv bpropActs name %s \n", _name.c_str());
+	//printf(" conv bpropActs name %s \n", _name.c_str());
 
     if (_randSparse->at(inpIdx)) {
         NVMatrix& tgt = _overSample->at(inpIdx) > 1 ? _actGradTmp : _prev[inpIdx]->getActsGrad();
@@ -811,8 +811,8 @@ EltwiseFuncLayer::EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict) : Lay
     _epsP = pyDictGetFloat(paramsDict, "epsP");
     _wc = pyDictGetFloat(paramsDict, "wc");
 //debug
-	printf(" _param init  %f %f %f \n", _param[2] , _param[_sizeIn + 0] , _param[_sizeIn + 1]);
-	printf(" size_in %i size_out %i  updates %i \n",_sizeIn, _sizeOut, _updates);
+	//printf(" _param init  %f %f %f \n", _param[2] , _param[_sizeIn + 0] , _param[_sizeIn + 1]);
+	//printf(" size_in %i size_out %i  updates %i \n",_sizeIn, _sizeOut, _updates);
 
 }
 
@@ -829,11 +829,11 @@ void EltwiseFuncLayer::copyToCPU()
 extern int minibatch;
 
 void EltwiseFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
-	printf(" EltwiseFuncLayer fpropActs minibatch %i \n", minibatch);
+	//printf(" EltwiseFuncLayer fpropActs minibatch %i \n", minibatch);
 
 	computeEltwiseFuncAct(*_inputs[inpIdx],  getActs(), _param, _sizeIn, _sizeOut);
 
-	printf(" EltwiseFuncLayer fpropActs end\n");
+	//printf(" EltwiseFuncLayer fpropActs end\n");
 }
 
 void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
@@ -845,7 +845,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	int pout = (pout_prev + 1 + rand()%2)%_sizeOut;
 	pin_prev = pin;
 	pout_prev = pout;
-	printf(" bpropActs \n");
+	//printf(" bpropActs \n");
 
 	computeEltwiseFuncParamGradSingle(v, *_inputs[inpIdx],
 								  _temp, _temp_m,
@@ -861,12 +861,33 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	int ind_p = pin + pout*2*_sizeIn;
 	int ind_p_m = ind_p + _sizeIn;
 
-	printf(" grad %f grad_m %f   \n", grad, grad_m);
+	//printf(" grad %f grad_m %f _epsP %f   \n", grad, grad_m, _epsP);
 
 	_param_inc[ind_p] = _mom*_param_inc[ind_p] + _epsP*grad - _wc*_param[ind_p];
 	_param_inc[ind_p_m] = _mom*_param_inc[ind_p_m] + _epsP*grad_m - _wc*_param[ind_p_m];
 
-	printf(" _param_inc %f _param_inc_M %f   \n", _param_inc[ind_p], _param_inc[ind_p_m]);
+	//printf(" _param_inc %f _param_inc_M %f   \n", _param_inc[ind_p], _param_inc[ind_p_m]);
+
+	_param[ind_p] += _param_inc[ind_p];
+	_param[ind_p] = fmin(fmax(_param[ind_p], -1), 1);
+
+	_param[ind_p_m] += _param_inc[ind_p_m];
+	_param[ind_p_m] = fmin(fmax(_param[ind_p_m], -1), 1);
+
+	//debug
+	if(minibatch == 0)
+	{
+		int numl = (_param.size()+8)/8;
+		printf("** params *** \n");
+		for (int nk = 0; nk < numl; nk++)
+		{
+			for (int k = 0; k < min(8, (int)_param.size()); k++)
+				printf("%f ", _param[k + nk*8]);
+			printf("\n");
+		}
+	}
+
+//renormalize
 
 
 //
@@ -923,7 +944,7 @@ NVMatrix& target = _prev[inpIdx]->getActsGrad();
 
 		computeEltwiseFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(), _param, _sizeIn, _sizeOut);
 
-		printf(" bpropActs end\n");
+		//printf(" bpropActs end\n");
 }
 
 
