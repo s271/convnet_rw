@@ -85,12 +85,15 @@ TrainingWorker::TrainingWorker(ConvNet& convNet, CPUData& data, bool test, int e
 
 //debug
 int minibatch=0;
+int gepoch = 0;
 
 // Need to setData here (as opposed to the constructor) because the constructor executes in
 // the original CPU thread, which is not the one with GPU access.
 void TrainingWorker::run() {
     _dp->setData(*_data);
 	_convNet->setEpoch(_epoch);
+//debug
+	gepoch = _epoch;
 
     Cost& batchCost = *new Cost(0);
 

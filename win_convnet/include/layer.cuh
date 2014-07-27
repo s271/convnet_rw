@@ -198,6 +198,8 @@ public:
     EltwiseMaxLayer(ConvNet* convNet, PyObject* paramsDict);
 };
 
+#define NSTORE 64
+
 class EltwiseFuncLayer : public Layer {
 protected:
 	vector<double> _param;
@@ -207,6 +209,9 @@ protected:
 	float _epsP, _wc, _mom;
 	int _sizeIn, _sizeOut, _updates;
 	NVMatrix _temp, _temp_m;
+
+	vector<double> _grad_store[NSTORE];
+	int _nstore_count[NSTORE];
 
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);

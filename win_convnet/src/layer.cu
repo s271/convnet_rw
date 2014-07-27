@@ -811,6 +811,10 @@ EltwiseFuncLayer::EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict) : Lay
     _epsP = pyDictGetFloat(paramsDict, "epsP");
     _wc = pyDictGetFloat(paramsDict, "wc");
 //debug
+	memset(_nstore_count, 0, sizeof(_nstore_count));
+	for (int i =0; i < NSTORE; i++)
+	for (int j =0; j < _param.size(); j++)
+		_grad_store[i].push_back(0);
 	//printf(" _param init  %f %f %f \n", _param[2] , _param[_sizeIn + 0] , _param[_sizeIn + 1]);
 	//printf(" size_in %i size_out %i  updates %i \n",_sizeIn, _sizeOut, _updates);
 
@@ -836,6 +840,9 @@ void EltwiseFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passT
 	//printf(" EltwiseFuncLayer fpropActs end\n");
 }
 
+//debug
+extern int gepoch;
+
 void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
 	static int pin_prev = 0;
@@ -846,55 +853,77 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	pin_prev = pin;
 	pout_prev = pout;
 	//printf(" bpropActs \n");
-
-	computeEltwiseFuncParamGradSingle(v, *_inputs[inpIdx],
-								  _temp, _temp_m,
-								 pin, pout,  _sizeIn, _sizeOut);
+	if(gepoch >= 60)
+	{
+		computeEltwiseFuncParamGradSingle(v, *_inputs[inpIdx],
+									  _temp, _temp_m,
+									 pin, pout,  _sizeIn, _sizeOut);
 
 //	printf(" temp %i pin %i pout %i  \n", temp.getNumElements(), pin, pout);
 	
 
 //	printf(" temp_m %i  \n", temp_m.getNumElements());
 
-	double grad = _temp.sum();
-	double grad_m = _temp_m.sum();
-	int ind_p = pin + pout*2*_sizeIn;
-	int ind_p_m = ind_p + _sizeIn;
+		double grad = _temp.sum();
+		double grad_m = _temp_m.sum();
+		int ind_p = pin + pout*2*_sizeIn;
+		int ind_p_m = ind_p + _sizeIn;
 
 	//printf(" grad %f grad_m %f _epsP %f   \n", grad, grad_m, _epsP);
+//debug
 
-	_param_inc[ind_p] = _mom*_param_inc[ind_p] + _epsP*grad - _wc*_param[ind_p];
-	_param_inc[ind_p_m] = _mom*_param_inc[ind_p_m] + _epsP*grad_m - _wc*_param[ind_p_m];
+		double scale =1;
+		if(gepoch >=100)
+			scale =.1;
 
-	//printf(" _param_inc %f _param_inc_M %f   \n", _param_inc[ind_p], _param_inc[ind_p_m]);
+		double sum = 0, ge =0, ge_m =0;
+		for(int k = 0; k < NSTORE; k++)
+			sum += _grad_store[k][ind_p]*_grad_store[k][ind_p];
 
-	_param[ind_p] += _param_inc[ind_p];
-	//_param[ind_p] = fmin(fmax(_param[ind_p], -1), 1);
+		double sum_m = 0;
+		for(int k = 0; k < NSTORE; k++)
+			sum_m += _grad_store[k][ind_p_m]*_grad_store[k][ind_p_m];
 
-	_param[ind_p_m] += _param_inc[ind_p_m];
-	//_param[ind_p_m] = fmin(fmax(_param[ind_p_m], -1), 1);
+		if(sum > 0)
+			ge = scale*grad*sqrt(NSTORE)/sqrt(sum);
+		if(sum_m > 0)
+			ge_m = scale*grad_m*sqrt(NSTORE)/sqrt(sum_m);
 
-//renormalize
-	double sumScale = 3;
-	double l1sum = 0;
-	for(int i =0; i < _param.size(); i++)
-		l1sum += fabs(_param[i]);
+		_grad_store[_nstore_count[ind_p]][ind_p] = grad;
+		_grad_store[_nstore_count[ind_p_m]][ind_p_m] = grad_m;
+		_nstore_count[ind_p] = (_nstore_count[ind_p]+1)%NSTORE;
+		_nstore_count[ind_p_m] = (_nstore_count[ind_p_m]+1)%NSTORE;
 
-	for(int i =0; i < _param.size(); i++)
-		_param[i] *= sumScale/l1sum;
-	////debug
-	if(minibatch == 0)
-	{
-		int numl = (_param.size()+8)/8;
-		printf("** params *** \n");
-		for (int nk = 0; nk < numl; nk++)
+		_param_inc[ind_p] = _mom*_param_inc[ind_p] + _epsP*ge - _wc*_param[ind_p];
+		_param_inc[ind_p_m] = _mom*_param_inc[ind_p_m] + _epsP*ge_m - _wc*_param[ind_p_m];
+
+		//printf(" _param_inc %f _param_inc_M %f   \n", _param_inc[ind_p], _param_inc[ind_p_m]);
+
+		_param[ind_p] += _param_inc[ind_p];
+		_param[ind_p_m] += _param_inc[ind_p_m];
+
+
+	//renormalize
+		double sumScale = 3;
+		double l1sum = 0;
+		for(int i =0; i < _param.size(); i++)
+			l1sum += fabs(_param[i]);
+
+		for(int i =0; i < _param.size(); i++)
+			_param[i] *= sumScale/l1sum;
+		////debug
+		if(minibatch == 0)
 		{
-			for (int k = 0; k < min(8, (int)_param.size()); k++)
-				printf("%f ", _param[k + nk*8]);
-			printf("\n");
+			int numl = (_param.size()+8)/8;
+			printf("** params *** \n");
+			for (int nk = 0; nk < numl; nk++)
+			{
+				for (int k = 0; k < min(8, (int)_param.size()); k++)
+					printf("%f ", _param[k + nk*8]);
+				printf("\n");
+			}
 		}
 	}
-
 
 
 
