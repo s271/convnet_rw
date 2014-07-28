@@ -666,8 +666,40 @@ class EltwiseFuncParser(LayerWithInputParser):
         dic['meta_param_inc'] = meta_param_inc 
 
         print "Initialized elementwise func layer '%s', producing %d outputs" % (name, dic['outputs'])
-        return dic        
+        return dic    
+        
+class MicroConvParser(LayerWithInputParser):        
+    def __init__(self):
+        LayerWithInputParser.__init__(self)
+    def add_params(self, mcp):
+        LayerWithInputParser.add_params(self, mcp)
 
+        dic, name = self.dic, self.dic['name'] 
+        dic['epsP'] = mcp.safe_get_float(name, 'epsP')      
+        dic['wc'] = mcp.safe_get_float(name, 'wc')    
+        dic['mom'] = mcp.safe_get_float(name, 'mom') 
+    def parse(self, name, mcp, prev_layers, model):
+        dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
+        if len(set(dic['numInputs'])) != 1:
+            raise LayerParsingError("Layer '%s': all inputs must have the same dimensionality. Got dimensionalities: %s" % (name, ", ".join(str(s) for s in dic['numInputs'])))
+            
+        dic['size'] = mcp.safe_get_int(name, 'size')
+        size_param = 2*dic['size']*dic['size']
+        meta_param = [0]*size_param     
+        meta_param_inc = [0]*size_param
+        
+        for j in range(dic['size']): 
+            meta_param[j] = 1
+            meta_param[j + dic['size']*(dic['size']-1)] = -1
+            meta_param[j + dic['size']*dic['size']] = 1
+            meta_param[j + dic['size']*(dic['size']-1) + dic['size']*dic['size']] = -1
+
+        dic['meta_param'] = meta_param    
+        dic['meta_param_inc'] = meta_param_inc 
+        
+        print "Initialized microconv layer '%s', producing %d outputs" % (name, dic['outputs'])
+        return dic         
+ 
 class WeightLayerParser(LayerWithInputParser):
     LAYER_PAT = re.compile(r'^\s*([^\s\[]+)(?:\[(\d+)\])?\s*$') # matches things like layername[5], etc
     
@@ -1232,6 +1264,7 @@ layer_parsers = {'data': lambda : DataLayerParser(),
                  'eltsum': lambda : EltwiseSumLayerParser(),
                  'eltmax': lambda : EltwiseMaxLayerParser(),
                  'eltfunc': lambda : EltwiseFuncParser(),
+                 'mconv': lambda : MicroConvParser(),
                  'neuron': lambda : NeuronLayerParser(),
                  'pool': lambda : PoolLayerParser(),
                  'rnorm': lambda : NormLayerParser(NormLayerParser.RESPONSE_NORM),

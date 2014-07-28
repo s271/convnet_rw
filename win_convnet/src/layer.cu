@@ -899,7 +899,8 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 		//printf(" _param_inc %f _param_inc_M %f   \n", _param_inc[ind_p], _param_inc[ind_p_m]);
 
-		_param[ind_p] += _param_inc[ind_p];
+//debug not updated
+		//_param[ind_p] += _param_inc[ind_p];
 		_param[ind_p_m] += _param_inc[ind_p_m];
 
 
