@@ -26,26 +26,33 @@ with open('nbe_base.pickle', 'rb') as f:
 with open('test88.pickle', 'rb') as f: 
      test_errors_base = pickle.load(f)   
 
-#with open('train_base.pickle', 'rb') as f: 
-#with open('train128s.pickle', 'rb') as f: 
 with open('train88.pickle', 'rb') as f: 
     train_errors_base = pickle.load(f)
     
-with open('test.pickle', 'rb') as f: 
+with open('test84.pickle', 'rb') as f: 
     test_errors = pickle.load(f)   
 
-with open('train.pickle', 'rb') as f: 
+with open('train84.pickle', 'rb') as f: 
     train_errors = pickle.load(f)    
+    
+with open('test.pickle', 'rb') as f: 
+    test_errors1 = pickle.load(f)   
+
+with open('train.pickle', 'rb') as f: 
+    train_errors1 = pickle.load(f)       
 
 numbatches = nbe[0]        
 numepochs = nbe[1]
 
 x = range(0, len(train_errors_base))
 x1 = range(0, len(train_errors))
+x2 = range(0, len(train_errors1))
 pl.plot(x, train_errors_base, 'k-', label='Baseline training set ')
-pl.plot(x, test_errors_base, 'r-', label='Baseline test set ')
+pl.plot(x, test_errors_base, 'grey', label='Baseline test set ')
 pl.plot(x1, train_errors, 'g-', label='Training set')
 pl.plot(x1, test_errors, 'b-', label='Test set')
+pl.plot(x2, train_errors1, 'violet', label='Training set1')
+pl.plot(x2, test_errors1, 'red', label='Test set1')
 pl.legend()
 ticklocs = range(numbatches, len(train_errors) - len(train_errors) % numbatches + 1, numbatches)
 epoch_label_gran = int(ceil(numepochs / 20.)) # aim for about 20 labels

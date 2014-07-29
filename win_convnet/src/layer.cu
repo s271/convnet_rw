@@ -872,9 +872,6 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	//printf(" grad %f grad_m %f _epsP %f   \n", grad, grad_m, _epsP);
 //debug
 
-		double scale =1;
-		//if(gepoch >=100)
-		//	scale =.1;
 
 		double sum = 0, ge =0, ge_m =0;
 		for(int k = 0; k < NSTORE; k++)
@@ -885,9 +882,9 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 			sum_m += _grad_store[k][ind_p_m]*_grad_store[k][ind_p_m];
 
 		if(sum > 0)
-			ge = scale*grad*sqrt(NSTORE)/sqrt(sum);
+			ge = grad*sqrt(NSTORE)/sqrt(sum);
 		if(sum_m > 0)
-			ge_m = scale*grad_m*sqrt(NSTORE)/sqrt(sum_m);
+			ge_m = grad_m*sqrt(NSTORE)/sqrt(sum_m);
 
 		_grad_store[_nstore_count[ind_p]][ind_p] = grad;
 		_grad_store[_nstore_count[ind_p_m]][ind_p_m] = grad_m;
@@ -899,8 +896,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 		//printf(" _param_inc %f _param_inc_M %f   \n", _param_inc[ind_p], _param_inc[ind_p_m]);
 
-//debug not updated
-		//_param[ind_p] += _param_inc[ind_p];
+		_param[ind_p] += _param_inc[ind_p];
 		_param[ind_p_m] += _param_inc[ind_p_m];
 
 
