@@ -853,7 +853,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	pin_prev = pin;
 	pout_prev = pout;
 	//printf(" bpropActs \n");
-	if(gepoch >= 60)
+	//if(gepoch >= 60)
 	{
 		computeEltwiseFuncParamGradSingle(v, *_inputs[inpIdx],
 									  _temp, _temp_m,
@@ -873,8 +873,8 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 //debug
 
 		double scale =1;
-		if(gepoch >=100)
-			scale =.1;
+		//if(gepoch >=100)
+		//	scale =.1;
 
 		double sum = 0, ge =0, ge_m =0;
 		for(int k = 0; k < NSTORE; k++)
