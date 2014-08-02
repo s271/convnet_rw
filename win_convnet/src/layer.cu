@@ -849,7 +849,8 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	static int pout_prev = 0;
 
 	int pin = (pin_prev + 1 + rand()%2)%_sizeIn;
-	int pout = (pout_prev + 1 + rand()%2)%_sizeOut;
+	int pout = rand()%_sizeOut;
+
 	pin_prev = pin;
 	pout_prev = pout;
 	//printf(" bpropActs \n");
@@ -915,7 +916,8 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 			printf("** params *** \n");
 			for (int nk = 0; nk < numl; nk++)
 			{
-				for (int k = 0; k < min(8, (int)_param.size()); k++)
+				for (int k = 0; k < 8; k++)
+					if(k + nk*8 < _param.size())
 					printf("%f ", _param[k + nk*8]);
 				printf("\n");
 			}

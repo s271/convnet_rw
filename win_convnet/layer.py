@@ -28,6 +28,7 @@ import ConfigParser as cfg
 import os
 import numpy as n
 import numpy.random as nr
+import math
 from math import ceil, floor
 from ordereddict import OrderedDict
 from os import linesep as NL
@@ -666,7 +667,85 @@ class EltwiseFuncParser(LayerWithInputParser):
         dic['meta_param_inc'] = meta_param_inc 
 
         print "Initialized elementwise func layer '%s', producing %d outputs" % (name, dic['outputs'])
-        return dic    
+        return dic 
+        
+class VectFuncParser(LayerWithInputParser):        
+    def __init__(self):
+        LayerWithInputParser.__init__(self)
+    def add_params(self, mcp):
+        LayerWithInputParser.add_params(self, mcp)
+
+        dic, name = self.dic, self.dic['name'] 
+        dic['epsP'] = mcp.safe_get_float(name, 'epsP')      
+        dic['wc'] = mcp.safe_get_float(name, 'wc')    
+        dic['mom'] = mcp.safe_get_float(name, 'mom') 
+    def parse(self, name, mcp, prev_layers, model):
+        dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
+        if len(set(dic['numInputs'])) != 1:
+            raise LayerParsingError("Layer '%s': all inputs must have the same dimensionality. Got dimensionalities: %s" % (name, ", ".join(str(s) for s in dic['numInputs'])))
+        
+        dic['sizeV'] = mcp.safe_get_int(name, 'sizeV')
+        dic['sizeH'] = mcp.safe_get_int(name, 'sizeH')   
+        dic['rotate'] = mcp.safe_get_int(name, 'rotate')        
+        dic['transform'] = [int(inp.strip()) for inp in mcp.safe_get(name, 'transform').split(',')]
+
+        sizeH = dic['sizeH']
+        sizeV = dic['sizeV']
+        rotate = dic['rotate']
+        
+        size_param = 0
+        size_mat = []
+        start_t = []
+        for ii, ind_t in enumerate(dic['transform']):
+            if ind_t <  sizeV:
+                size_curr = sizeV*sizeV
+            else:
+                size_curr = sizeV  
+ #               if ii > 0:
+ #                   raise LayerParsingError("error in transform field")
+ 
+                
+            start_t.append(size_param)
+            
+            size_mat.append(size_curr)   
+            size_param += sizeH*size_curr               
+        
+        meta_param = [0]*size_param     
+        meta_param_inc = [0]*size_param
+        
+        if dic['rotate'] > 0:
+            da = math.pi/rotate
+            cosa = math.cos(da)
+            sina = math.sin(da)
+            for ind, t in enumerate(dic['transform']):
+                if t < sizeV:
+                    ts = start_t[t]
+                    for ind_mat in range(sizeH):
+                        mats = ts + ind_mat*size_mat[t]
+                        for diag in range(sizeV):
+                             meta_param[mats + sizeV*diag + diag] = 1
+                    ind_mr = t+1
+                    rsign = ind%2 
+                    meta_param[mats] = rsign*cosa
+                    meta_param[mats + ind_mr] = -sina
+                    meta_param[mats + sizeV*ind_mr] = sina
+                    meta_param[mats + sizeV*ind_mr + ind_mr] = rsign*cosa
+                else:
+                    ts = start_t[t]
+                    ind_v = t - sizeV + 1
+                    for ind_mat in range(sizeH):
+                        mats = ts + ind_mat*size_mat[t]
+                        meta_param[mats] = -sina
+                        meta_param[mats + ind_v] = cosa                
+
+        else:
+            meta_param = [1]*size_param 
+
+        dic['meta_param'] = meta_param    
+        dic['meta_param_inc'] = meta_param_inc 
+        
+        print "Initialized vect func layer '%s', producing %d outputs" % (name, dic['outputs'])
+        return dic        
         
 class MicroConvParser(LayerWithInputParser):        
     def __init__(self):
