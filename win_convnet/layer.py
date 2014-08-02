@@ -693,20 +693,20 @@ class VectFuncParser(LayerWithInputParser):
         sizeV = dic['sizeV']
         rotate = dic['rotate']
         
+        dic['outputs'] = sizeH*sizeV
+        
         size_param = 0
         size_mat = []
         start_t = []
         for ii, ind_t in enumerate(dic['transform']):
+            start_t.append(size_param)
+            
             if ind_t <  sizeV:
                 size_curr = sizeV*sizeV
             else:
                 size_curr = sizeV  
  #               if ii > 0:
- #                   raise LayerParsingError("error in transform field")
- 
-                
-            start_t.append(size_param)
-            
+ #                   raise LayerParsingError("error in transform field")                            
             size_mat.append(size_curr)   
             size_param += sizeH*size_curr               
         
@@ -715,28 +715,29 @@ class VectFuncParser(LayerWithInputParser):
         
         if dic['rotate'] > 0:
             da = math.pi/rotate
-            cosa = math.cos(da)
-            sina = math.sin(da)
-            for ind, t in enumerate(dic['transform']):
+
+            for ind_t, t in enumerate(dic['transform']):
                 if t < sizeV:
+                    rsign = 2*(ind_t%2)-1 
                     ts = start_t[t]
                     for ind_mat in range(sizeH):
+                        cosa = math.cos(ind_mat*da)
+                        sina = math.sin(ind_mat*da)
                         mats = ts + ind_mat*size_mat[t]
                         for diag in range(sizeV):
                              meta_param[mats + sizeV*diag + diag] = 1
-                    ind_mr = t+1
-                    rsign = ind%2 
-                    meta_param[mats] = rsign*cosa
-                    meta_param[mats + ind_mr] = -sina
-                    meta_param[mats + sizeV*ind_mr] = sina
-                    meta_param[mats + sizeV*ind_mr + ind_mr] = rsign*cosa
+                        ind_mr = t/2+1                        
+                        meta_param[mats] = cosa
+                        meta_param[mats + ind_mr] = -rsign*sina
+                        meta_param[mats + sizeV*ind_mr] = rsign*sina
+                        meta_param[mats + sizeV*ind_mr + ind_mr] = cosa
                 else:
                     ts = start_t[t]
-                    ind_v = t - sizeV + 1
+                    ind_mr = t/2+1
                     for ind_mat in range(sizeH):
                         mats = ts + ind_mat*size_mat[t]
                         meta_param[mats] = -sina
-                        meta_param[mats + ind_v] = cosa                
+                        meta_param[mats + ind_mr] = cosa                
 
         else:
             meta_param = [1]*size_param 
@@ -762,16 +763,25 @@ class MicroConvParser(LayerWithInputParser):
         if len(set(dic['numInputs'])) != 1:
             raise LayerParsingError("Layer '%s': all inputs must have the same dimensionality. Got dimensionalities: %s" % (name, ", ".join(str(s) for s in dic['numInputs'])))
             
+        dic['channels'] = mcp.safe_get_int(name, 'channels')
         dic['size'] = mcp.safe_get_int(name, 'size')
-        size_param = 2*dic['size']*dic['size']
+        dic['outputs'] = dic['size']
+        size_param = dic['channels']*dic['size']*dic['size']
         meta_param = [0]*size_param     
         meta_param_inc = [0]*size_param
         
-        for j in range(dic['size']): 
-            meta_param[j] = 1
-            meta_param[j + dic['size']*(dic['size']-1)] = -1
-            meta_param[j + dic['size']*dic['size']] = 1
-            meta_param[j + dic['size']*(dic['size']-1) + dic['size']*dic['size']] = -1
+        for c in range(dic['channels']):             
+            for j in range(dic['size']): 
+                if dic['channels'] == 2:
+                    fbkg = 0
+                else:
+                    fbkg = nr.uniform(0., 1.)
+                if c%2==0:
+                    meta_param[j + c*dic['size']*dic['size']] = 1 + fbkg
+                    meta_param[j + dic['size']*(dic['size']-1) + c*dic['size']*dic['size']] = -1 + fbkg
+                else:
+                    meta_param[j*dic['size'] + c*dic['size']*dic['size']] = 1 + fbkg
+                    meta_param[dic['size']-1 + j*dic['size'] + c*dic['size']*dic['size']] = -1 + fbkg
 
         dic['meta_param'] = meta_param    
         dic['meta_param_inc'] = meta_param_inc 
@@ -1344,6 +1354,7 @@ layer_parsers = {'data': lambda : DataLayerParser(),
                  'eltmax': lambda : EltwiseMaxLayerParser(),
                  'eltfunc': lambda : EltwiseFuncParser(),
                  'mconv': lambda : MicroConvParser(),
+                 'vfunc': lambda : VectFuncParser(),
                  'neuron': lambda : NeuronLayerParser(),
                  'pool': lambda : PoolLayerParser(),
                  'rnorm': lambda : NormLayerParser(NormLayerParser.RESPONSE_NORM),
