@@ -750,6 +750,9 @@ class VectFuncParser(LayerWithInputParser):
                     ts = start_t[t]
                     ind_mr = t
                     for ind_mat in range(sizeH):
+                        cosa = math.cos(ind_mat*da)
+                        sina = math.sin(ind_mat*da)
+
                         mats = ts + ind_mat*size_mat[t]
                         meta_param[mats] = -sina
                         meta_param[mats + ind_mr] = cosa                
