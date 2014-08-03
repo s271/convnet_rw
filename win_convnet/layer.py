@@ -625,7 +625,7 @@ class EltwiseMaxLayerParser(LayerWithInputParser):
         if len(set(dic['numInputs'])) != 1:
             raise LayerParsingError("Layer '%s': all inputs must have the same dimensionality. Got dimensionalities: %s" % (name, ", ".join(str(s) for s in dic['numInputs'])))
         dic['outputs'] = dic['numInputs'][0]
-
+        
         print "Initialized elementwise max layer '%s', producing %d outputs" % (name, dic['outputs'])
         return dic
         
@@ -650,6 +650,7 @@ class EltwiseFuncParser(LayerWithInputParser):
         dic['size_out'] = mcp.safe_get_int(name, 'size_out') 
         dic['outputs'] = dic['numInputs'][0]*dic['size_out']/dic['size_in']
 
+        
         size_param = 2*dic['size_in']*dic['size_out']
         dic['updates'] = mcp.safe_get_int(name, 'updates', default=2*dic['size_in'])         
     
@@ -686,12 +687,15 @@ class VectFuncParser(LayerWithInputParser):
         
         dic['sizeV'] = mcp.safe_get_int(name, 'sizeV')
         dic['sizeH'] = mcp.safe_get_int(name, 'sizeH')   
-        dic['rotate'] = mcp.safe_get_int(name, 'rotate')        
+        dic['rotate'] = [int(inp.strip()) for inp in mcp.safe_get(name, 'rotate').split(',')]       
         dic['transform'] = [int(inp.strip()) for inp in mcp.safe_get(name, 'transform').split(',')]
+        
+       if len(dic['rotate']) !=  len(dic['transform']):
+            raise LayerParsingError("Layer '%s': transform and rotate should have same number of fields" % name)
+  
 
         sizeH = dic['sizeH']
         sizeV = dic['sizeV']
-        rotate = dic['rotate']
         
         dic['outputs'] = sizeH*sizeV
         
@@ -713,27 +717,38 @@ class VectFuncParser(LayerWithInputParser):
         meta_param = [0]*size_param     
         meta_param_inc = [0]*size_param
         
-        if dic['rotate'] > 0:
-            da = math.pi/rotate
+        if dic['rotate'][0] > 0:
+            da = math.pi/sizeH
 
             for ind_t, t in enumerate(dic['transform']):
                 if t < sizeV:
-                    rsign = 2*(ind_t%2)-1 
+                    rot_sign = dic['rotate'][ind_t]
                     ts = start_t[t]
                     for ind_mat in range(sizeH):
-                        cosa = math.cos(ind_mat*da)
-                        sina = math.sin(ind_mat*da)
+                        
+                        if rot_sign == 1:
+                            cosa = math.cos(rot_sign*ind_mat*da)
+                            sina = math.sin(rot_sign*ind_mat*da)
+                        elif rot_sign == -1:
+                            cosa = math.cos(rot_sign*da)
+                            sina = math.sin(rot_sign*da)    
+                        else:
+                             cosa = 1
+                             sina = 0                             
+                            
                         mats = ts + ind_mat*size_mat[t]
+                        
                         for diag in range(sizeV):
                              meta_param[mats + sizeV*diag + diag] = 1
-                        ind_mr = t/2+1                        
+                             
+                        ind_mr = t                       
                         meta_param[mats] = cosa
-                        meta_param[mats + ind_mr] = -rsign*sina
-                        meta_param[mats + sizeV*ind_mr] = rsign*sina
-                        meta_param[mats + sizeV*ind_mr + ind_mr] = cosa
+                        meta_param[mats + ind_mr] = sina
+                        meta_param[mats + sizeV*ind_mr] = rot_sign*sina
+                        meta_param[mats + sizeV*ind_mr + ind_mr] = rot_sign*cosa
                 else:
                     ts = start_t[t]
-                    ind_mr = t/2+1
+                    ind_mr = t
                     for ind_mat in range(sizeH):
                         mats = ts + ind_mat*size_mat[t]
                         meta_param[mats] = -sina
