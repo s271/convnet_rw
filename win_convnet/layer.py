@@ -689,96 +689,39 @@ class VectFuncParser(LayerWithInputParser):
         dic['sizeV'] = mcp.safe_get_int(name, 'sizeV')
         dic['sizeH'] = mcp.safe_get_int(name, 'sizeH')   
         dic['rotate'] = [int(inp.strip()) for inp in mcp.safe_get(name, 'rotate').split(',')]       
-        dic['transform'] = [int(inp.strip()) for inp in mcp.safe_get(name, 'transform').split(',')]
+
         
-        if len(dic['rotate']) !=  len(dic['transform']):
-            raise LayerParsingError("Layer '%s': transform and rotate should have same number of fields" % name)
-  
 
         sizeH = dic['sizeH']
         sizeV = dic['sizeV']
         
-        dic['outputs'] = sizeH*sizeV
+        dic['outputs'] = sizeH
         
-        size_param = 0
-        size_mat = []
-        start_t = []
-        for ii, ind_t in enumerate(dic['transform']):
-            start_t.append(size_param)
-            
-            if ind_t <  sizeV:
-                size_curr = sizeV*sizeV
-            else:
-                size_curr = sizeV  
- #               if ii > 0:
- #                   raise LayerParsingError("error in transform field")                            
-            size_mat.append(size_curr)   
-            size_param += sizeH*size_curr               
-        
-        meta_param = [0]*size_param     
+        size_param = sizeH*sizeV
+        meta_param = [0]*size_param
         meta_param_inc = [0]*size_param
         
-        if dic['rotate'][0] > 0:
+        if len(dic['rotate']) > 0:
             da = math.pi/sizeH
-
-            for ind_t, t_val in enumerate(dic['transform']):
-                if t_val < sizeV:
-                    rot_sign = dic['rotate'][ind_t]
-                    ts = start_t[ind_t]
-                    for ind_mat in range(sizeH):
-                        
-                        if rot_sign == 1:
-                            cosa = cos(rot_sign*ind_mat*da)
-                            sina = sin(rot_sign*ind_mat*da)
-                        elif rot_sign == -1:
-                            cosa = cos(rot_sign*da)
-                            sina = sin(rot_sign*da)    
-                        else:
-                             cosa = 1
-                             sina = 0                             
-                            
-                        mats = ts + ind_mat*size_mat[ind_t]
-                        
-                        for diag in range(sizeV):
-                             meta_param[mats + sizeV*diag + diag] = 1
-                             
-                        ind_mr = t_val                       
-                        meta_param[mats] = cosa
-                        meta_param[mats + ind_mr] = -sina
-                        meta_param[mats + sizeV*ind_mr] = rot_sign*sina
-                        meta_param[mats + sizeV*ind_mr + ind_mr] = rot_sign*cosa
-                else:
-                    ts = start_t[ind_t]
-                    ind_mr = t_val-sizeV
-                    for ind_mat in range(sizeH):
-                        cosa = math.cos(ind_mat*da/2)
-                        sina = math.sin(ind_mat*da/2)
-
-                        mats = ts + ind_mat*size_mat[ind_t]
-                        meta_param[mats] = cosa
-                        meta_param[mats + ind_mr] = sina                
+            
+            for r in range(sizeH):
+                meta_param[r*sizeV] = 1
+                 
+            for ind_rot in enumerate(dic['rotate']):
+                
+                for r in range(sizeH):
+                    cosa = cos(r*da)
+                    sina = sin(r*da)    
+                    vx = meta_param[r*sizeV]*cosa - meta_param[r*sizeV+ind_rot]*sina
+                    vy = meta_param[r*sizeV]*sina + meta_param[r*sizeV+ind_rot]*cosa
+                
+                    meta_param[r*sizeV] = vx
+                    meta_param[r*sizeV + ind_rot] = vy               
 
         else:
-            meta_param = [1]*size_param 
-            
-#debug  
-        a = math.pi*(.5 + .125)  
-        v = [cos(a), sin(a)]
-        vv = [v]*sizeH
-        res = []
-        for ind_t in range(len(dic['transform'])-1):   
-            ts = start_t[ind_t]
-            for ind_mat in range(sizeH):
-                mats = ts + ind_mat*size_mat[ind_t]
-                mm = [meta_param[mats], meta_param[mats + 1], meta_param[mats + 2], meta_param[mats + 3]]
-                vx = mm[0]*vv[ind_mat][0] + mm[1]*vv[ind_mat][1]
-                vy = mm[2]*vv[ind_mat][0] + mm[3]*vv[ind_mat][1]
-                vv[ind_mat] = [vx, max(vy, 0)]
-        for ind_mat in range(sizeH):
-            mats = start_t[2] + ind_mat*size_mat[2]
-            v = [meta_param[mats], meta_param[mats + 1]]
-            res.append(max(v[0]*vv[ind_mat][0] + v[1]*vv[ind_mat][1], 0))
-            
+            for ii in range(size_param):
+                meta_param[ii] = nr.uniform(0, 1)
+                        
 
         dic['meta_param'] = meta_param    
         dic['meta_param_inc'] = meta_param_inc 
