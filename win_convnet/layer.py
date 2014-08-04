@@ -751,12 +751,12 @@ class VectFuncParser(LayerWithInputParser):
                     ts = start_t[ind_t]
                     ind_mr = t_val-sizeV
                     for ind_mat in range(sizeH):
-                        cosa = math.cos(ind_mat*da)
-                        sina = math.sin(ind_mat*da)
+                        cosa = math.cos(ind_mat*da/2)
+                        sina = math.sin(ind_mat*da/2)
 
                         mats = ts + ind_mat*size_mat[ind_t]
-                        meta_param[mats] = -sina
-                        meta_param[mats + ind_mr] = cosa                
+                        meta_param[mats] = cosa
+                        meta_param[mats + ind_mr] = sina                
 
         else:
             meta_param = [1]*size_param 
@@ -773,11 +773,11 @@ class VectFuncParser(LayerWithInputParser):
                 mm = [meta_param[mats], meta_param[mats + 1], meta_param[mats + 2], meta_param[mats + 3]]
                 vx = mm[0]*vv[ind_mat][0] + mm[1]*vv[ind_mat][1]
                 vy = mm[2]*vv[ind_mat][0] + mm[3]*vv[ind_mat][1]
-                vv[ind_mat] = [vx, vy]
+                vv[ind_mat] = [vx, max(vy, 0)]
         for ind_mat in range(sizeH):
             mats = start_t[2] + ind_mat*size_mat[2]
             v = [meta_param[mats], meta_param[mats + 1]]
-            res.append(v[0]*vv[ind_mat][0] + v[1]*vv[ind_mat][1])
+            res.append(max(v[0]*vv[ind_mat][0] + v[1]*vv[ind_mat][1], 0))
             
 
         dic['meta_param'] = meta_param    
