@@ -688,7 +688,9 @@ class VectFuncParser(LayerWithInputParser):
         
         dic['sizeV'] = mcp.safe_get_int(name, 'sizeV')
         dic['sizeH'] = mcp.safe_get_int(name, 'sizeH')   
-        dic['rotate'] = [int(inp.strip()) for inp in mcp.safe_get(name, 'rotate').split(',')]       
+        dic['rotate'] = None
+        if 'rotate' in mcp.sections():
+            dic['rotate'] = [int(inp.strip()) for inp in mcp.safe_get(name, 'rotate').split(',')]       
 
         
 
@@ -701,7 +703,7 @@ class VectFuncParser(LayerWithInputParser):
         meta_param = [0]*size_param
         meta_param_inc = [0]*size_param
         
-        if len(dic['rotate']) > 0:
+        if dic['rotate'] != None and len(dic['rotate']) > 0:
             da = math.pi/sizeH
             
             for r in range(sizeH):
@@ -721,7 +723,8 @@ class VectFuncParser(LayerWithInputParser):
         else:
             for ii in range(size_param):
                 meta_param[ii] = nr.uniform(0, 1)
-                        
+            
+            
 
         dic['meta_param'] = meta_param    
         dic['meta_param_inc'] = meta_param_inc 
