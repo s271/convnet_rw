@@ -230,7 +230,7 @@ protected:
 	int _size;
 	NVMatrix _temp, _temp_m;
 
-    int _numFilters, _filterChannels, _groups, _channels, _imgSize, _imgPixels;
+    int _numFilters, _channels, _imgSize, _imgPixels;
 
 	vector<double> _grad_store[NSTORE];
 	int _nstore_count[NSTORE];

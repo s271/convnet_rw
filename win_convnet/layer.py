@@ -746,7 +746,6 @@ class MicroConvParser(LayerWithInputParser):
         dic['channels'] = mcp.safe_get_int(name, 'channels')
         dic['size'] = mcp.safe_get_int(name, 'size')
         dic['filters'] = mcp.safe_get_int(name, 'filters')
-        dic['groups'] == mcp.safe_get_int(name, 'groups')
         dic['outputs'] = dic['filters']*dic['numInputs'][0]
         dic['imgPixels'] = dic['numInputs'][0] / dic['channels']
         dic['imgSize'] = int(n.sqrt(dic['imgPixels']))

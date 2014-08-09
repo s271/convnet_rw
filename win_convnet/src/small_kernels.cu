@@ -357,14 +357,60 @@ __global__ void kEltwiseFuncParamGradSingle_t(float* actGrad, float* input, floa
 	target_m[tagOffset] = sum_m;
 
 }
+#define SMEM(X, Y, Z) sdata[(Y)*smem_sizeYZ+(X)*smem_sizeZ + (Z)]
+#define SHARED_MEM(x, y, z, RSH) \
+    SMEM((RSH) + tx, (RSH) + ty, z) = getVal(x, y, z);\
+    if (tx < (RSH)) {\
+        SMEM(tx, (RSH) + ty, z) = getVal(x - (RSH), y, z);\
+        SMEM((RSH) + bw + tx, (RSH) + ty, z) = getVal(x + bw, y, z);\
+    }\
+    if (ty < (RSH)) {\
+        SMEM((RSH) + tx, ty, z) = getVal(x, y - (RSH), z);\
+        SMEM((RSH) + tx, (RSH) + bh + ty, z) = getVal(x, y + bh, z);\
+    }\
+    if ((tx < (RSH)) && (ty < (RSH))) {\
+        SMEM(tx, ty, z) = getVal(x - (RSH), y - (RSH), z);\
+        SMEM(tx, (RSH) + bh + ty, z) = getVal(x - (RSH), y + bh, z);\
+        SMEM((RSH) + bw + tx, ty, z) = getVal(x + bh, y - (RSH), z);\
+        SMEM((RSH) + bw + tx, (RSH) + bh + ty, z) = getVal(x + bw, y + bh, z);\
+    }
 
-__global__ void kMicroConvAct(const float* input, float* const target,
+#define getVal(X, Y, Z) input[channelOffset + (Y)*widthxz+(X)*widthz + (Z)]
+
+__global__ void kMicroConvAct4Channel(const float* input, float* const target,
+								const uint channelInd,
 								const uint imgInPixels, const uint numCases,
-								const uint sizeX, const uint sizeY, const uint channels,
-								const uint imgSize, const uint imgPixels, const uint numFilters,
+								const uint casesPerThread, 
+								const uint modulesPerBlockX, const uint modulesPerBlockY,
+								const uint sizeModule, const uint lobe,
+								const uint imgSizeX, const uint imgSizeY,
+								const uint imgSize,
+								const uint imgPixels, const uint numFilters,
 								const uint filterChannels, const uint groups)
 {
-	extern __shared__ float img_shared[];
+	extern __shared__ float sdata[];
+
+    const int  tx = threadIdx.x;
+    const int  ty = threadIdx.y;
+    const int  bw = blockDim.x;
+    const int  bh = blockDim.y;
+
+	const int channelOffset = channelInd*imgSize*numCases;
+    const int  ix = ty/imgSizeY;
+    const int  iy = ty - ix*imgSizeY;
+
+	const int widthz = numCases;
+	const int widthxz = imgSizeY*numCases;
+	const int smem_sizeZ = blockDim.y;
+	const int smem_sizeY = modulesPerBlockY + 2*lobe;
+	const int smem_sizeYZ = smem_sizeZ*smem_sizeY;
+	
+	for(int z = 0; z <  casesPerThread; z++)
+	{
+		SHARED_MEM(ix, iy, tx*casesPerThread + z, lobe)	
+		__syncthreads();
+	}
+
 }
 
 
@@ -657,7 +703,7 @@ void computeEltwiseFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target
 };
 
 
-void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& param, int sizeX, int channels,
+void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& param, int sizeModule, int channels,
 						 int imgSize, int imgPixels, int numFilters, int filterChannels, int groups)
 {
 	int out_width = input.getNumCols();
@@ -675,7 +721,12 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 	int img_threads_x = 8;
 	int img_threads_y = 8;
 	int case_threads = 16; 
-	int imgsPerThread = 8;
+	int imgsPerThread = 4;
+	int lobe = sizeModule/2;
+
+	int sharedX = lobe*2 + img_threads_x;
+	int sharedY = lobe*2 + img_threads_y;
+	int shared_size = sharedX*sharedY*case_threads*imgsPerThread;
 
 	dim3 threads(case_threads, img_threads_x*img_threads_y);
 
@@ -693,5 +744,7 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 	for(int i = 0; i < param.size(); i++)
 		temp[i] = (float)param[i];
 	cudaMemcpyToSymbol(const_area, temp, sizeof(float)*CONST_AREA_SIZE, 0, cudaMemcpyHostToDevice);
+
+	//cudaFuncSetCacheConfig(kMicroConvAct, cudaFuncCachePreferShared );
 
 };

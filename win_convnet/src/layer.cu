@@ -806,8 +806,6 @@ MicroConvLayer::MicroConvLayer(ConvNet* convNet, PyObject* paramsDict): Layer(co
     _channels = pyDictGetInt(paramsDict, "channels");
     _imgSize = pyDictGetInt(paramsDict, "imgSize");
     _numFilters = pyDictGetInt(paramsDict, "filters");
-    _groups = pyDictGetInt(paramsDict, "groups");
-    _filterChannels = pyDictGetInt(paramsDict, "filterChannels");
     _imgPixels = pyDictGetInt(paramsDict, "imgPixels");
     
     _mom = pyDictGetFloat(paramsDict, "mom");
