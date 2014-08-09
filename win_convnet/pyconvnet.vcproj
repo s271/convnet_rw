@@ -395,6 +395,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\src\small_kernels.cu"
+				>
+			</File>
+			<File
 				RelativePath=".\src\util.cu"
 				>
 			</File>

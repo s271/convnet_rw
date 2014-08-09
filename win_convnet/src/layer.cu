@@ -789,6 +789,57 @@ void EltwiseMaxLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passTy
 void EltwiseMaxLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
     computeEltwiseMaxGrad(v, *_inputs[inpIdx], getActs(), _prev[inpIdx]->getActsGrad(), scaleTargets != 0);
 }
+/* 
+ * =======================
+ * MicroConvLayer
+ * =======================
+ */
+MicroConvLayer::MicroConvLayer(ConvNet* convNet, PyObject* paramsDict): Layer(convNet, paramsDict, false) 
+{
+	hParamList = PyDict_GetItemString(paramsDict, "meta_param");
+	_param = getVectorDouble(hParamList);
+
+	hParamListInc = PyDict_GetItemString(paramsDict, "meta_param_inc");
+	_param_inc = getVectorDouble(hParamListInc);
+
+	 _size = pyDictGetInt(paramsDict, "size");
+    _channels = pyDictGetInt(paramsDict, "channels");
+    _imgSize = pyDictGetInt(paramsDict, "imgSize");
+    _numFilters = pyDictGetInt(paramsDict, "filters");
+    _groups = pyDictGetInt(paramsDict, "groups");
+    _filterChannels = pyDictGetInt(paramsDict, "filterChannels");
+    _imgPixels = pyDictGetInt(paramsDict, "imgPixels");
+    
+    _mom = pyDictGetFloat(paramsDict, "mom");
+    _epsP = pyDictGetFloat(paramsDict, "epsP");
+    _wc = pyDictGetFloat(paramsDict, "wc");
+//debug
+	memset(_nstore_count, 0, sizeof(_nstore_count));
+	for (int i =0; i < NSTORE; i++)
+	for (int j =0; j < _param.size(); j++)
+		_grad_store[i].push_back(0);
+	//printf(" _param init  %f %f %f \n", _param[2] , _param[_sizeIn + 0] , _param[_sizeIn + 1]);
+	//printf(" size_in %i size_out %i  updates %i \n",_sizeIn, _sizeOut, _updates);
+
+};
+
+void MicroConvLayer::copyToCPU()
+{
+	for(int i = 0; i < _param.size(); i++)
+	{
+		PyList_SetItem(hParamList, i,  PyFloat_FromDouble(_param[i]));
+		PyList_SetItem(hParamListInc, i,  PyFloat_FromDouble(_param_inc[i]));
+	}
+};
+//debug
+extern int minibatch;
+void MicroConvLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
+	//printf(" MicroConvLayer fpropActs minibatch %i \n", minibatch);
+
+	computeMicroConvAct(*_inputs[inpIdx],  getActs(), _param, _size, _channels, _imgSize, _imgPixels, _numFilters, _filterChannels, _groups);
+
+	//printf(" MicroConvLayer fpropActs end\n");
+}
 
 /* 
  * =======================
@@ -829,8 +880,6 @@ void EltwiseFuncLayer::copyToCPU()
 	}
 };
 
-//debug
-extern int minibatch;
 
 void EltwiseFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
 	//printf(" EltwiseFuncLayer fpropActs minibatch %i \n", minibatch);

@@ -693,7 +693,7 @@ class VectFuncParser(LayerWithInputParser):
         sizeH = dic['sizeH']
         sizeV = dic['sizeV']
         
-        dic['outputs'] = sizeH
+        dic['outputs'] = sizeH*dic['numInputs'][0]/sizeV
         
         size_param = sizeH*sizeV
         meta_param = [0]*size_param
@@ -742,20 +742,24 @@ class MicroConvParser(LayerWithInputParser):
         dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
         if len(set(dic['numInputs'])) != 1:
             raise LayerParsingError("Layer '%s': all inputs must have the same dimensionality. Got dimensionalities: %s" % (name, ", ".join(str(s) for s in dic['numInputs'])))
-            
+         
         dic['channels'] = mcp.safe_get_int(name, 'channels')
         dic['size'] = mcp.safe_get_int(name, 'size')
-        dic['outputs'] = dic['size']
-        size_param = dic['channels']*dic['size']*dic['size']
+        dic['filters'] = mcp.safe_get_int(name, 'filters')
+        dic['groups'] == mcp.safe_get_int(name, 'groups')
+        dic['outputs'] = dic['filters']*dic['numInputs'][0]
+        dic['imgPixels'] = dic['numInputs'][0] / dic['channels']
+        dic['imgSize'] = int(n.sqrt(dic['imgPixels']))
+        
+        size_param = dic['channels']*dic['filters']*dic['size']*dic['size']
+        
         meta_param = [0]*size_param     
         meta_param_inc = [0]*size_param
         
         for c in range(dic['channels']):             
             for j in range(dic['size']): 
-                if dic['channels'] == 2:
-                    fbkg = 0
-                else:
-                    fbkg = nr.uniform(0., 1.)
+                fbkg = 0
+                #fbkg = nr.uniform(0., 1.)
                 if c%2==0:
                     meta_param[j + c*dic['size']*dic['size']] = 1 + fbkg
                     meta_param[j + dic['size']*(dic['size']-1) + c*dic['size']*dic['size']] = -1 + fbkg
