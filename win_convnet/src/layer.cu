@@ -848,15 +848,40 @@ void MicroConvLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS
 {
 //weight grad
 
+	computeMicroConvWeightGrad(v, *_inputs[inpIdx],
+								_tempMatrixArray,
+								_param, _size, _channels,
+								_imgSize,_imgPixels, _numFilters);
 
-//act grad
-    int inp_width = ( *_inputs[inpIdx]).getNumCols(); 
-    int inp_height = ( *_inputs[inpIdx]).getNumRows();
+	int paramSize = _param.size();
 
-	NVMatrix& target = _prev[inpIdx]->getActsGrad();
-    if (target.getNumCols() != inp_width || target.getNumRows() != inp_height) {
-        target.resize(inp_height, inp_width);
-    }
+
+	for(int kp = 0; kp < paramSize; kp++)
+	{
+		double grad = _tempMatrixArray[kp].sum();
+		double sum_grad = 0;
+		for(int k = 0; k < NSTORE; k++)
+			sum_grad += _grad_store[k][kp]*_grad_store[k][kp];
+
+
+		_grad_store[_nstore_count[kp]][kp] = grad;
+		_nstore_count[kp] = (_nstore_count[kp]+1)%NSTORE;
+
+		if(sum_grad > 0)
+			grad = grad*sqrt(NSTORE)/sqrt(sum_grad);
+
+		_param_inc[kp] = _mom*_param_inc[kp] + _epsP*grad - _wc*_param[kp];
+//		_param[kp] += _param_inc[kp];
+
+
+	}
+//renormalize here possibly
+
+
+	computeMicroConvActGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(),
+							 _param, _size, _channels,
+							_imgSize, _imgPixels, _numFilters);
+
 };
 
 /* 
@@ -993,15 +1018,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 
 
-    int inp_width = ( *_inputs[inpIdx]).getNumCols(); 
-    int inp_height = ( *_inputs[inpIdx]).getNumRows();
-
-	NVMatrix& target = _prev[inpIdx]->getActsGrad();
-    if (target.getNumCols() != inp_width || target.getNumRows() != inp_height) {
-        target.resize(inp_height, inp_width);
-    }
-
-		computeEltwiseFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(), _param, _sizeIn, _sizeOut);
+	computeEltwiseFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(), _param, _sizeIn, _sizeOut);
 
 		//printf(" bpropActs end\n");
 }
