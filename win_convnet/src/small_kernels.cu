@@ -379,7 +379,7 @@ __global__ void kEltwiseFuncParamGradSingle_t(float* actGrad, float* input, floa
 
 #define getValInput(X, Y, Z) input[channelOffset + (X)*widthyz+(Y)*widthz + (Z)]
 
-__global__ void kMicroConvAct4Channel(const float* input, float* const target,
+__global__ void kMicroConvFilterAct(const float* input, float* const target,
 								const uint numCases, const uint channels, const uint numFilters, 
 								const uint modulesPerBlockX, const uint modulesPerBlockY,
 								const uint sizeModule, const uint lobe,
@@ -430,7 +430,7 @@ __global__ void kMicroConvAct4Channel(const float* input, float* const target,
 }
 #define getValAct(X, Y, Z) actGrad[filterOffset + (X)*widthyz+(Y)*widthz + (Z)]
 
-__global__ void kMicroConvGrad(const float* actGrad, float* const target,
+__global__ void kMicroConvActGrad(const float* actGrad, float* const target,
 								const uint numCases, const uint channels, const uint numFilters, 
 								const uint modulesPerBlockX, const uint modulesPerBlockY,
 								const uint sizeModule, const uint lobe,
@@ -493,8 +493,9 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 {
 
 //order x>y>z, *not* y>x
-	extern __shared__ float sdataAct[];	
-	extern __shared__ float sdataImg[];	
+	extern __shared__ float sdata[];
+	float* sdataAct = sdata; 
+	float* sdataImg = sdata + sizeModule;
 
     const int  ix = threadIdx.x/imgSizeY;
     const int  iy = threadIdx.y - ix*imgSizeY;
@@ -539,9 +540,9 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 						sum += sdataAct[(sx + dsx + lobe)*smem_sizeY+(sy + dsy + lobe)]*sdataAct[sx*smem_sizeY+ sy];
 					}
 				}
-
+				const int tagOffset = (channelInd*numFilters + filterID)*imgSize;
 				int ind_coeff = filterID*sizeModule2 + (-dsy + lobe)*sizeModule +(-dsx + lobe);
-				*(target + ind_coeff*target_size)[channelOffset + ix*imgSizeX + iy] = sum;
+				target[ind_coeff][tagOffset + ix*imgSizeX + iy] = sum;
 
 			}
 		}
@@ -877,7 +878,7 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 		temp[i] = (float)param[i];
 	cudaMemcpyToSymbol(const_area, temp, sizeof(float)*CONST_AREA_SIZE, 0, cudaMemcpyHostToDevice);
 
-	kMicroConvAct4Channel<<<blocks, threads, shared_size>>>(input.getDevData(), target.getDevData(),
+	kMicroConvFilterAct<<<blocks, threads, shared_size>>>(input.getDevData(), target.getDevData(),
 									numCases, channels, numFilters, 
 									modulesPerBlockX, modulesPerBlockY,
 									sizeModule, lobe,
@@ -890,3 +891,115 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 	cutilCheckMsg("computeMicroConvAct: Kernel execution failed");
 
 };
+
+void computeMicroConvActGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target,
+							 vector<double>& param, int sizeModuleSide, int channels,
+							int imgSize, int imgPixels, int numFilters)
+{
+
+
+    int inp_width = input.getNumCols(); 
+    int inp_height = input.getNumRows();
+
+    if (target.getNumCols() != inp_width || target.getNumRows() != inp_height) {
+        target.resize(inp_height, inp_width);
+    }
+
+	int numCases = inp_width;
+
+	int imgSizeX = imgSize;
+	int imgSizeY = imgSize;
+
+	int img_threads_x = 16;
+	int img_threads_y = 16;
+	int imgsPerThread = 16;//~number of blocks x
+	int case_threads = DIVUP(numCases, imgsPerThread); 
+
+	int lobe = sizeModuleSide/2;
+
+
+	int modulesPerBlockX = lobe*2 + img_threads_x;
+	int modulesPerBlockY = lobe*2 + img_threads_y;
+	int sizeModule = modulesPerBlockX*modulesPerBlockY;
+	int shared_size = sizeModule;//looped out - case_threads*imgsPerThread;
+
+	dim3 threads(case_threads, img_threads_x*img_threads_y);
+	dim3 blocks = dim3(DIVUP(numCases, threads.x*imgsPerThread), DIVUP(imgSizeY,img_threads_x) * DIVUP(imgSizeX,img_threads_y));
+
+	float temp[CONST_AREA_SIZE];
+	assert(param.size() <= CONST_AREA_SIZE);
+	memset(temp, 0, sizeof(temp));
+	for(int i = 0; i < param.size(); i++)
+		temp[i] = (float)param[i];
+	cudaMemcpyToSymbol(const_area, temp, sizeof(float)*CONST_AREA_SIZE, 0, cudaMemcpyHostToDevice);
+
+	kMicroConvActGrad<<<blocks, threads, shared_size>>>(actGrad.getDevData(), target.getDevData(),
+								numCases, channels, numFilters, 
+								modulesPerBlockX, modulesPerBlockY,
+								sizeModule,lobe,
+								imgSizeX, imgSizeY,
+								imgPixels);
+//debug
+	printf("kMicroConvGrad end \n");
+
+	cutilCheckMsg("kMicroConvGrad: Kernel execution failed");
+}
+
+void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
+								vector<NVMatrix>& tempMatrix,
+								vector<double>& param, int sizeModuleSide, int channels,
+								int imgSize, int imgPixels, int numFilters)
+{
+
+
+	int numCases = input.getNumCols();
+
+	int imgSizeX = imgSize;
+	int imgSizeY = imgSize;
+
+	int img_threads_x = 16;
+	int img_threads_y = 16;
+	int imgsPerThread = 16;//~number of blocks x
+	int case_threads = DIVUP(numCases, imgsPerThread); 
+
+	int lobe = sizeModuleSide/2;
+
+
+	int modulesPerBlockX = lobe*2 + img_threads_x;
+	int modulesPerBlockY = lobe*2 + img_threads_y;
+	int sizeModule = modulesPerBlockX*modulesPerBlockY;
+	int shared_size = sizeModule*2;//looped out - case_threads*imgsPerThread;
+
+//for optimization can change both block sizes!
+	dim3 threads(case_threads, img_threads_x*img_threads_y);
+	dim3 blocks = dim3(DIVUP(numCases, threads.x*imgsPerThread), DIVUP(imgSizeY,img_threads_x) * DIVUP(imgSizeX,img_threads_y));	
+
+
+    int tag_width = input.getNumCols(); //could be reduced
+    int tag_height = blocks.x*channels*numFilters;//could be reduced
+	int tag_size = tag_width*tag_height;
+
+	float* tempMatrixPtr[CONST_AREA_SIZE];
+	for(int i =0; i < tempMatrix.size(); i++)
+	{
+		if (tempMatrix[i].getNumCols() != tag_width || tempMatrix[i].getNumRows() != tag_height) {
+			tempMatrix[i].resize(tag_height, tag_width);
+			cudaMemset(tempMatrix[i].getDevData(), 0, tag_size*sizeof(float));
+		}
+
+		tempMatrixPtr[i] = tempMatrix[i].getDevData();
+	}
+
+
+	kMicroConvWeightGrad<<<blocks, threads, shared_size>>>(actGrad.getDevData(), input.getDevData(), (float**)tempMatrixPtr,
+								tag_size, numCases,
+								channels, numFilters, 
+								modulesPerBlockX, modulesPerBlockY,
+								lobe, sizeModule,
+								imgSizeX, imgSizeY, imgPixels);
+
+//debug
+	printf("kMicroConvWeightGrad end \n");
+
+	cutilCheckMsg("kMicroConvWeightGrad: Kernel execution failed");
+}

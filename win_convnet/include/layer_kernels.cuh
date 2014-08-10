@@ -71,6 +71,13 @@ void computeEltwiseFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& pa
 
 void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& param, int sizeX, int channels,
 						 int imgSize, int imgPixels, int numFilters);
+void computeMicroConvActGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target,
+							 vector<double>& param, int sizeModuleSide, int channels,
+							int imgSize, int imgPixels, int numFilters);
+void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
+								vector<NVMatrix>& tempMatrix,
+								vector<double>& param, int sizeModuleSide, int channels,
+								int imgSize, int imgPixels, int numFilters);
 
 
 #endif	/* LAYER_KERNELS_CUH */
