@@ -378,12 +378,11 @@ __global__ void kEltwiseFuncParamGradSingle_t(float* actGrad, float* input, floa
 #define getValInput(X, Y, Z) input[channelOffset + (X)*widthyz+(Y)*widthz + (Z)]
 
 __global__ void kMicroConvAct4Channel(const float* input, float* const target,
-								const uint imgInPixels, const uint numCases,
-								const uint channels, 
+								const uint numCases, const uint channels, const uint numFilters, 
 								const uint modulesPerBlockX, const uint modulesPerBlockY,
 								const uint sizeModule, const uint lobe,
 								const uint imgSizeX, const uint imgSizeY,
-								const uint imgPixels, const uint numFilters)
+								const uint imgPixels)
 {
 	extern __shared__ float sdata[];
 //order x>y>z, *not* y>x
@@ -402,13 +401,12 @@ __global__ void kMicroConvAct4Channel(const float* input, float* const target,
 	const int smem_sizeY = modulesPerBlockY + 2*lobe;
     const int  sx = threadIdx.y/smem_sizeY;
     const int  sy = threadIdx.y - sx*smem_sizeY;
-	const int imgSize = imgSizeX*imgSizeY;
 
 //put pragme unroll here	
 	for(int channelInd = 0; channelInd < channels; channelInd++)
 		for(int zs = 0; zs < gridDim.x; zs++)
 		{	
-			const int channelOffset = channelInd*imgSize*numCases;
+			const int channelOffset = channelInd*imgPixels*numCases;
 			int z = threadIdx.x + zs*blockDim.x;
 			if(z < numCases)
 			{
@@ -423,7 +421,7 @@ __global__ void kMicroConvAct4Channel(const float* input, float* const target,
 							sum += sdata[(sx + isx - lobe)*smem_sizeY+(sy + isy - lobe)]
 									*const_area[filterID*sizeModule2 + isy*sizeModule + isx];
 
-						target[numFilters*channelOffset + filterID*imgSize*numCases + ix*widthyz + iy*widthz + z] = sum;
+						target[numFilters*channelOffset + filterID*imgPixels*numCases + ix*widthyz + iy*widthz + z] = sum;
 
 				}
 			}
@@ -432,12 +430,11 @@ __global__ void kMicroConvAct4Channel(const float* input, float* const target,
 #define getValAct(X, Y, Z) actGrad[filterOffset + (X)*widthyz+(Y)*widthz + (Z)]
 
 __global__ void kMicroConvGrad(const float* actGrad, float* const target,
-								const uint imgInPixels, const uint numCases,
-								const uint channels, 
+								const uint numCases, const uint channels, const uint numFilters, 
 								const uint modulesPerBlockX, const uint modulesPerBlockY,
 								const uint sizeModule, const uint lobe,
 								const uint imgSizeX, const uint imgSizeY,
-								const uint imgPixels, const uint numFilters)
+								const uint imgPixels)
 {
 	extern __shared__ float sdata[];
 //order x>y>z, *not* y>x
@@ -456,13 +453,12 @@ __global__ void kMicroConvGrad(const float* actGrad, float* const target,
 	const int smem_sizeY = modulesPerBlockY + 2*lobe;
     const int  sx = threadIdx.y/smem_sizeY;
     const int  sy = threadIdx.y - sx*smem_sizeY;
-	const int imgSize = imgSizeX*imgSizeY;
 
 
 //pragma unroll here
 	for(int channelInd = 0; channelInd < channels; channelInd++)
 	{
-		const int channelOffset = channelInd*imgSize*numCases;
+		const int channelOffset = channelInd*imgPixels*numCases;
 
 		for(int zs = 0; zs < gridDim.x; zs++)
 		{	
@@ -472,7 +468,7 @@ __global__ void kMicroConvGrad(const float* actGrad, float* const target,
 				float sum = 0;
 				for(int filterID = 0; filterID <  numFilters; filterID++)
 				{
-					const int filterOffset = numFilters*channelOffset + filterID*imgSize*numCases;
+					const int filterOffset = numFilters*channelOffset + filterID*imgPixels*numCases;
 					SHARED_MEM(ix, iy, z, lobe, getValAct, sdata)	
 					__syncthreads();
 
@@ -490,13 +486,11 @@ __global__ void kMicroConvGrad(const float* actGrad, float* const target,
 }
 
 __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, float** const target,
-								const uint target_size,
-								const uint imgInPixels, const uint numCases,
-								const uint channels, 
+								const uint target_size, const uint numCases,
+								const uint channels, const uint numFilters, 
 								const uint modulesPerBlockX, const uint modulesPerBlockY,
-								const uint sizeModule, const uint lobe,
-								const uint imgSizeX, const uint imgSizeY,
-								const uint imgPixels, const uint numFilters)
+								const uint lobe, const uint sizeModule,
+								const uint imgSizeX, const uint imgSizeY, const uint imgPixels)
 {
 
 //order x>y>z, *not* y>x
