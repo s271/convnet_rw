@@ -454,7 +454,6 @@ __global__ void kMicroConvGrad(const float* actGrad, float* const target,
     const int  sx = threadIdx.y/smem_sizeY;
     const int  sy = threadIdx.y - sx*smem_sizeY;
 
-
 //pragma unroll here
 	for(int channelInd = 0; channelInd < channels; channelInd++)
 	{
@@ -497,9 +496,6 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 	extern __shared__ float sdataAct[];	
 	extern __shared__ float sdataImg[];	
 
-
-
-	
     const int  ix = threadIdx.x/imgSizeY;
     const int  iy = threadIdx.y - ix*imgSizeY;
 
@@ -514,7 +510,6 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
     const int  sx = threadIdx.y/smem_sizeY;
     const int  sy = threadIdx.y - sx*smem_sizeY;
 	const int imgSize = imgSizeX*imgSizeY;
-
 
 //pragma unroll here
 	for(int channelInd = 0; channelInd < channels; channelInd++)
@@ -551,7 +546,6 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 			}
 		}
 	}
-
 }
 
 
@@ -839,12 +833,12 @@ void computeEltwiseFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target
 //	printf("sum_tag %f \n", sumt);
 
 
-		cutilCheckMsg("computeEltwiseFuncGrad: Kernel execution failed");
+	cutilCheckMsg("computeEltwiseFuncGrad: Kernel execution failed");
 };
 
 
-void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& param, int sizeModule, int channels,
-						 int imgSize, int imgPixels, int numFilters, int filterChannels, int groups)
+void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& param, int sizeModuleSide, int channels,
+						 int imgSize, int imgPixels, int numFilters)
 {
 	int out_width = input.getNumCols();
 	int out_height = input.getNumRows()*numFilters;
@@ -854,31 +848,26 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 		//printf("**resize out_height %i out_width %i \n",out_height, out_width);
     }
 
-	int numImages = out_width;
+	int numCases = out_width;
+
 	int imgSizeX = imgSize;
 	int imgSizeY = imgSize;
 
 	int img_threads_x = 16;
 	int img_threads_y = 16;
-	int imgsPerThread = 16;//~number of blocks
-	int case_threads = DIVUP(numImages, imgsPerThread); 
+	int imgsPerThread = 16;//~number of blocks x
+	int case_threads = DIVUP(numCases, imgsPerThread); 
 
-	int lobe = sizeModule/2;
+	int lobe = sizeModuleSide/2;
 
-	//blocks.x = imgsPerThread
 
-	int sharedX = lobe*2 + img_threads_x;
-	int sharedY = lobe*2 + img_threads_y;
-	int shared_size = sharedX*sharedY*case_threads*imgsPerThread;
+	int modulesPerBlockX = lobe*2 + img_threads_x;
+	int modulesPerBlockY = lobe*2 + img_threads_y;
+	int sizeModule = modulesPerBlockX*modulesPerBlockY;
+	int shared_size = sizeModule;//looped out - case_threads*imgsPerThread;
 
 	dim3 threads(case_threads, img_threads_x*img_threads_y);
-
-
-	dim3 blocks = dim3(DIVUP(numImages,threads.x*imgsPerThread), DIVUP(imgSizeY,img_threads_x) * DIVUP(imgSizeX,img_threads_y));
-
-    //dim3 threads(min(ELTWISE_THREADS_X, inp_width), ELTWISE_THREADS_Y);
-    //dim3 blocks(std::min(NUM_BLOCKS_MAX, (int)DIVUP(out_width, threads.x)),
-    //            std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)));
+	dim3 blocks = dim3(DIVUP(numCases, threads.x*imgsPerThread), DIVUP(imgSizeY,img_threads_x) * DIVUP(imgSizeX,img_threads_y));
 
 
 	float temp[CONST_AREA_SIZE];
@@ -888,6 +877,16 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 		temp[i] = (float)param[i];
 	cudaMemcpyToSymbol(const_area, temp, sizeof(float)*CONST_AREA_SIZE, 0, cudaMemcpyHostToDevice);
 
-	//cudaFuncSetCacheConfig(kMicroConvAct, cudaFuncCachePreferShared );
+	kMicroConvAct4Channel<<<blocks, threads, shared_size>>>(input.getDevData(), target.getDevData(),
+									numCases, channels, numFilters, 
+									modulesPerBlockX, modulesPerBlockY,
+									sizeModule, lobe,
+									imgSizeX, imgSizeY,
+									imgPixels);
+
+//debug
+	printf("kMicroConvAct4Channel end \n");
+
+	cutilCheckMsg("computeMicroConvAct: Kernel execution failed");
 
 };
