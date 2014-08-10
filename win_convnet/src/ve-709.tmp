@@ -357,22 +357,22 @@ __global__ void kEltwiseFuncParamGradSingle_t(float* actGrad, float* input, floa
 	target_m[tagOffset] = sum_m;
 
 }
-#define SMEM(X, Y, sdata) sdata[(X)*smem_sizeY+(Y)]
-#define SHARED_MEM(x, y, z, RSH, getVal, sdata) \
-    SMEM((RSH) + sx, (RSH) + sy, sdata) = getVal(x, y, z);\
+#define SMEM(X, Y) sdata[(X)*smem_sizeY+(Y)]
+#define SHARED_MEM(x, y, z, RSH, getVal) \
+    SMEM((RSH) + sx, (RSH) + sy) = getVal(x, y, z);\
     if (sx < (RSH)) {\
-        SMEM(sx, (RSH) + sy, sdata) = getVal(max(x - (RSH), 0), y, z);\
-        SMEM((RSH) + bw + sx, (RSH) + sy, sdata) = getVal(min(x + bw, imgSizeX), y, z);\
+        SMEM(sx, (RSH) + sy) = getVal(max(x - (RSH), 0), y, z);\
+        SMEM((RSH) + bw + sx, (RSH) + sy) = getVal(min(x + bw, imgSizeX), y, z);\
     }\
     if (sy < (RSH)) {\
-        SMEM((RSH) + sx, sy, sdata) = getVal(x, max(y - (RSH), 0), z);\
-        SMEM((RSH) + sx, (RSH) + bh + sy, sdata) = getVal(x, min(y + bh, imgSizeY), z);\
+        SMEM((RSH) + sx, sy) = getVal(x, max(y - (RSH), 0), z);\
+        SMEM((RSH) + sx, (RSH) + bh + sy) = getVal(x, min(y + bh, imgSizeY), z);\
     }\
     if ((sx < (RSH)) && (sy < (RSH))) {\
-        SMEM(sx, sy, sdata) = getVal(max(x - (RSH), 0), max(y - (RSH), 0), z);\
-        SMEM(sx, (RSH) + bh + sy, sdata) = getVal(max(x - (RSH), 0), min(y + bh, imgSizeY), z);\
-        SMEM((RSH) + bw + sx, sy, sdata) = getVal(min(x + bh, imgSizeX), max(y - (RSH), 0), z);\
-        SMEM((RSH) + bw + sx, (RSH) + bh + sy, sdata) = getVal(min(x + bw, imgSizeX), min(y + bh, imgSizeY), z);\
+        SMEM(sx, sy) = getVal(max(x - (RSH), 0), max(y - (RSH), 0), z);\
+        SMEM(sx, (RSH) + bh + sy) = getVal(max(x - (RSH), 0), min(y + bh, imgSizeY), z);\
+        SMEM((RSH) + bw + sx, sy) = getVal(min(x + bh, imgSizeX), max(y - (RSH), 0), z);\
+        SMEM((RSH) + bw + sx, (RSH) + bh + sy) = getVal(min(x + bw, imgSizeX), min(y + bh, imgSizeY), z);\
     }
 
 #define getValInput(X, Y, Z) input[channelOffset + (X)*widthyz+(Y)*widthz + (Z)]
@@ -412,7 +412,7 @@ __global__ void kMicroConvAct4Channel(const float* input, float* const target,
 			int z = threadIdx.x + zs*blockDim.x;
 			if(z < numCases)
 			{
-				SHARED_MEM(ix, iy, z, lobe, getValInput, sdata)	
+				SHARED_MEM(ix, iy, z, lobe, getValInput)	
 				__syncthreads();
 
 				for(int filterID = 0; filterID <  numFilters; filterID++)
@@ -472,8 +472,8 @@ __global__ void kMicroConvGrad(const float* actGrad, float* const target,
 				float sum = 0;
 				for(int filterID = 0; filterID <  numFilters; filterID++)
 				{
-					const int filterOffset = numFilters*channelOffset + filterID*imgSize*numCases;
-					SHARED_MEM(ix, iy, z, lobe, getValAct, sdata)	
+					filterOffset = numFilters*channelOffset + filterID*imgSize*numCases;
+					SHARED_MEM(ix, iy, z, lobe, getValAct)	
 					__syncthreads();
 
 					
@@ -487,73 +487,6 @@ __global__ void kMicroConvGrad(const float* actGrad, float* const target,
 			}
 		}
 	}
-}
-
-__global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, float** const target,
-								const uint target_size,
-								const uint imgInPixels, const uint numCases,
-								const uint channels, 
-								const uint modulesPerBlockX, const uint modulesPerBlockY,
-								const uint sizeModule, const uint lobe,
-								const uint imgSizeX, const uint imgSizeY,
-								const uint imgPixels, const uint numFilters)
-{
-
-//order x>y>z, *not* y>x
-	extern __shared__ float sdataAct[];	
-	extern __shared__ float sdataImg[];	
-
-    const int  bw = blockDim.x;
-    const int  bh = blockDim.y;
-
-	
-    const int  ix = threadIdx.x/imgSizeY;
-    const int  iy = threadIdx.y - ix*imgSizeY;
-
-	const int widthz = numCases;
-	const int widthyz = imgSizeX*numCases;
-
-	const int sizeModule2 = sizeModule*sizeModule;
-
-	const int smem_sizeY = modulesPerBlockY + 2*lobe;
-    const int  sx = threadIdx.y/smem_sizeY;
-    const int  sy = threadIdx.y - sx*smem_sizeY;
-	const int imgSize = imgSizeX*imgSizeY;
-
-
-//pragma unroll here
-	for(int channelInd = 0; channelInd < channels; channelInd++)
-	{
-		const int channelOffset = channelInd*imgSize*numCases;
-
-		for(int zs = 0; zs < gridDim.x; zs++)
-		{	
-			int z = threadIdx.x + zs*blockDim.x;
-			if(z < numCases)
-			{
-				float sum = 0;
-				for(int filterID = 0; filterID <  numFilters; filterID++)
-				{
-					const int filterOffset = numFilters*channelOffset + filterID*imgSize*numCases;
-
-					SHARED_MEM(ix, iy, z, lobe, getValAct, sdataAct)	
-					SHARED_MEM(ix, iy, z, lobe, getValAct, sdataImg)
-					__syncthreads();				
-
-					
-					for(int dsx = - lobe; dsx < lobe+1; dsx++)
-					for(int dsy = - lobe; dsy <  lobe+1; dsy++)
-					{
-						sum = 0;
-						sum += sdataAct[(sx + dsx + lobe)*smem_sizeY+(sy + dsy + lobe)]*sdataAct[sx*smem_sizeY+ sy];
-						int ind_coeff = filterID*sizeModule2 + (-dsy + lobe)*sizeModule +(-dsx + lobe);
-						*(target + ind_coeff*target_size)[channelOffset + ix*widthyz + iy*widthz + z] = sum;
-					}
-				}
-			}
-		}
-	}
-
 }
 
 
