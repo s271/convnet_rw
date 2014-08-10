@@ -834,7 +834,7 @@ extern int minibatch;
 void MicroConvLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
 	//printf(" MicroConvLayer fpropActs minibatch %i \n", minibatch);
 
-	computeMicroConvAct(*_inputs[inpIdx],  getActs(), _param, _size, _channels, _imgSize, _imgPixels, _numFilters, _filterChannels, _groups);
+	computeMicroConvAct(*_inputs[inpIdx],  getActs(), _param, _size, _channels, _imgSize, _imgPixels, _numFilters);
 
 	//printf(" MicroConvLayer fpropActs end\n");
 }

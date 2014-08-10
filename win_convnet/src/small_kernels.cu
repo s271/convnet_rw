@@ -357,25 +357,25 @@ __global__ void kEltwiseFuncParamGradSingle_t(float* actGrad, float* input, floa
 	target_m[tagOffset] = sum_m;
 
 }
-#define SMEM(X, Y, Z) sdata[(Y)*smem_sizeYZ+(X)*smem_sizeZ + (Z)]
+#define SMEM(X, Y, Z) sdata[(X)*smem_sizeYZ+(Y)*smem_sizeZ + (Z)]
 #define SHARED_MEM(x, y, z, RSH) \
-    SMEM((RSH) + tx, (RSH) + ty, z) = getVal(x, y, z);\
-    if (tx < (RSH)) {\
-        SMEM(tx, (RSH) + ty, z) = getVal(x - (RSH), y, z);\
-        SMEM((RSH) + bw + tx, (RSH) + ty, z) = getVal(x + bw, y, z);\
+    SMEM((RSH) + sx, (RSH) + sy, sz) = getVal(x, y, z);\
+    if (sx < (RSH)) {\
+        SMEM(sx, (RSH) + sy, sz) = getVal(max(x - (RSH), 0), y, z);\
+        SMEM((RSH) + bw + sx, (RSH) + sy, sz) = getVal(min(x + bw, imgSizeX), y, z);\
     }\
-    if (ty < (RSH)) {\
-        SMEM((RSH) + tx, ty, z) = getVal(x, y - (RSH), z);\
-        SMEM((RSH) + tx, (RSH) + bh + ty, z) = getVal(x, y + bh, z);\
+    if (sy < (RSH)) {\
+        SMEM((RSH) + sx, sy, sz) = getVal(x, max(y - (RSH), 0), z);\
+        SMEM((RSH) + sx, (RSH) + bh + sy, sz) = getVal(x, min(y + bh, imgSizeY), z);\
     }\
-    if ((tx < (RSH)) && (ty < (RSH))) {\
-        SMEM(tx, ty, z) = getVal(x - (RSH), y - (RSH), z);\
-        SMEM(tx, (RSH) + bh + ty, z) = getVal(x - (RSH), y + bh, z);\
-        SMEM((RSH) + bw + tx, ty, z) = getVal(x + bh, y - (RSH), z);\
-        SMEM((RSH) + bw + tx, (RSH) + bh + ty, z) = getVal(x + bw, y + bh, z);\
+    if ((sx < (RSH)) && (sy < (RSH))) {\
+        SMEM(sx, sy, sz) = getVal(max(x - (RSH), 0), max(y - (RSH), 0), z);\
+        SMEM(sx, (RSH) + bh + sy, sz) = getVal(max(x - (RSH), 0), min(y + bh, imgSizeY), z);\
+        SMEM((RSH) + bw + sx, sy, sz) = getVal(min(x + bh, imgSizeX), max(y - (RSH), 0), z);\
+        SMEM((RSH) + bw + sx, (RSH) + bh + sy, sz) = getVal(min(x + bw, imgSizeX), min(y + bh, imgSizeY), z);\
     }
 
-#define getVal(X, Y, Z) input[channelOffset + (Y)*widthxz+(X)*widthz + (Z)]
+#define getVal(X, Y, Z) input[channelOffset + (X)*widthyz+(Y)*widthz + (Z)]
 
 __global__ void kMicroConvAct4Channel(const float* input, float* const target,
 								const uint channelInd,
@@ -385,34 +385,69 @@ __global__ void kMicroConvAct4Channel(const float* input, float* const target,
 								const uint sizeModule, const uint lobe,
 								const uint imgSizeX, const uint imgSizeY,
 								const uint imgSize,
-								const uint imgPixels, const uint numFilters,
-								const uint filterChannels, const uint groups)
+								const uint imgPixels, const uint numFilters)
 {
 	extern __shared__ float sdata[];
-
-    const int  tx = threadIdx.x;
-    const int  ty = threadIdx.y;
+//order x>y>z, *not* y>x
     const int  bw = blockDim.x;
     const int  bh = blockDim.y;
 
 	const int channelOffset = channelInd*imgSize*numCases;
-    const int  ix = ty/imgSizeY;
-    const int  iy = ty - ix*imgSizeY;
+    const int  ix = threadIdx.x/imgSizeY;
+    const int  iy = threadIdx.y - ix*imgSizeY;
 
 	const int widthz = numCases;
-	const int widthxz = imgSizeY*numCases;
-	const int smem_sizeZ = blockDim.y;
+	const int widthyz = imgSizeX*numCases;
+
+	const int sizeModule2 = sizeModule*sizeModule;
+
+	const int smem_sizeZ = blockDim.y*casesPerThread;
 	const int smem_sizeY = modulesPerBlockY + 2*lobe;
 	const int smem_sizeYZ = smem_sizeZ*smem_sizeY;
-	
-	for(int z = 0; z <  casesPerThread; z++)
-	{
-		SHARED_MEM(ix, iy, tx*casesPerThread + z, lobe)	
-		__syncthreads();
+    const int  sx = threadIdx.y/smem_sizeY;
+    const int  sy = threadIdx.y - sx*smem_sizeY;
+
+//put pragme unroll here	
+	for(int zs = 0; zs < gridDim.x; zs++)
+	{	
+		int z = threadIdx.x + zs*blockDim.x;
+		if(z < numCases)
+		{
+			int sz = zs;
+			SHARED_MEM(ix, iy, z, lobe)	
+		}
 	}
+	__syncthreads();
+
+	for(int filterID = 0; filterID <  numFilters; filterID++)
+		for(int zs = 0; zs <  gridDim.x; zs++)
+		{
+			int z = threadIdx.x + zs*blockDim.x;
+			if(z < numCases)
+			{
+				float sum = 0;
+				for(int isx = 0; isx <  sizeModule; isx++)
+				for(int isy = 0; isy <  sizeModule; isy++)
+					sum += sdata[(sx + isx - lobe)*smem_sizeYZ+(sy + isy - lobe)*smem_sizeZ + zs]
+							*const_area[filterID*sizeModule2 + isy*sizeModule + isx];
+
+				target[numFilters*channelOffset + filterID*imgSize*numCases + ix*widthyz + iy*widthz + z] = sum;
+			}
+		}
 
 }
 
+__global__ void kMicroConvGrad(const float* actGrad, const float* input, float* const target,
+								const uint channelInd,
+								const uint imgInPixels, const uint numCases,
+								const uint casesPerThread, 
+								const uint modulesPerBlockX, const uint modulesPerBlockY,
+								const uint sizeModule, const uint lobe,
+								const uint imgSizeX, const uint imgSizeY,
+								const uint imgSize,
+								const uint imgPixels, const uint numFilters)
+{
+}
 
 
 void computeEltwiseMaxGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& output, NVMatrix& target, bool add) {
@@ -723,6 +758,8 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 	int case_threads = 16; 
 	int imgsPerThread = 4;
 	int lobe = sizeModule/2;
+
+	//blocks.x = imgsPerThread
 
 	int sharedX = lobe*2 + img_threads_x;
 	int sharedY = lobe*2 + img_threads_y;
