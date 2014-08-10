@@ -357,7 +357,9 @@ __global__ void kEltwiseFuncParamGradSingle_t(float* actGrad, float* input, floa
 	target_m[tagOffset] = sum_m;
 
 }
+
 #define SMEM(X, Y, sdata) sdata[(X)*smem_sizeY+(Y)]
+
 #define SHARED_MEM(x, y, z, RSH, getVal, sdata) \
     SMEM((RSH) + sx, (RSH) + sy, sdata) = getVal(x, y, z);\
     if (sx < (RSH)) {\
@@ -386,9 +388,6 @@ __global__ void kMicroConvAct4Channel(const float* input, float* const target,
 {
 	extern __shared__ float sdata[];
 //order x>y>z, *not* y>x
-    const int  bw = blockDim.x;
-    const int  bh = blockDim.y;
-
 	
     const int  ix = threadIdx.x/imgSizeY;
     const int  iy = threadIdx.y - ix*imgSizeY;
@@ -398,6 +397,8 @@ __global__ void kMicroConvAct4Channel(const float* input, float* const target,
 
 	const int sizeModule2 = sizeModule*sizeModule;
 
+    const int  bw = modulesPerBlockX;
+    const int  bh = modulesPerBlockY;
 	const int smem_sizeY = modulesPerBlockY + 2*lobe;
     const int  sx = threadIdx.y/smem_sizeY;
     const int  sy = threadIdx.y - sx*smem_sizeY;
@@ -438,9 +439,6 @@ __global__ void kMicroConvGrad(const float* actGrad, float* const target,
 {
 	extern __shared__ float sdata[];
 //order x>y>z, *not* y>x
-    const int  bw = blockDim.x;
-    const int  bh = blockDim.y;
-
 	
     const int  ix = threadIdx.x/imgSizeY;
     const int  iy = threadIdx.y - ix*imgSizeY;
@@ -450,6 +448,8 @@ __global__ void kMicroConvGrad(const float* actGrad, float* const target,
 
 	const int sizeModule2 = sizeModule*sizeModule;
 
+    const int  bw = modulesPerBlockX;
+    const int  bh = modulesPerBlockY;
 	const int smem_sizeY = modulesPerBlockY + 2*lobe;
     const int  sx = threadIdx.y/smem_sizeY;
     const int  sy = threadIdx.y - sx*smem_sizeY;
@@ -497,8 +497,7 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 	extern __shared__ float sdataAct[];	
 	extern __shared__ float sdataImg[];	
 
-    const int  bw = blockDim.x;
-    const int  bh = blockDim.y;
+
 
 	
     const int  ix = threadIdx.x/imgSizeY;
@@ -509,6 +508,8 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 
 	const int sizeModule2 = sizeModule*sizeModule;
 
+    const int  bw = modulesPerBlockX;
+    const int  bh = modulesPerBlockY;
 	const int smem_sizeY = modulesPerBlockY + 2*lobe;
     const int  sx = threadIdx.y/smem_sizeY;
     const int  sy = threadIdx.y - sx*smem_sizeY;
