@@ -520,30 +520,33 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 	{
 		const int channelOffset = channelInd*imgSize*numCases;
 
-		for(int zs = 0; zs < gridDim.x; zs++)
-		{	
-			int z = threadIdx.x + zs*blockDim.x;
-			if(z < numCases)
+		for(int filterID = 0; filterID <  numFilters; filterID++)
+		{
+			const int filterOffset = numFilters*channelOffset + filterID*imgSize*numCases;
+
+			float sum = 0;
+
+			for(int dsx = - lobe; dsx < lobe+1; dsx++)
+			for(int dsy = - lobe; dsy <  lobe+1; dsy++)
 			{
-				float sum = 0;
-				for(int filterID = 0; filterID <  numFilters; filterID++)
-				{
-					const int filterOffset = numFilters*channelOffset + filterID*imgSize*numCases;
+				sum = 0;
 
-					SHARED_MEM(ix, iy, z, lobe, getValAct, sdataAct)	
-					SHARED_MEM(ix, iy, z, lobe, getValAct, sdataImg)
-					__syncthreads();				
-
-					
-					for(int dsx = - lobe; dsx < lobe+1; dsx++)
-					for(int dsy = - lobe; dsy <  lobe+1; dsy++)
+				for(int zs = 0; zs < gridDim.x; zs++)
+				{	
+					int z = threadIdx.x + zs*blockDim.x;
+					if(z < numCases)
 					{
-						sum = 0;
+						SHARED_MEM(ix, iy, z, lobe, getValAct, sdataAct)	
+						SHARED_MEM(ix, iy, z, lobe, getValAct, sdataImg)
+						__syncthreads();										
+
 						sum += sdataAct[(sx + dsx + lobe)*smem_sizeY+(sy + dsy + lobe)]*sdataAct[sx*smem_sizeY+ sy];
-						int ind_coeff = filterID*sizeModule2 + (-dsy + lobe)*sizeModule +(-dsx + lobe);
-						*(target + ind_coeff*target_size)[channelOffset + ix*widthyz + iy*widthz + z] = sum;
 					}
 				}
+
+				int ind_coeff = filterID*sizeModule2 + (-dsy + lobe)*sizeModule +(-dsx + lobe);
+				*(target + ind_coeff*target_size)[channelOffset + ix*imgSizeX + iy] = sum;
+
 			}
 		}
 	}
