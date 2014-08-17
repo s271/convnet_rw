@@ -220,6 +220,27 @@ public:
     EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict);
 };
 
+class VectFuncLayer : public Layer {
+protected:
+	vector<double> _param;
+	vector<double> _param_inc;
+	PyObject* hParamList;
+	PyObject* hParamListInc;
+	float _epsP, _wc, _mom;
+	int _sizeV, _sizeH;
+
+	vector<NVMatrix> _tempMatrixArray;
+
+	vector<double> _grad_store[NSTORE];
+	int _nstore_count[NSTORE];
+
+    void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
+    void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
+    void copyToCPU();
+public:
+    VectFuncLayer(ConvNet* convNet, PyObject* paramsDict);
+};
+
 class MicroConvLayer : public Layer {
 protected:
 	vector<double> _param;

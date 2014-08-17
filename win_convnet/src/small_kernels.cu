@@ -27,7 +27,9 @@
 #include <assert.h>
 
 #include <layer_kernels.cuh>
-
+//-------------------------------------------------------------
+//EltwiseMax
+//-------------------------------------------------------------
 template <int B_X, bool add>
 __global__ void kEltwiseMaxGrad(float* actGrad, float* input, float* output, float* target,
                                 const int numElements) {
@@ -45,6 +47,9 @@ __global__ void kEltwiseMaxGrad(float* actGrad, float* input, float* output, flo
 #define CONST_AREA_SIZE 256
 __device__ __constant__ float const_area[CONST_AREA_SIZE];
 
+//-------------------------------------------------------------
+//EltwiseFunc
+//-------------------------------------------------------------
 template <int sizeArr>
 __global__ void kEltwiseFuncAct(const float* input, float* const target,
 								const uint imgInPixels, const uint numCases,
@@ -357,7 +362,9 @@ __global__ void kEltwiseFuncParamGradSingle_t(float* actGrad, float* input, floa
 	target_m[tagOffset] = sum_m;
 
 }
-
+//-------------------------------------------------------------
+//MicroConv
+//-------------------------------------------------------------
 #define SMEM(X, Y, sdata) sdata[(X)*smem_sizeY+(Y)]
 
 #define SHARED_MEM(x, y, z, RSH, getVal, sdata) \
@@ -548,7 +555,215 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 		}
 	}
 }
+//-------------------------------------------------------------
+//VectFunc
+//-------------------------------------------------------------
+template <int sizeV>
+__global__ void kVectFuncAct(const float* input, float* const target,
+								const uint imgInPixels, const uint numCases,
+								const uint strideInp, const uint strideTag, int numColors, int sizeH) {
 
+	const int numPixelsPerGroup = imgInPixels/(sizeV*numColors);	
+
+//    dim3 blocks(std::min(NUM_BLOCKS_MAX, DIVUP(out_width, ELTWISE_THREADS_X)),
+//                std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)));
+
+// ix, iy == 0 almost always
+    for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDim.y*blockDim.y) {
+
+        for (uint ix = 0; ix < numCases; ix += gridDim.x*blockDim.x) {	
+
+			for (uint color = 0; color < numColors; color ++) {	
+			
+				float inpVal[sizeV];//use shared instead?
+	#pragma unroll
+				for (uint inp_i = 0; inp_i < sizeV; inp_i++) {	
+					Offset inpOffset;
+					inpOffset << color << sizeV << Index(inp_i)
+					<< numPixelsPerGroup
+					<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
+					<< strideInp
+					<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+
+					float val = input[inpOffset._offset];
+					inpVal[inp_i] = val;
+				}
+	#pragma unroll	
+				for (uint out_i = 0; out_i < sizeH; out_i++) {
+					int out_par = out_i*sizeH;
+
+					float output = 0;
+	#pragma unroll			
+					for (uint inp_i = 0; inp_i < sizeV; inp_i++)
+					{		
+						float param = const_area[out_par + inp_i];
+						float val = inpVal[inp_i];
+						output += param*val;
+					}// inp_i
+
+					//suppression filter could be here
+
+					output = fmaxf(output, 0);
+
+					Offset tagOffset;
+					tagOffset << color << sizeH <<Index(out_i)
+					<< numPixelsPerGroup
+					<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
+					<< strideTag
+					<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+					target[tagOffset._offset] = output;
+				}//out_i
+			}
+        }
+    }
+
+
+}
+
+
+template <int sizeV, int sizeH>
+__global__ void kVectFuncGrad(const float* actGrad, const float* input, float* const target,
+								const uint imgInPixels, const uint numCases,
+								const uint strideInp, const uint strideOut,
+								int numColors) {
+
+
+	const int numPixelsPerGroup = imgInPixels/(sizeV*numColors);
+
+	const int inStep = strideInp*numPixelsPerGroup;
+	const int outStep = strideOut*numPixelsPerGroup;
+
+//with no N_SUM ix, iy == 0 almost always
+    for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDim.y*blockDim.y) {
+        for (uint ix = 0; ix < numCases; ix += gridDim.x*blockDim.x) {	
+			for (uint color = 0; color < numColors; color ++) {	//optimize away
+
+				Offset out_offset;
+				out_offset 
+				<< color << sizeH << numPixelsPerGroup << Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
+				<< strideOut
+				<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+
+				Offset v_offset;
+				v_offset 
+				<< color << sizeV << numPixelsPerGroup << Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
+				<< strideInp
+				<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+
+				float vres[sizeV];
+				memset(vres, 0, sizeof(vres));
+
+				for (uint out_i = 0; out_i < sizeH; out_i++)
+				{
+					float vsum = 0;
+					for (uint inp_i = 0; inp_i < sizeV; inp_i++) {	
+						int inp_offset = v_offset._offset + inp_i*inStep;
+
+						vsum += input[inp_offset]*const_area[out_i*sizeV + inp_i];
+					}
+
+					if(vsum > 0)
+					{
+						float grad_next = actGrad[out_offset._offset + outStep*out_i];
+
+						for (uint inp_i = 0; inp_i < sizeV; inp_i++)
+							vres[inp_i] += grad_next*const_area[out_i*sizeV + inp_i];
+					}
+				}
+
+				for (uint inp_i = 0; inp_i < sizeV; inp_i++)
+				{
+					int inp_offset = v_offset._offset + inp_i*inStep;
+					target[inp_offset] = vres[inp_i];
+				}
+
+			}//color
+		}//ix
+	}//iy
+}
+
+template <int sizeV, int sizeH>
+__global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* input, float** const target,
+											const uint numColors,
+											const uint target_size, const uint imgInPixels, const uint numCases,
+											const uint strideInp, const uint strideOut, const uint strideTag)
+{
+	const int numPixelsPerGroup = imgInPixels/(sizeV*numColors);	
+
+	float vres[sizeV];
+	memset(vres, 0, sizeof(vres));
+
+	for (uint pout = 0; pout < sizeH; pout++)
+	{
+
+	#pragma unroll	
+		for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDim.y*blockDim.y) {
+	#pragma unroll
+		  for (uint ix = 0; ix < numCases; ix += gridDim.x*blockDim.x) {	
+			  for (uint color = 0; color < numColors; color ++) {	//optimize away				
+
+					Offset offsetOut;
+					offsetOut
+					<< color
+					<< sizeH
+					<< Index(pout)
+					<< numPixelsPerGroup
+					<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
+					<< strideOut
+					<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+
+					float grad_next = actGrad[offsetOut._offset];
+
+					float in_val[sizeV];
+					float vsum = 0;
+					for (uint pin = 0; pin < sizeV; pin++)
+					{
+
+						Offset offsetInp;
+						offsetInp
+						<< color
+						<< sizeV
+						<< Index(pin)
+						<< numPixelsPerGroup
+						<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
+						<< strideInp
+						<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+						
+						in_val[pin] = input[offsetInp._offset];
+						vsum += in_val[pin]*const_area[pout*sizeV + pin];
+					}
+
+					if(vsum > 0)
+					{
+						for (uint pin = 0; pin < sizeV; pin++)
+						{		
+							vres[pin] += grad_next*in_val[pin];
+						}
+					}
+				}
+			}
+
+		}//color
+
+		for (uint pin = 0; pin < sizeV; pin++)
+		{
+
+			Offset offsetTag;
+			offsetTag
+			<< Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
+			<< strideTag
+			<< Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+
+			target[pout*sizeV+pin][offsetTag._offset] = vres[pin];
+		}
+
+	}// pout
+}
+
+//*************************************************************************************
+//-------------------------------------------------------------
+//API EltwiseMax
+//-------------------------------------------------------------
 
 void computeEltwiseMaxGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& output, NVMatrix& target, bool add) {
     assert(actGrad.isContiguous());
@@ -571,6 +786,10 @@ void computeEltwiseMaxGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& output,
     
     cutilCheckMsg("computeEltwiseMaxGrad: Kernel execution failed");
 }
+
+//-------------------------------------------------------------
+//API EltwiseFunc
+//-------------------------------------------------------------
 
 void computeEltwiseFuncParamGradSingle(NVMatrix& actGrad, NVMatrix& input,
 								 NVMatrix& target, NVMatrix& target_m,
@@ -836,6 +1055,11 @@ void computeEltwiseFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target
 
 	cutilCheckMsg("computeEltwiseFuncGrad: Kernel execution failed");
 };
+
+//-------------------------------------------------------------
+//API MicroConv
+//-------------------------------------------------------------
+
 
 
 void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& param, int sizeModuleSide, int channels,

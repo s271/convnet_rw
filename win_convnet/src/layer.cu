@@ -794,6 +794,40 @@ void EltwiseMaxLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PAS
  * MicroConvLayer
  * =======================
  */
+
+VectFuncLayer::VectFuncLayer(ConvNet* convNet, PyObject* paramsDict): Layer(convNet, paramsDict, false) 
+{
+	hParamList = PyDict_GetItemString(paramsDict, "meta_param");
+	_param = getVectorDouble(hParamList);
+
+	hParamListInc = PyDict_GetItemString(paramsDict, "meta_param_inc");
+	_param_inc = getVectorDouble(hParamListInc);
+
+	 _sizeV = pyDictGetInt(paramsDict, "sizeV");
+	 _sizeH = pyDictGetInt(paramsDict, "sizeH");
+    
+    _mom = pyDictGetFloat(paramsDict, "mom");
+    _epsP = pyDictGetFloat(paramsDict, "epsP");
+    _wc = pyDictGetFloat(paramsDict, "wc");
+
+	assert(_sizeV*_sizeH == _param.size());
+//debug
+	memset(_nstore_count, 0, sizeof(_nstore_count));
+	for (int i =0; i < NSTORE; i++)
+	for (int j =0; j < _param.size(); j++)
+		_grad_store[i].push_back(0);
+	//printf(" _param init  %f %f %f \n", _param[2] , _param[_sizeIn + 0] , _param[_sizeIn + 1]);
+	//printf(" size_in %i size_out %i  updates %i \n",_sizeIn, _sizeOut, _updates);
+
+
+	for (int j =0; j < _param.size(); j++)
+		_tempMatrixArray.push_back(NVMatrix());
+};
+/* 
+ * =======================
+ * MicroConvLayer
+ * =======================
+ */
 MicroConvLayer::MicroConvLayer(ConvNet* convNet, PyObject* paramsDict): Layer(convNet, paramsDict, false) 
 {
 	hParamList = PyDict_GetItemString(paramsDict, "meta_param");
