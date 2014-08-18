@@ -685,7 +685,8 @@ class VectFuncParser(LayerWithInputParser):
         dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
         if len(set(dic['numInputs'])) != 1:
             raise LayerParsingError("Layer '%s': all inputs must have the same dimensionality. Got dimensionalities: %s" % (name, ", ".join(str(s) for s in dic['numInputs'])))
-        
+     
+        dic['channels'] = mcp.safe_get_int(name, 'channels')
         dic['sizeV'] = mcp.safe_get_int(name, 'sizeV')
         dic['sizeH'] = mcp.safe_get_int(name, 'sizeH')   
         dic['rotate'] = mcp.safe_get_int_list(name, 'rotate', default = [])           

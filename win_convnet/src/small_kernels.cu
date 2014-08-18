@@ -1227,3 +1227,69 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 
 	cutilCheckMsg("kMicroConvWeightGrad: Kernel execution failed");
 }
+
+//-------------------------------------------------------------
+//API VectFunc
+//-------------------------------------------------------------
+
+void computeVectFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& param, int sizeV, int sizeH, int channels)
+{
+
+	assert(sizeV <= 4 || sizeV == 6 || sizeV == 8 || sizeV == 12 || sizeV == 16);
+
+
+    int inp_width = input.getNumCols(); 
+    int inp_height = input.getNumRows();
+
+	int out_width = inp_width;
+	int out_height = (inp_height*sizeH)/sizeV;
+
+	int numCases = out_width;
+	int numPixelsPerGroup = inp_height/channels;
+
+	int numColors = channels/sizeV;
+
+
+    if (target.getNumCols() != out_width || target.getNumRows() != out_height) {
+        target.resize(out_height, out_width);
+		//printf("**resize out_height %i out_width %i \n",out_height, out_width);
+    }
+
+	float temp[CONST_AREA_SIZE];
+	assert(param.size() <= CONST_AREA_SIZE);
+	memset(temp, 0, sizeof(temp));
+	for(int i = 0; i < param.size(); i++)
+		temp[i] = (float)param[i];
+	cudaMemcpyToSymbol(const_area, temp, sizeof(float)*CONST_AREA_SIZE, 0, cudaMemcpyHostToDevice);
+
+
+    dim3 threads(min(ELTWISE_THREADS_X, inp_width), ELTWISE_THREADS_Y);
+    dim3 blocks(std::min(NUM_BLOCKS_MAX, (int)DIVUP(out_width, threads.x)),
+                std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)));
+
+//template <int sizeV>
+//__global__ void kVectFuncAct(const float* input, float* const target,
+//								const uint imgInPixels, const uint numCases,
+//								const uint strideInp, const uint strideTag, int numColors, int sizeH) {
+
+
+#define ELT_ACT(SIZE_ARR) \
+	if(sizeV == SIZE_ARR){\
+	cudaFuncSetCacheConfig(kVectFuncAct<SIZE_ARR>, cudaFuncCachePreferL1);\
+	kVectFuncAct<SIZE_ARR><<<blocks, threads>>>(input.getDevData(),\
+	target.getDevData(), numPixelsPerGroup, numCases, input.getStride(), target.getStride(), numColors, sizeH);};
+	ELT_ACT(1)
+	ELT_ACT(2)
+	ELT_ACT(3)
+	ELT_ACT(4)
+	ELT_ACT(6)
+	ELT_ACT(8)
+	ELT_ACT(12)
+	ELT_ACT(16)
+#undef ELT_ACT
+
+//float sumt = target.sum();
+//	printf("kEltwiseFuncAct sumt %f \n", sumt);
+
+	cutilCheckMsg("computeEltwiseFuncAct: Kernel execution failed");
+}

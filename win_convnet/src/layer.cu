@@ -805,6 +805,7 @@ VectFuncLayer::VectFuncLayer(ConvNet* convNet, PyObject* paramsDict): Layer(conv
 
 	 _sizeV = pyDictGetInt(paramsDict, "sizeV");
 	 _sizeH = pyDictGetInt(paramsDict, "sizeH");
+	 _channels = pyDictGetInt(paramsDict, "channels");
     
     _mom = pyDictGetFloat(paramsDict, "mom");
     _epsP = pyDictGetFloat(paramsDict, "epsP");

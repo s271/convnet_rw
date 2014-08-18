@@ -227,7 +227,7 @@ protected:
 	PyObject* hParamList;
 	PyObject* hParamListInc;
 	float _epsP, _wc, _mom;
-	int _sizeV, _sizeH;
+	int _sizeV, _sizeH, _channels;
 
 	vector<NVMatrix> _tempMatrixArray;
 
