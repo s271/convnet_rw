@@ -824,6 +824,58 @@ VectFuncLayer::VectFuncLayer(ConvNet* convNet, PyObject* paramsDict): Layer(conv
 	for (int j =0; j < _param.size(); j++)
 		_tempMatrixArray.push_back(NVMatrix());
 };
+
+void VectFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType)
+{
+
+	computeVectFuncAct(*_inputs[inpIdx],  getActs(), _param,  _sizeV, _sizeH, _channels);
+
+	//printf(" VectFuncLayer fpropActs end\n");
+}
+
+void VectFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType)
+{
+	computeVectFuncWeightGrad(v, *_inputs[inpIdx],
+								_tempMatrixArray,
+								_param,  _sizeV, _sizeH, _channels);
+
+	int paramSize = _param.size();
+
+
+	for(int kp = 0; kp < paramSize; kp++)
+	{
+		double grad = _tempMatrixArray[kp].sum();
+		double sum_grad = 0;
+		for(int k = 0; k < NSTORE; k++)
+			sum_grad += _grad_store[k][kp]*_grad_store[k][kp];
+
+
+		_grad_store[_nstore_count[kp]][kp] = grad;
+		_nstore_count[kp] = (_nstore_count[kp]+1)%NSTORE;
+
+		if(sum_grad > 0)
+			grad = grad*sqrt(NSTORE)/sqrt(sum_grad);
+
+		_param_inc[kp] = _mom*_param_inc[kp] + _epsP*grad - _wc*_param[kp];
+//		_param[kp] += _param_inc[kp];
+
+
+	}
+//renormalize here possibly
+
+	computeVectFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(),
+							 _param, _sizeV, _sizeH, _channels);
+}
+
+void VectFuncLayer::copyToCPU()
+{
+	for(int i = 0; i < _param.size(); i++)
+	{
+		PyList_SetItem(hParamList, i,  PyFloat_FromDouble(_param[i]));
+		PyList_SetItem(hParamListInc, i,  PyFloat_FromDouble(_param_inc[i]));
+	}
+};
+
 /* 
  * =======================
  * MicroConvLayer

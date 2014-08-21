@@ -79,6 +79,12 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 								vector<double>& param, int sizeModuleSide, int channels,
 								int imgSize, int imgPixels, int numFilters);
 
+void computeVectFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& param, int sizeV, int sizeH, int channels);
 
+void computeVectFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target,
+								 vector<double>& param,  int sizeV, int sizeH, int channels);
+void computeVectFuncWeightGrad(NVMatrix& actGrad, NVMatrix& input,
+								vector<NVMatrix>& tempMatrix,
+								vector<double>& param,  int sizeV, int sizeH, int channels);
 #endif	/* LAYER_KERNELS_CUH */
 
