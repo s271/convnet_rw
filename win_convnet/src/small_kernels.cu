@@ -1078,10 +1078,11 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 	int imgSizeX = imgSize;
 	int imgSizeY = imgSize;
 
-	int img_threads_x = 16;
-	int img_threads_y = 16;
-	int imgsPerThread = 16;//~number of blocks x
-	int case_threads = DIVUP(numCases, imgsPerThread); 
+	int img_threads_x = 8;
+	int img_threads_y = 8;
+	int imgsPerThread = 4;
+	int nblocksx = 4;//~number of blocks x
+	int case_threads = DIVUP(numCases, nblocksx*imgsPerThread); 
 
 	int lobe = sizeModuleSide/2;
 
@@ -1101,6 +1102,8 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 	for(int i = 0; i < param.size(); i++)
 		temp[i] = (float)param[i];
 	cudaMemcpyToSymbol(const_area, temp, sizeof(float)*CONST_AREA_SIZE, 0, cudaMemcpyHostToDevice);
+
+	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i shared_size %i \n",blocks.x, blocks.y, threads.x, threads.y, shared_size);
 
 	kMicroConvFilterAct<<<blocks, threads, shared_size>>>(input.getDevData(), target.getDevData(),
 									numCases, channels, numFilters, 
@@ -1370,6 +1373,7 @@ void computeVectFuncWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 	int numPixelsPerGroup = inp_height/channels;
 
 	int numColors = channels/sizeV;
+
 
 #define N_SUM 1
     dim3 threads(min(ELTWISE_THREADS_X, inp_width), ELTWISE_THREADS_Y);

@@ -899,7 +899,7 @@ MicroConvLayer::MicroConvLayer(ConvNet* convNet, PyObject* paramsDict): Layer(co
     _epsP = pyDictGetFloat(paramsDict, "epsP");
     _wc = pyDictGetFloat(paramsDict, "wc");
 
-	assert(_size == _param.size());
+	assert(_size*_size*_channels*_numFilters == _param.size());
 //debug
 	memset(_nstore_count, 0, sizeof(_nstore_count));
 	for (int i =0; i < NSTORE; i++)
