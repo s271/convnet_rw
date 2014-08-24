@@ -386,7 +386,7 @@ __global__ void kEltwiseFuncParamGradSingle_t(float* actGrad, float* input, floa
 
 #define getValInput(X, Y, Z) input[channelOffset + (X)*widthyz+(Y)*widthz + (Z)]
 
-template < int LOBE, int sizeModule>
+template < int LOBE, int SIZE_MODULE>
 __global__ void kMicroConvFilterAct(const float* input, float* const target,
 								const uint numCases, const uint channels, const uint numFilters,
 								const uint sharedY, const uint modulesPerBlockX,  const uint modulesPerBlockY, 
@@ -406,7 +406,7 @@ __global__ void kMicroConvFilterAct(const float* input, float* const target,
 	const int widthz = numCases;
 	const int widthyz = imgSizeY*numCases;
 
-	const int sizeModule2 = sizeModule*sizeModule;
+	const int sizeModule2 = SIZE_MODULE*SIZE_MODULE;
 
     const int  bw = modulesPerBlockX;
     const int  bh = modulesPerBlockY;
@@ -431,7 +431,7 @@ __global__ void kMicroConvFilterAct(const float* input, float* const target,
 						for(int dsx = - LOBE; dsx < LOBE+1; dsx++)
 						for(int dsy = - LOBE; dsy <  LOBE+1; dsy++)
 							sum += sdata[(sx + dsx + LOBE)*sharedY+(sy + dsy + LOBE)]
-								*const_area[filterID*sizeModule2 + (-dsy + LOBE)*sizeModule +(-dsx + LOBE)];
+								*const_area[filterID*sizeModule2 + (-dsy + LOBE)*SIZE_MODULE +(-dsx + LOBE)];
 									
 						target[numFilters*channelOffset + filterID*imgPixels*numCases + ix*widthyz + iy*widthz + z] = sum;
 
