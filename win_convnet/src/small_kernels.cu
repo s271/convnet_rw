@@ -365,7 +365,7 @@ __global__ void kEltwiseFuncParamGradSingle_t(float* actGrad, float* input, floa
 //-------------------------------------------------------------
 //MicroConv
 //-------------------------------------------------------------
-#define SMEM(X, Y, sdata) sdata[(X)*smem_sizeY+(Y)]
+#define SMEM(X, Y, sdata) sdata[(X)*sharedY+(Y)]
 
 #define SHARED_MEM(x, y, z, RSH, getVal, sdata) \
     SMEM((RSH) + sx, (RSH) + sy, sdata) = getVal(x, y, z);\
@@ -388,7 +388,7 @@ __global__ void kEltwiseFuncParamGradSingle_t(float* actGrad, float* input, floa
 
 __global__ void kMicroConvFilterAct(const float* input, float* const target,
 								const uint numCases, const uint channels, const uint numFilters, 
-								const uint modulesPerBlockX, const uint modulesPerBlockY,
+								const uint sharedY, const uint modulesPerBlockX,  const uint modulesPerBlockY, 
 								const uint sizeModule, const uint lobe,
 								const uint imgSizeX, const uint imgSizeY,
 								const uint imgPixels)
@@ -406,9 +406,8 @@ __global__ void kMicroConvFilterAct(const float* input, float* const target,
 
     const int  bw = modulesPerBlockX;
     const int  bh = modulesPerBlockY;
-	const int smem_sizeY = modulesPerBlockY + 2*lobe;
-    const int  sx = threadIdx.y/smem_sizeY;
-    const int  sy = threadIdx.y - sx*smem_sizeY;
+    const int  sx = threadIdx.y/sharedY;
+    const int  sy = threadIdx.y - sx*sharedY;
 
 //put pragme unroll here	
 	for(int channelInd = 0; channelInd < channels; channelInd++)
@@ -426,7 +425,7 @@ __global__ void kMicroConvFilterAct(const float* input, float* const target,
 						float sum = 0;
 						for(int isx = 0; isx <  sizeModule; isx++)
 						for(int isy = 0; isy <  sizeModule; isy++)
-							sum += sdata[(sx + isx - lobe)*smem_sizeY+(sy + isy - lobe)]
+							sum += sdata[(sx + isx - lobe)*sharedY+(sy + isy - lobe)]
 									*const_area[filterID*sizeModule2 + isy*sizeModule + isx];
 
 						target[numFilters*channelOffset + filterID*imgPixels*numCases + ix*widthyz + iy*widthz + z] = sum;
@@ -440,7 +439,7 @@ __global__ void kMicroConvFilterAct(const float* input, float* const target,
 __global__ void kMicroConvActGrad(const float* actGrad, float* const target,
 								const uint numCases, const uint channels, const uint numFilters, 
 								const uint modulesPerBlockX, const uint modulesPerBlockY,
-								const uint sizeModule, const uint lobe,
+								const uint sharedY, const uint sizeModule, const uint lobe,
 								const uint imgSizeX, const uint imgSizeY,
 								const uint imgPixels)
 {
@@ -457,9 +456,8 @@ __global__ void kMicroConvActGrad(const float* actGrad, float* const target,
 
     const int  bw = modulesPerBlockX;
     const int  bh = modulesPerBlockY;
-	const int smem_sizeY = modulesPerBlockY + 2*lobe;
-    const int  sx = threadIdx.y/smem_sizeY;
-    const int  sy = threadIdx.y - sx*smem_sizeY;
+    const int  sx = threadIdx.y/sharedY;
+    const int  sy = threadIdx.y - sx*sharedY;
 
 //pragma unroll here
 	for(int channelInd = 0; channelInd < channels; channelInd++)
@@ -481,7 +479,7 @@ __global__ void kMicroConvActGrad(const float* actGrad, float* const target,
 					
 					for(int dsx = - lobe; dsx < lobe+1; dsx++)
 					for(int dsy = - lobe; dsy <  lobe+1; dsy++)
-						sum += sdata[(sx + dsx + lobe)*smem_sizeY+(sy + dsy + lobe)]
+						sum += sdata[(sx + dsx + lobe)*sharedY+(sy + dsy + lobe)]
 								*const_area[filterID*sizeModule2 + (-dsy + lobe)*sizeModule +(-dsx + lobe)];
 
 				}
@@ -495,14 +493,14 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 								const uint target_size, const uint numCases,
 								const uint channels, const uint numFilters, 
 								const uint modulesPerBlockX, const uint modulesPerBlockY,
-								const uint lobe, const uint sizeModule,
+								const uint lobe, const uint sizeModule, const uint sizeShared,
 								const uint imgSizeX, const uint imgSizeY, const uint imgPixels)
 {
 
 //order x>y>z, *not* y>x
 	extern __shared__ float sdata[];
 	float* sdataAct = sdata; 
-	float* sdataImg = sdata + sizeModule;
+	float* sdataImg = sdata + sizeShared;
 
     const int  ix = threadIdx.x/imgSizeY;
     const int  iy = threadIdx.y - ix*imgSizeY;
@@ -514,9 +512,9 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 
     const int  bw = modulesPerBlockX;
     const int  bh = modulesPerBlockY;
-	const int smem_sizeY = modulesPerBlockY + 2*lobe;
-    const int  sx = threadIdx.y/smem_sizeY;
-    const int  sy = threadIdx.y - sx*smem_sizeY;
+	const int sharedY = modulesPerBlockY + 2*lobe;
+    const int  sx = threadIdx.y/sharedY;
+    const int  sy = threadIdx.y - sx*sharedY;
 	const int imgSize = imgSizeX*imgSizeY;
 
 //pragma unroll here
@@ -544,7 +542,7 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 						SHARED_MEM(ix, iy, z, lobe, getValAct, sdataImg)
 						__syncthreads();										
 
-						sum += sdataAct[(sx + dsx + lobe)*smem_sizeY+(sy + dsy + lobe)]*sdataAct[sx*smem_sizeY+ sy];
+						sum += sdataAct[(sx + dsx + lobe)*sharedY+(sy + dsy + lobe)]*sdataAct[sx*sharedY+ sy];
 					}
 				}
 				const int tagOffset = (channelInd*numFilters + filterID)*imgSize;
@@ -1087,9 +1085,9 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 	int lobe = sizeModuleSide/2;
 
 
-	int modulesPerBlockX = lobe*2 + img_threads_x;
-	int modulesPerBlockY = lobe*2 + img_threads_y;
-	int sizeModule = modulesPerBlockX*modulesPerBlockY;
+	int sharedX = lobe*2 + img_threads_x;
+	int sharedY = lobe*2 + img_threads_y;
+	int sizeModule = sharedX*sharedY;
 	int shared_size = sizeModule;//looped out - case_threads*imgsPerThread;
 
 	dim3 threads(case_threads, img_threads_x*img_threads_y);
@@ -1107,8 +1105,8 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 
 	kMicroConvFilterAct<<<blocks, threads, shared_size>>>(input.getDevData(), target.getDevData(),
 									numCases, channels, numFilters, 
-									modulesPerBlockX, modulesPerBlockY,
-									sizeModule, lobe,
+									sharedY, img_threads_x,  img_threads_y, 
+									sizeModuleSide, lobe,
 									imgSizeX, imgSizeY,
 									imgPixels);
 
@@ -1137,18 +1135,17 @@ void computeMicroConvActGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& targe
 	int imgSizeX = imgSize;
 	int imgSizeY = imgSize;
 
-	int img_threads_x = 16;
-	int img_threads_y = 16;
-	int imgsPerThread = 16;//~number of blocks x
+	int img_threads_x = 8;
+	int img_threads_y = 8;
+	int imgsPerThread = 4;//~number of blocks x
 	int case_threads = DIVUP(numCases, imgsPerThread); 
 
 	int lobe = sizeModuleSide/2;
 
 
-	int modulesPerBlockX = lobe*2 + img_threads_x;
-	int modulesPerBlockY = lobe*2 + img_threads_y;
-	int sizeModule = modulesPerBlockX*modulesPerBlockY;
-	int shared_size = sizeModule;//looped out - case_threads*imgsPerThread;
+	int sharedX = lobe*2 + img_threads_x;
+	int sharedY = lobe*2 + img_threads_y;
+	int shared_size = sharedX*sharedY;//looped out - case_threads*imgsPerThread;
 
 	dim3 threads(case_threads, img_threads_x*img_threads_y);
 	dim3 blocks = dim3(DIVUP(numCases, threads.x*imgsPerThread), DIVUP(imgSizeY,img_threads_x) * DIVUP(imgSizeX,img_threads_y));
@@ -1162,8 +1159,8 @@ void computeMicroConvActGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& targe
 
 	kMicroConvActGrad<<<blocks, threads, shared_size>>>(actGrad.getDevData(), target.getDevData(),
 								numCases, channels, numFilters, 
-								modulesPerBlockX, modulesPerBlockY,
-								sizeModule,lobe,
+								img_threads_x, img_threads_y,
+								sharedY, sizeModuleSide, lobe,
 								imgSizeX, imgSizeY,
 								imgPixels);
 //debug
@@ -1184,18 +1181,18 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 	int imgSizeX = imgSize;
 	int imgSizeY = imgSize;
 
-	int img_threads_x = 16;
-	int img_threads_y = 16;
-	int imgsPerThread = 16;//~number of blocks x
+	int img_threads_x = 8;
+	int img_threads_y = 8;
+	int imgsPerThread = 4;//~number of blocks x
 	int case_threads = DIVUP(numCases, imgsPerThread); 
 
 	int lobe = sizeModuleSide/2;
 
+	int sharedX = lobe*2 + img_threads_x;
+	int sharedY = lobe*2 + img_threads_y;
 
-	int modulesPerBlockX = lobe*2 + img_threads_x;
-	int modulesPerBlockY = lobe*2 + img_threads_y;
-	int sizeModule = modulesPerBlockX*modulesPerBlockY;
-	int shared_size = sizeModule*2;//looped out - case_threads*imgsPerThread;
+	int sizeSharedBlock = sharedX*sharedY;
+	int shared_size = sizeSharedBlock*2;//looped out - case_threads*imgsPerThread;
 
 //for optimization can change both block sizes!
 	dim3 threads(case_threads, img_threads_x*img_threads_y);
@@ -1221,8 +1218,8 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 	kMicroConvWeightGrad<<<blocks, threads, shared_size>>>(actGrad.getDevData(), input.getDevData(), (float**)tempMatrixPtr,
 								tag_size, numCases,
 								channels, numFilters, 
-								modulesPerBlockX, modulesPerBlockY,
-								lobe, sizeModule,
+								img_threads_x, img_threads_y,
+								lobe, sizeModuleSide, sizeSharedBlock,
 								imgSizeX, imgSizeY, imgPixels);
 
 //debug
@@ -1237,6 +1234,7 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 
 void computeVectFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& param, int sizeV, int sizeH, int channels)
 {
+printf("kVectFuncAct start \n");
 
 	assert(sizeV <= 4 || sizeV == 6 || sizeV == 8 || sizeV == 12 || sizeV == 16);
 
@@ -1254,10 +1252,9 @@ void computeVectFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& param
 
 
     if (target.getNumCols() != out_width || target.getNumRows() != out_height) {
+		printf("**resize out_height %i out_width %i \n",out_height, out_width);
         target.resize(out_height, out_width);
-		//printf("**resize out_height %i out_width %i \n",out_height, out_width);
     }
-
 	float temp[CONST_AREA_SIZE];
 	assert(param.size() <= CONST_AREA_SIZE);
 	memset(temp, 0, sizeof(temp));
@@ -1270,10 +1267,8 @@ void computeVectFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& param
     dim3 blocks(std::min(NUM_BLOCKS_MAX, (int)DIVUP(out_width, threads.x)),
                 std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)));
 
-//template <int sizeV>
-//__global__ void kVectFuncAct(const float* input, float* const target,
-//								const uint imgInPixels, const uint numCases,
-//								const uint strideInp, const uint strideTag, int numColors, int sizeH) {
+	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i numColors %i \n",blocks.x, blocks.y, threads.x, threads.y, numColors);
+	printf("numPixelsPerGroup %i out_width %i out_height %i  \n",numPixelsPerGroup,out_width,out_height);
 
 
 #define ELT_ACT(SIZE_ARR) \
@@ -1292,7 +1287,7 @@ void computeVectFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& param
 #undef ELT_ACT
 
 //float sumt = target.sum();
-//	printf("kVectFuncAct sumt %f \n", sumt);
+	printf("kVectFuncAct sumt %f \n", 0);//sumt);
 
 	cutilCheckMsg("kVectFuncAct: Kernel execution failed");
 }

@@ -791,7 +791,7 @@ void EltwiseMaxLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PAS
 }
 /* 
  * =======================
- * MicroConvLayer
+ * VectFuncLayer
  * =======================
  */
 
