@@ -881,11 +881,22 @@ void VectFuncLayer::copyToCPU()
  * MicroConvLayer
  * =======================
  */
-MicroConvLayer::MicroConvLayer(ConvNet* convNet, PyObject* paramsDict): Layer(convNet, paramsDict, false) 
-{
+MicroConvLayer::MicroConvLayer(ConvNet* convNet, PyObject* paramsDict) : Layer(convNet, paramsDict, false) {
+
 	hParamList = PyDict_GetItemString(paramsDict, "meta_param");
 	_param = getVectorDouble(hParamList);
 
+	{
+		int numl = (_param.size()+8)/8;
+		printf("** params *** \n");
+		for (int nk = 0; nk < numl; nk++)
+		{
+			for (int k = 0; k < 8; k++)
+				if(k + nk*8 < _param.size())
+				printf("%f ", _param[k + nk*8]);
+			printf("\n");
+		}
+	}
 	hParamListInc = PyDict_GetItemString(paramsDict, "meta_param_inc");
 	_param_inc = getVectorDouble(hParamListInc);
 
@@ -911,6 +922,8 @@ MicroConvLayer::MicroConvLayer(ConvNet* convNet, PyObject* paramsDict): Layer(co
 
 	for (int j =0; j < _param.size(); j++)
 		_tempMatrixArray.push_back(NVMatrix());
+
+
 };
 
 void MicroConvLayer::copyToCPU()

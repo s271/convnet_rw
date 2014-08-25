@@ -719,7 +719,7 @@ class VectFuncParser(LayerWithInputParser):
 
         else:
             for ii in range(size_param):
-                meta_param[ii] = nr.uniform(0, 1)
+                meta_param[ii] = nr.uniform(0, 1.)
             
             
 
@@ -740,6 +740,7 @@ class MicroConvParser(LayerWithInputParser):
         dic['wc'] = mcp.safe_get_float(name, 'wc')    
         dic['mom'] = mcp.safe_get_float(name, 'mom') 
     def parse(self, name, mcp, prev_layers, model):
+
         dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
         if len(set(dic['numInputs'])) != 1:
             raise LayerParsingError("Layer '%s': all inputs must have the same dimensionality. Got dimensionalities: %s" % (name, ", ".join(str(s) for s in dic['numInputs'])))
@@ -763,18 +764,18 @@ class MicroConvParser(LayerWithInputParser):
                     fbkg = 0
                     #fbkg = nr.uniform(0., 1.)
                     if f%2==0:
-                        meta_param[j + off] = 1 + fbkg
-                        meta_param[j + dic['size']*(dic['size']-1) +off] = -1 + fbkg
+                        meta_param[j + off] = 1. + fbkg
+                        meta_param[j + dic['size']*(dic['size']-1) +off] = -1. + fbkg
                     else:
-                        meta_param[0 + j*dic['size'] + off] = 1 + fbkg
-                        meta_param[dic['size']-1 + j*dic['size'] + off] = -1 + fbkg
+                        meta_param[0 + j*dic['size'] + off] = 1. + fbkg
+                        meta_param[dic['size']-1 + j*dic['size'] + off] = -1. + fbkg
 
         dic['meta_param'] = meta_param    
         dic['meta_param_inc'] = meta_param_inc 
         
         print "Initialized microconv layer '%s', producing %d outputs" % (name, dic['outputs'])
-        return dic         
- 
+        return dic    
+
 class WeightLayerParser(LayerWithInputParser):
     LAYER_PAT = re.compile(r'^\s*([^\s\[]+)(?:\[(\d+)\])?\s*$') # matches things like layername[5], etc
     
@@ -1337,9 +1338,9 @@ layer_parsers = {'data': lambda : DataLayerParser(),
                  'softmax': lambda : SoftmaxLayerParser(),
                  'l2svm': lambda : L2SVMLayerParser(),
                  'eltsum': lambda : EltwiseSumLayerParser(),
+                 'mconv': lambda : MicroConvParser(),
                  'eltmax': lambda : EltwiseMaxLayerParser(),
                  'eltfunc': lambda : EltwiseFuncParser(),
-                 'mconv': lambda : MicroConvParser(),
                  'vfunc': lambda : VectFuncParser(),
                  'neuron': lambda : NeuronLayerParser(),
                  'pool': lambda : PoolLayerParser(),

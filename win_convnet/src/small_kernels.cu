@@ -1122,8 +1122,7 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 #define SIZE_MODULE 3
 	assert(SIZE_MODULE == 3);
 
-	if(lobe==1)
-		kMicroConvFilterAct<(SIZE_MODULE-1)/2, SIZE_MODULE><<<blocks, threads, shared_size>>>(input.getDevData(), target.getDevData(),
+	kMicroConvFilterAct<(SIZE_MODULE-1)/2, SIZE_MODULE><<<blocks, threads, shared_size>>>(input.getDevData(), target.getDevData(),
 										numCases, channels, numFilters,
 										sharedY, img_threads_x,  img_threads_y, 
 										imgSizeX, imgSizeY,
@@ -1131,6 +1130,9 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 
 //debug
 	printf("kMicroConvAct4Channel end \n");
+
+	float sum = target.sum();
+	printf(" kMicroConvAct4Channel sum %f \n", sum);
 
 	cutilCheckMsg("computeMicroConvAct: Kernel execution failed");
 

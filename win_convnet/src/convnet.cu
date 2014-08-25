@@ -106,10 +106,10 @@ Layer* ConvNet::initLayer(string& layerType, PyObject* paramsDict, bool fix_nan)
         _layers.push_back(new EltwiseSumLayer(this, paramsDict));
     } else if (layerType == "eltmax") {
         _layers.push_back(new EltwiseMaxLayer(this, paramsDict));
-    } else if (layerType == "eltfunc") {
-        _layers.push_back(new EltwiseFuncLayer(this, paramsDict));
     } else if (layerType == "mconv") {
         _layers.push_back(new MicroConvLayer(this, paramsDict));
+    } else if (layerType == "eltfunc") {
+        _layers.push_back(new EltwiseFuncLayer(this, paramsDict));
     } else if (layerType == "vfunc") {
         _layers.push_back(new VectFuncLayer(this, paramsDict));
     } else if (layerType == "neuron") {
