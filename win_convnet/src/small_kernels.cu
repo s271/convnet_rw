@@ -1289,8 +1289,10 @@ printf("kVectFuncAct start \n");
                 std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)));
 
 	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i numColors %i \n",blocks.x, blocks.y, threads.x, threads.y, numColors);
-	printf("numPixelsPerGroup %i out_width %i out_height %i  \n",numPixelsPerGroup,out_width,out_height);
+	printf("numPixelsPerGroup %i out_width %i out_height %i sizeV %i \n",numPixelsPerGroup,out_width,out_height,sizeV);
 
+//debug
+//cudaMemset(target.getDevData(), 0, out_height*out_width*sizeof(float));
 
 #define ELT_ACT(SIZE_ARR) \
 	if(sizeV == SIZE_ARR){\
@@ -1307,8 +1309,8 @@ printf("kVectFuncAct start \n");
 	ELT_ACT(16)
 #undef ELT_ACT
 
-//float sumt = target.sum();
-	printf("kVectFuncAct sumt %f \n", 0);//sumt);
+float sumt = target.sum();
+	printf("kVectFuncAct sumt %f \n",  sumt);
 
 	cutilCheckMsg("kVectFuncAct: Kernel execution failed");
 }
