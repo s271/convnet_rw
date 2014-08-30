@@ -1070,7 +1070,7 @@ void computeEltwiseFuncParamGradSingle(NVMatrix& actGrad, NVMatrix& input,
 //API MicroConv
 //-------------------------------------------------------------
 
-
+#include "conv_debug.h"
 
 void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& param, int sizeModuleSide, int channels,
 						 int imgSize, int imgPixels, int numFilters)
@@ -1121,6 +1121,23 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 
 #define SIZE_MODULE 3
 	assert(SIZE_MODULE == 3);
+
+//debug
+	float* tempHostInput = singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
+	float* tempHostTarget = singletonTempMem.allocFloatElement(out_height*out_width);
+
+	cutilSafeCallNoSync( cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost) );
+
+	debugMicroConvFilterAct((SIZE_MODULE-1)/2, SIZE_MODULE, temp, tempHostInput, tempHostTarget,
+										numCases, channels, numFilters,
+										sharedY, img_threads_x,  img_threads_y, 
+										imgSizeX, imgSizeY,
+										imgPixels);
+	double sum_host = Sum(tempHostTarget, out_height*out_width);
+	printf(" debugMicroConvFilterAct sum %f \n", sum_host);
+	singletonTempMem.reset();
+
+
 
 	kMicroConvFilterAct<(SIZE_MODULE-1)/2, SIZE_MODULE><<<blocks, threads, shared_size>>>(input.getDevData(), target.getDevData(),
 										numCases, channels, numFilters,
