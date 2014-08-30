@@ -32,11 +32,12 @@ void TempMem::alloc(int size)
 
 float* TempMem::allocFloatElement(int size)
 {	
-	float* newStart = _floatArea + _boundary;
-	_start.push_back(newStart);
+	int old_boundary = _boundary;
 	_boundary += size;
 	alloc(_boundary);
-	return newStart;
+	float* start_element = _floatArea + old_boundary;
+	_start.push_back(start_element);
+	return start_element;
 };
 
 float* TempMem::getPtr(int ind)
@@ -87,7 +88,7 @@ void debugMicroConvFilterAct(int lobe, int SIZE_MODULE, float* filterArea, const
 		for(int dsx = - lobe; dsx < lobe+1; dsx++)
 		for(int dsy = - lobe; dsy <  lobe+1; dsy++)
 		{
-			float sdata = input[channelOffset + ((sx + dsx + lobe)*sharedY)*widthyz+(sy + dsy + lobe)*widthz + z];
+			float sdata = input[channelOffset + (sx + dsx + lobe)*widthyz + (sy + dsy + lobe)*widthz + z];
 			sum += sdata*filterArea[filterID*sizeModule2 + (-dsy + lobe)*SIZE_MODULE +(-dsx + lobe)];
 		}
 
