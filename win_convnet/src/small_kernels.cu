@@ -1071,6 +1071,8 @@ void computeEltwiseFuncParamGradSingle(NVMatrix& actGrad, NVMatrix& input,
 //-------------------------------------------------------------
 
 #include "conv_debug.h"
+#define SIZE_MODULE 3
+
 
 void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& param, int sizeModuleSide, int channels,
 						 int imgSize, int imgPixels, int numFilters)
@@ -1119,7 +1121,7 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 	printf("sharedY %i img_threads_x %i img_threads_y %i sizeModuleSide %i imgSizeX %i imgSizeY %i imgPixels %i numFilters %i numCases %i lobe %i\n",
 		sharedY,img_threads_x,img_threads_y,sizeModuleSide,imgSizeX,imgSizeY, imgPixels,numFilters,numCases,lobe);
 
-#define SIZE_MODULE 3
+
 	assert(SIZE_MODULE == 3);
 
 //debug
@@ -1135,6 +1137,21 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 										imgPixels);
 	double sum_host = Sum(tempHostTarget, out_height*out_width);
 	printf(" debugMicroConvFilterAct sum %f \n", sum_host);
+
+
+
+	emuMicroConvFilterAct(threads.x, threads.y, blocks.x, blocks.y,
+										(SIZE_MODULE-1)/2, SIZE_MODULE,
+										temp, tempHostInput, tempHostTarget,
+										numCases, channels, numFilters,
+										sharedY, img_threads_x,  img_threads_y, 
+										imgSizeX, imgSizeY,
+										imgPixels);
+
+	sum_host = Sum(tempHostTarget, out_height*out_width);
+	printf(" emuMicroConvFilterAct sum %f \n", sum_host);
+
+
 	singletonTempMem.reset();
 
 
