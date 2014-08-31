@@ -203,8 +203,6 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 					if(z < numCases)
 					{
 
-						SHARED_MEM(ix, iy, z, LOBE, getValInput, sdata)	
-
 						for(int filterID = 0; filterID <  numFilters; filterID++)
 						{
 								float sum = 0;
