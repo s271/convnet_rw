@@ -103,7 +103,7 @@ void debugMicroConvFilterAct(int lobe, int SIZE_MODULE, float* filterArea, const
 }
 
 
-#define SMEM(X, Y, sdata) sdata[(X)*sharedY+(Y)]
+#define SMEM(X, Y, sdata) sdata[(X)*sharedY+(Y)+sOffset]
 
 #define SHARED_MEM(x, y, z, LOBE, getVal, sdata) \
     SMEM((LOBE) + sx, (LOBE) + sy, sdata) = getVal(x, y, z);\
@@ -131,7 +131,7 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 								const uint imgSizeX, const uint imgSizeY,
 								const uint imgPixels)
 {
-	float sdata[10*10];
+	float sdata[10*10*128*3];
 	memset(sdata, 0, sizeof(sdata));
 
 	printf("gridDimx %i gridDimy %i blockDimx %i blockDimy %i  \n",gridDimx, gridDimy, blockDimx, blockDimy );
@@ -165,7 +165,9 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 			for(int channelInd = 0; channelInd < channels; channelInd++)
 				for(int z = threadIdxx + blockIdxx*blockDimx; z < numCases; z += blockDimx*gridDimx)
 				{	
+					const int sOffset = channelInd*sizeModule2*numCases + z*sizeModule2;
 					const int channelOffset = channelInd*imgPixels*numCases;
+
 					if(z < numCases)
 					{
 
@@ -207,11 +209,16 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 						for(int filterID = 0; filterID <  numFilters; filterID++)
 						{
 								float sum = 0;
+								const int sOffset = channelInd*sizeModule2*numCases + z*sizeModule2;
 
 								for(int dsx = - LOBE; dsx < LOBE+1; dsx++)
 								for(int dsy = - LOBE; dsy <  LOBE+1; dsy++)
-									sum += sdata[(sx + dsx + LOBE)*sharedY+(sy + dsy + LOBE)]
-										*filterArea[filterID*sizeModule2 + (-dsy + LOBE)*SIZE_MODULE +(-dsx + LOBE)];
+								//	sum += sdata[(sx + dsx + LOBE)*sharedY+(sy + dsy + LOBE) + sOffset]
+								//		*filterArea[filterID*sizeModule2 + (-dsy + LOBE)*SIZE_MODULE +(-dsx + LOBE)];
+								{
+			float sdata = input[channelOffset + (ix + dsx + LOBE)*widthyz + (iy + dsy + LOBE)*widthz + z];
+			sum += sdata*filterArea[filterID*sizeModule2 + (-dsy + LOBE)*SIZE_MODULE +(-dsx + LOBE)];
+								}
 											
 								target[numFilters*channelOffset + filterID*imgPixels*numCases + ix*widthyz + iy*widthz + z] = sum;
 
