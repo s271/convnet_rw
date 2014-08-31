@@ -34,19 +34,17 @@ void TempMem::alloc(int size)
 	}
 };
 
-float* TempMem::allocFloatElement(int size)
+void TempMem::allocFloatElement(int size)
 {	
 	int old_boundary = _boundary;
 	_boundary += size;
 	alloc(_boundary);
-	float* start_element = _floatArea + old_boundary;
-	_start.push_back(start_element);
-	return start_element;
+	_start.push_back(old_boundary);
 };
 
 float* TempMem::getPtr(int ind)
 {
-	return _start[ind];
+	return _floatArea+_start[ind];
 }
 
 void TempMem::reset()
@@ -134,12 +132,15 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 								const uint imgPixels)
 {
 	float sdata[10*10];
+	memset(sdata, 0, sizeof(sdata));
+
+	printf("gridDimx %i gridDimy %i blockDimx %i blockDimy %i  \n",gridDimx, gridDimy, blockDimx, blockDimy );
 
 	for(int blockIdxx = 0; blockIdxx < gridDimx; blockIdxx++)
 	for(int blockIdxy = 0; blockIdxy < gridDimy; blockIdxy++)
 	{
 		for(int threadIdxx = 0; threadIdxx < blockDimx; threadIdxx++)
-		for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxx++)
+		for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
 		{
 		//order x>y>z, *not* y>x
 			int pixIdx = threadIdxy + blockDimy*blockIdxy;
@@ -174,7 +175,7 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 		}//thread
 
 		for(int threadIdxx = 0; threadIdxx < blockDimx; threadIdxx++)
-		for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxx++)
+		for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
 		{
 		//order x>y>z, *not* y>x
 			int pixIdx = threadIdxy + blockDimy*blockIdxy;
@@ -219,4 +220,5 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 				}//z
 		}//thread
 	}//block
+	
 }

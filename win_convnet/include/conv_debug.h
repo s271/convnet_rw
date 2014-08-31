@@ -4,15 +4,16 @@ using namespace std;
 
 class TempMem
 {
+public:
 	int _size;
 	float* _floatArea;
-	vector<float*> _start;
+	vector<int> _start;
 	int _boundary;
-public:
+
 	TempMem();
 	~TempMem();
 	void alloc(int size);
-	float* allocFloatElement(int size);
+	void allocFloatElement(int size);
 	float* getPtr(int ind);
 	void reset();
 

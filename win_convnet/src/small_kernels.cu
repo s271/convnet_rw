@@ -1125,8 +1125,16 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 	assert(SIZE_MODULE == 3);
 
 //debug
-	float* tempHostInput = singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
-	float* tempHostTarget = singletonTempMem.allocFloatElement(out_height*out_width);
+
+	singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
+	singletonTempMem.allocFloatElement(out_height*out_width);
+	float* tempHostInput = singletonTempMem.getPtr(0);
+	float* tempHostTarget = singletonTempMem.getPtr(1);
+	int deltan = singletonTempMem._start[1]-singletonTempMem._start[0];
+	printf(" size inp %i singletonTempMem._size %i deltan %i \n",
+		input.getNumCols()*input.getNumRows(),singletonTempMem._size, deltan);
+
+
 
 	cutilSafeCallNoSync( cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost) );
 
@@ -1137,7 +1145,6 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 										imgPixels);
 	double sum_host = Sum(tempHostTarget, out_height*out_width);
 	printf(" debugMicroConvFilterAct sum %f \n", sum_host);
-
 
 
 	emuMicroConvFilterAct(threads.x, threads.y, blocks.x, blocks.y,
