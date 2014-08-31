@@ -87,14 +87,12 @@ void debugMicroConvFilterAct(int lobe, int SIZE_MODULE, float* filterArea, const
 
 		float sum = 0;
 
-		int sx= ix;
-		int sy =iy;
-
-
 		for(int dsx = - lobe; dsx < lobe+1; dsx++)
 		for(int dsy = - lobe; dsy <  lobe+1; dsy++)
 		{
-			float sdata = input[channelOffset + (sx + dsx + lobe)*widthyz + (sy + dsy + lobe)*widthz + z];
+			int idx = min(max(ix + dsx, 0), imgSizeX-1);
+			int idy = min(max(iy + dsy, 0), imgSizeY-1);
+			float sdata = input[channelOffset + idx*widthyz + idy*widthz + z];
 			sum += sdata*filterArea[filterID*sizeModule2 + (-dsy + lobe)*SIZE_MODULE +(-dsx + lobe)];
 		}
 
@@ -131,10 +129,17 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 								const uint imgSizeX, const uint imgSizeY,
 								const uint imgPixels)
 {
-	float sdata[10*10*128*3];
+	float sdata[10*10*128*3*10];
 	memset(sdata, 0, sizeof(sdata));
 
-	printf("gridDimx %i gridDimy %i blockDimx %i blockDimy %i  \n",gridDimx, gridDimy, blockDimx, blockDimy );
+	const int widthz = numCases;
+	const int widthyz = imgSizeY*numCases;
+
+	const int sizeModule2 = SIZE_MODULE*SIZE_MODULE;
+	const int sharedY2 = sharedY*sharedY;
+
+	printf("gridDimx %i gridDimy %i blockDimx %i blockDimy %i modulesPerBlockY %i sharedY %i SIZE_MODULE %i \n"
+		,gridDimx, gridDimy, blockDimx, blockDimy, modulesPerBlockY, sharedY, SIZE_MODULE);
 
 	for(int blockIdxx = 0; blockIdxx < gridDimx; blockIdxx++)
 	for(int blockIdxy = 0; blockIdxy < gridDimy; blockIdxy++)
@@ -151,10 +156,7 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 			const int  ix = pixIdx/imgSizeY;
 			const int  iy = pixIdx - ix*imgSizeY;
 
-			const int widthz = numCases;
-			const int widthyz = imgSizeY*numCases;
 
-			const int sizeModule2 = SIZE_MODULE*SIZE_MODULE;
 
 			const int  bw = modulesPerBlockX;
 			const int  bh = modulesPerBlockY;
@@ -165,13 +167,23 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 			for(int channelInd = 0; channelInd < channels; channelInd++)
 				for(int z = threadIdxx + blockIdxx*blockDimx; z < numCases; z += blockDimx*gridDimx)
 				{	
-					const int sOffset = channelInd*sizeModule2*numCases + z*sizeModule2;
+					const int sOffset = channelInd*sharedY2*numCases + z*sharedY2;
 					const int channelOffset = channelInd*imgPixels*numCases;
 
 					if(z < numCases)
 					{
 
 						SHARED_MEM(ix, iy, z, LOBE, getValInput, sdata)	
+						//int dsx=0;
+						//int dsy=0;
+						//int idx = min(max(ix + dsx, 0), imgSizeX-1);
+						//int idy = min(max(iy + dsy, 0), imgSizeY-1);
+						//float inpd = input[channelOffset + idx*widthyz + idy*widthz + z];
+						//float sd = sdata[(sx + dsx + LOBE)*sharedY+(sy + dsy + LOBE) + sOffset];
+						//if(fabs(sd-inpd)>1e-10)
+						//{
+						//	printf(" ix %i iy %i \n", ix, iy);
+						//}
 					}
 				}//z
 		}//thread
@@ -209,15 +221,24 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 						for(int filterID = 0; filterID <  numFilters; filterID++)
 						{
 								float sum = 0;
-								const int sOffset = channelInd*sizeModule2*numCases + z*sizeModule2;
+								const int sOffset = channelInd*sharedY2*numCases + z*sharedY2;
 
 								for(int dsx = - LOBE; dsx < LOBE+1; dsx++)
 								for(int dsy = - LOBE; dsy <  LOBE+1; dsy++)
-								//	sum += sdata[(sx + dsx + LOBE)*sharedY+(sy + dsy + LOBE) + sOffset]
-								//		*filterArea[filterID*sizeModule2 + (-dsy + LOBE)*SIZE_MODULE +(-dsx + LOBE)];
 								{
-			float sdata = input[channelOffset + (ix + dsx + LOBE)*widthyz + (iy + dsy + LOBE)*widthz + z];
-			sum += sdata*filterArea[filterID*sizeModule2 + (-dsy + LOBE)*SIZE_MODULE +(-dsx + LOBE)];
+									int idx = min(max(ix + dsx, 0), imgSizeX-1);
+									int idy = min(max(iy + dsy, 0), imgSizeY-1);
+
+									float inpd = input[channelOffset + idx*widthyz + idy*widthz + z];
+									float sd = sdata[(sx + dsx + LOBE)*sharedY+(sy + dsy + LOBE) + sOffset];
+									//if(fabs(sd-inpd)>1e-10 && dsx==0 && dsy ==0)
+									//{
+									//	printf(" ix %i iy %i \n", ix, iy);
+									//}
+
+									sum += sd*filterArea[filterID*sizeModule2 + (-dsy + LOBE)*SIZE_MODULE +(-dsx + LOBE)];
+
+									//sum += inpd*filterArea[filterID*sizeModule2 + (-dsy + LOBE)*SIZE_MODULE +(-dsx + LOBE)];
 								}
 											
 								target[numFilters*channelOffset + filterID*imgPixels*numCases + ix*widthyz + iy*widthz + z] = sum;
