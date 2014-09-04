@@ -128,7 +128,7 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 								const uint imgSizeX, const uint imgSizeY,
 								const uint imgPixels)
 {
-	float sdata[12*12*128*3*2];
+	float sdata[12*12*128*3*10];
 	memset(sdata, 0, sizeof(sdata));
 
 	const int widthz = numCases;
@@ -147,26 +147,21 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 	for(int blockIdxy = 0; blockIdxy < gridDimy; blockIdxy++)
 	{
 		for(int threadIdxx = 0; threadIdxx < blockDimx; threadIdxx++)
-		for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
+		for(int six = 0; six < sharedY; six++)
+		for(int siy = 0; siy < sharedY; siy++)
+		//for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
 		{
 		//order x>y>z, *not* y>x
-			int pixIdx = threadIdxy + blockDimy*blockIdxy;
+			//int pixIdx = threadIdxy + blockDimy*blockIdxy;
 			
 			//if(pixIdx >= imgPixels)
-			//	return;
+			//	return;//should be if
 
-			const int  ix = pixIdx/imgSizeY;
-			const int  iy = pixIdx - ix*imgSizeY;
+			//const int  ix = pixIdx/imgSizeY;
+			//const int  iy = pixIdx - ix*imgSizeY;
 
-			const int widthz = numCases;
-			const int widthyz = imgSizeY*numCases;
-
-			const int sizeModule2 = SIZE_MODULE*SIZE_MODULE;
-
-			const int  bw = modulesPerBlockX;
-			const int  bh = modulesPerBlockY;
-			const int  sx = threadIdxy/modulesPerBlockY;
-			const int  sy = threadIdxy - sx*modulesPerBlockY;
+			//const int  sx = threadIdxy/modulesPerBlockY;
+			//const int  sy = threadIdxy - sx*modulesPerBlockY;
 
 		//put pragme unroll here	
 			for(int channelInd = 0; channelInd < channels; channelInd++)
@@ -177,20 +172,21 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 
 					if(z < numCases)
 					{
-						for(int filterID = 0; filterID <  numFilters; filterID++)
-						{
-								float sum = 0;
+						int idx = min(max(six -LOBE, 0), imgSizeX-1);
+						int idy = min(max(siy -LOBE, 0), imgSizeY-1);
+						int pidx = idx*imgSizeY + idy;
 
-								for(int dsx = - LOBE; dsx < LOBE+1; dsx++)
-								for(int dsy = - LOBE; dsy <  LOBE+1; dsy++)
-								{
-									int idx = min(max(ix + dsx, 0), imgSizeX-1);
-									int idy = min(max(iy + dsy, 0), imgSizeY-1);
+						sdata[six*sharedY+siy + sOffset] = input[channelOffset + idx*widthyz + idy*widthz + z];
 
-									float inpd = input[channelOffset + idx*widthyz + idy*widthz + z];
-									sdata[(sx + dsx + LOBE)*sharedY+(sy + dsy + LOBE) + sOffset] = inpd;
-								}
-						}
+						//for(int dsx = - LOBE; dsx < LOBE+1; dsx++)
+						//for(int dsy = - LOBE; dsy <  LOBE+1; dsy++)
+						//{
+						//	int idx = min(max(ix + dsx, 0), imgSizeX-1);
+						//	int idy = min(max(iy + dsy, 0), imgSizeY-1);
+
+						//	float inpd = input[channelOffset + idx*widthyz + idy*widthz + z];
+						//	sdata[(sx + dsx + LOBE)*sharedY+(sy + dsy + LOBE) + sOffset] = inpd;
+						//}
 
 						//SHARED_MEM(ix, iy, z, LOBE, getValInput, sdata)	
 						//int dsx=0;
@@ -241,21 +237,6 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 						for(int filterID = 0; filterID <  numFilters; filterID++)
 						{
 								float sum = 0;
-
-								for(int dsx = - LOBE; dsx < LOBE+1; dsx++)
-								for(int dsy = - LOBE; dsy <  LOBE+1; dsy++)
-								{
-									int idx = min(max(ix + dsx, 0), imgSizeX-1);
-									int idy = min(max(iy + dsy, 0), imgSizeY-1);
-
-									float inpd = input[channelOffset + idx*widthyz + idy*widthz + z];
-
-						if(fabs(sdata[(sx + dsx + LOBE)*sharedY+(sy + dsy + LOBE) + sOffset]-inpd)>1e-10)
-						{
-							printf(" ix %i iy %i \n", ix, iy);
-						}
-									sdata[(sx + dsx + LOBE)*sharedY+(sy + dsy + LOBE) + sOffset] = inpd;
-								}
 
 								for(int dsx = - LOBE; dsx < LOBE+1; dsx++)
 								for(int dsy = - LOBE; dsy <  LOBE+1; dsy++)
