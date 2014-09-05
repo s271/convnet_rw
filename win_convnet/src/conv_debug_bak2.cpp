@@ -123,12 +123,12 @@ void debugMicroConvFilterAct(int lobe, int SIZE_MODULE, float* filterArea, const
 #define getValInput(X, Y, Z) input[channelOffset + (X)*widthyz+(Y)*widthz + (Z)]
 
 void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridDimy, int LOBE, int SIZE_MODULE, float* filterArea, const float* input, float* const target,
-								const uint numCases, const uint channels, const uint numFilters,
+								const uint numCases, const uint channels, const uint numFilters, const uint casePerThread,
 								const uint sharedY, const uint modulesPerBlockX,  const uint modulesPerBlockY, 
 								const uint imgSizeX, const uint imgSizeY,
 								const uint imgPixels)
 {
-	float sdata[12*12*128*3*10];
+	float sdata[10*10*128*3*2];
 	memset(sdata, 0, sizeof(sdata));
 
 	const int widthz = numCases;
@@ -143,77 +143,32 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 	printf("gridDimx %i gridDimy %i blockDimx %i blockDimy %i modulesPerBlockY %i channels %i sharedY %i SIZE_MODULE %i \n"
 		,gridDimx, gridDimy, blockDimx, blockDimy, modulesPerBlockY, channels, sharedY, SIZE_MODULE);
 
+
 	for(int blockIdxx = 0; blockIdxx < gridDimx; blockIdxx++)
 	for(int blockIdxy = 0; blockIdxy < gridDimy; blockIdxy++)
 	{
-		for(int threadIdxx = 0; threadIdxx < blockDimx; threadIdxx++)
-		for(int six = 0; six < sharedY; six++)
-		for(int siy = 0; siy < sharedY; siy++)
-		//for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
-		{
-		//order x>y>z, *not* y>x
-			//int pixIdx = threadIdxy + blockDimy*blockIdxy;
-			
-			//if(pixIdx >= imgPixels)
-			//	return;//should be if
 
-			//const int  ix = pixIdx/imgSizeY;
-			//const int  iy = pixIdx - ix*imgSizeY;
-
-			//const int  sx = threadIdxy/modulesPerBlockY;
-			//const int  sy = threadIdxy - sx*modulesPerBlockY;
-
-		//put pragme unroll here	
-			for(int channelInd = 0; channelInd < channels; channelInd++)
-				for(int z = threadIdxx + blockIdxx*blockDimx; z < numCases; z += blockDimx*gridDimx)
-				{	
-					const int sOffset = channelInd*sharedY2*numCases + z*sharedY2;
-					const int channelOffset = channelInd*imgPixels*numCases;
-
-					if(z < numCases)
-					{
-						int idx = min(max(six -LOBE, 0), imgSizeX-1);
-						int idy = min(max(siy -LOBE, 0), imgSizeY-1);
-						int pidx = idx*imgSizeY + idy;
-
-						sdata[six*sharedY+siy + sOffset] = input[channelOffset + idx*widthyz + idy*widthz + z];
-
-						//for(int dsx = - LOBE; dsx < LOBE+1; dsx++)
-						//for(int dsy = - LOBE; dsy <  LOBE+1; dsy++)
-						//{
-						//	int idx = min(max(ix + dsx, 0), imgSizeX-1);
-						//	int idy = min(max(iy + dsy, 0), imgSizeY-1);
-
-						//	float inpd = input[channelOffset + idx*widthyz + idy*widthz + z];
-						//	sdata[(sx + dsx + LOBE)*sharedY+(sy + dsy + LOBE) + sOffset] = inpd;
-						//}
-
-						//SHARED_MEM(ix, iy, z, LOBE, getValInput, sdata)	
-						//int dsx=0;
-						//int dsy=0;
-						//int idx = min(max(ix + dsx, 0), imgSizeX-1);
-						//int idy = min(max(iy + dsy, 0), imgSizeY-1);
-						//float inpd = input[channelOffset + idx*widthyz + idy*widthz + z];
-						//float sd = sdata[(sx + dsx + LOBE)*sharedY+(sy + dsy + LOBE) + sOffset];
-						//if(fabs(sd-inpd)>1e-10)
-						//{
-						//	printf(" ix %i iy %i \n", ix, iy);
-						//}
-					}//if(z < numCases)
-				}//z
-		}//thread
+	for(int zind = 0; zind < casePerThread; zind++)
+	{
 
 		for(int threadIdxx = 0; threadIdxx < blockDimx; threadIdxx++)
-		for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
 		{
-		//order x>y>z, *not* y>x
-			int pixIdx = threadIdxy + blockDimy*blockIdxy;
-			
-			//if(pixIdx >= imgPixels)
-			//	return;
+			const int z = threadIdxx + blockIdxx*blockDimx + zind*blockDimx*gridDimx;
 
-			const int  ix = pixIdx/imgSizeY;
-			const int  iy = pixIdx - ix*imgSizeY;
+			for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
+			{
+
+
+			const int  sx = threadIdxy/modulesPerBlockY;
+			const int  sy = threadIdxy - sx*modulesPerBlockY;
+
+			const int bsizeX = imgSizeX/modulesPerBlockX;
+			const int bsizeY = imgSizeY/modulesPerBlockY;
+			const int startX = (blockIdxy/bsizeY)*modulesPerBlockX;
+			const int startY = (blockIdxy%bsizeY)*modulesPerBlockY;
+
+			const int  ix = sx+startX;
+			const int  iy = sy+startY;
 
 			const int widthz = numCases;
 			const int widthyz = imgSizeY*numCases;
@@ -222,44 +177,82 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 
 			const int  bw = modulesPerBlockX;
 			const int  bh = modulesPerBlockY;
-			const int  sx = threadIdxy/modulesPerBlockY;
-			const int  sy = threadIdxy - sx*modulesPerBlockY;
 
 		//put pragme unroll here	
 			for(int channelInd = 0; channelInd < channels; channelInd++)
-				for(int z = threadIdxx + blockIdxx*blockDimx; z < numCases; z += blockDimx*gridDimx)
-				{	
-					const int sOffset = channelInd*sharedY2*numCases + z*sharedY2;
-					const int channelOffset = channelInd*imgPixels*numCases;
+			{
+				const int sOffset = channelInd*sharedY2*casePerThread + zind*sharedY2;
+				const int channelOffset = channelInd*imgPixels*numCases;
 
-					if(z < numCases)
+				if(z < numCases)
+				{
+					for(int filterID = 0; filterID <  numFilters; filterID++)
 					{
-						for(int filterID = 0; filterID <  numFilters; filterID++)
-						{
-								float sum = 0;
+							
+							SHARED_MEM(ix, iy, z, LOBE, getValInput, sdata)
 
-								for(int dsx = - LOBE; dsx < LOBE+1; dsx++)
-								for(int dsy = - LOBE; dsy <  LOBE+1; dsy++)
-								{
-									int idx = min(max(ix + dsx, 0), imgSizeX-1);
-									int idy = min(max(iy + dsy, 0), imgSizeY-1);
+					}//filted
+				}//if
+			}//channel
+		}// y thr
+		}//X THR
 
-									float inpd = input[channelOffset + idx*widthyz + idy*widthz + z];
-									float sd = sdata[(sx + dsx + LOBE)*sharedY+(sy + dsy + LOBE) + sOffset];
-									//if(fabs(sd-inpd)>1e-10 && dsx==0 && dsy ==0)
-									//{
-									//	printf(" ix %i iy %i \n", ix, iy);
-									//}
+		for(int threadIdxx = 0; threadIdxx < blockDimx; threadIdxx++)
+		{
+			const int z = threadIdxx + blockIdxx*blockDimx + zind*blockDimx*gridDimx;
 
-									sum += sd*filterArea[filterID*sizeModule2 + (-dsy + LOBE)*SIZE_MODULE +(-dsx + LOBE)];
+		for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
+		{
+		//order x>y>z, *not* y>x
+			const int  sx = threadIdxy/modulesPerBlockY;
+			const int  sy = threadIdxy - sx*modulesPerBlockY;
 
-									//sum += inpd*filterArea[filterID*sizeModule2 + (-dsy + LOBE)*SIZE_MODULE +(-dsx + LOBE)];
-								}											
-								target[numFilters*channelOffset + filterID*imgPixels*numCases + ix*widthyz + iy*widthz + z] = sum;
-						}//filterID
-					}//if(z < numCases)
-				}//z
-		}//thread
-	}//block
+			const int bsizeX = imgSizeX/modulesPerBlockX;
+			const int bsizeY = imgSizeY/modulesPerBlockY;
+			const int startX = (blockIdxy/bsizeY)*modulesPerBlockX;
+			const int startY = (blockIdxy%bsizeY)*modulesPerBlockY;
+
+			const int  ix = sx+startX;
+			const int  iy = sy+startY;
+
+			const int widthz = numCases;
+			const int widthyz = imgSizeY*numCases;
+
+			const int sizeModule2 = SIZE_MODULE*SIZE_MODULE;
+
+			const int  bw = modulesPerBlockX;
+			const int  bh = modulesPerBlockY;
+
+			for(int channelInd = 0; channelInd < channels; channelInd++)
+			{	
+				const int sOffset = channelInd*sharedY2*casePerThread + zind*sharedY2;
+				const int channelOffset = channelInd*imgPixels*numCases;
+
+				if(z < numCases)
+				{
+					for(int filterID = 0; filterID <  numFilters; filterID++)
+					{
+						float sum = 0;
+
+							for(int dsx = - LOBE; dsx < LOBE+1; dsx++)
+							for(int dsy = - LOBE; dsy <  LOBE+1; dsy++)
+							{
+								int idx = min(max(ix + dsx, 0), imgSizeX-1);
+								int idy = min(max(iy + dsy, 0), imgSizeY-1);
+
+								float sd = sdata[(sx + dsx + LOBE)*sharedY+(sy + dsy + LOBE) + sOffset];
+
+								sum += sd*filterArea[filterID*sizeModule2 + (-dsy + LOBE)*SIZE_MODULE +(-dsx + LOBE)];
+
+							}											
+							target[numFilters*channelOffset + filterID*imgPixels*numCases + ix*widthyz + iy*widthz + z] = sum;
+					}//filterID
+				}//if(z < numCases)
+			}//channel
+
+		}//thread x
+		}//thread y
+		}//zind
+	}// block
 	
 }
