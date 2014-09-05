@@ -185,16 +185,6 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 						{
 								
 								SHARED_MEM(ix, iy, z, LOBE, getValInput, sdata)
-								//for(int dsx = - LOBE; dsx < LOBE+1; dsx++)
-								//for(int dsy = - LOBE; dsy <  LOBE+1; dsy++)
-								//{
-								//	int idx = min(max(ix + dsx, 0), imgSizeX-1);
-								//	int idy = min(max(iy + dsy, 0), imgSizeY-1);
-
-								//	float inpd = input[channelOffset + idx*widthyz + idy*widthz + z];
-
-								//	sdata[(sx + dsx + LOBE)*sharedY+(sy + dsy + LOBE) + sOffset] = inpd;
-								//}
 						}//filted
 					}//if
 				}//z,channel
