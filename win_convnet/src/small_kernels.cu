@@ -416,11 +416,12 @@ __global__ void kMicroConvFilterAct(const float* input, float* const target,
 
 
 //put pragme unroll here	
-	for(int channelInd = 0; channelInd < channels; channelInd++)
-		for(int z = threadIdx.x + blockIdx.x*blockDim.x; z < numCases; z += blockDim.x*gridDim.x)
+	for(int zind = 0; zind < casePerThread; zind++)
+	{
+		const int z = threadIdx.x + blockIdx.x*blockDim.x + zind*blockDim.x*gridDim.x;			
+		for(int channelInd = 0; channelInd < channels; channelInd++)
 		{	
-			const int zind = z/(blockDim.x*gridDim.x);
-			const int sOffset = channelInd*sharedY2*casePerThread + zind*sharedY2;
+			const int sOffset = channelInd*sharedY2*blockDim.x + threadIdx.x*sharedY2;
 			const int channelOffset = channelInd*imgPixels*numCases;
 
 			if(z < numCases)
@@ -430,13 +431,11 @@ __global__ void kMicroConvFilterAct(const float* input, float* const target,
 			}
 		}
 
-	__syncthreads();
+		__syncthreads();
 
-	for(int channelInd = 0; channelInd < channels; channelInd++)
-		for(int z = threadIdx.x + blockIdx.x*blockDim.x; z < numCases; z += blockDim.x*gridDim.x)
+		for(int channelInd = 0; channelInd < channels; channelInd++)
 		{	
-			const int zind = z/(blockDim.x*gridDim.x);
-			const int sOffset = channelInd*sharedY2*casePerThread + zind*sharedY2;
+			const int sOffset = channelInd*sharedY2*blockDim.x + threadIdx.x*sharedY2;
 			const int channelOffset = channelInd*imgPixels*numCases;
 
 			if(z < numCases)
@@ -452,9 +451,10 @@ __global__ void kMicroConvFilterAct(const float* input, float* const target,
 									
 						target[numFilters*channelOffset + filterID*imgPixels*numCases + ix*widthyz + iy*widthz + z] = sum;
 
-				}
-			}
-		}
+				}//filter
+			}//if
+		}//channel
+	}//zind
 }
 #define getValAct(X, Y, Z) actGrad[filterOffset + (X)*widthyz+(Y)*widthz + (Z)]
 
@@ -1112,8 +1112,8 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 
 	int img_threads_x = 8;
 	int img_threads_y = 8;
-	int casePerThread = 4;
-	int nblocksx = 4;//~number of blocks x
+	int casePerThread = 16;
+	int nblocksx = 2;//~number of blocks x
 	int case_threads = DIVUP(numCases, nblocksx*casePerThread); 
 
 	int imgBlocksY = DIVUP(imgSizeY,img_threads_x);
@@ -1137,7 +1137,8 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 		temp[i] = (float)param[i];
 	cudaMemcpyToSymbol(const_area, temp, sizeof(float)*CONST_AREA_SIZE, 0, cudaMemcpyHostToDevice);
 
-	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i shared_size %i \n",blocks.x, blocks.y, threads.x, threads.y, shared_size);
+	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i shared_size %i casePerThread %i\n",
+		blocks.x, blocks.y, threads.x, threads.y, shared_size, casePerThread);
 	printf("sharedY %i img_threads_x %i img_threads_y %i sizeModuleSide %i imgSizeX %i imgSizeY %i imgPixels %i numFilters %i numCases %i lobe %i\n",
 		sharedY,img_threads_x,img_threads_y,sizeModuleSide,imgSizeX,imgSizeY, imgPixels,numFilters,numCases,lobe);
 
