@@ -388,7 +388,7 @@ __global__ void kEltwiseFuncParamGradSingle_t(float* actGrad, float* input, floa
 
 template < int LOBE, int SIZE_MODULE>
 __global__ void kMicroConvFilterAct(const float* input, float* const target,
-								const uint numCases, const uint channels, const uint numFilters,
+								const uint numCases, const uint channels, const uint numFilters, const uint casePerThread,
 								const uint sharedY, const uint modulesPerBlockX,  const uint modulesPerBlockY, 
 								const uint imgSizeX, const uint imgSizeY,
 								const uint imgPixels)
@@ -419,7 +419,8 @@ __global__ void kMicroConvFilterAct(const float* input, float* const target,
 	for(int channelInd = 0; channelInd < channels; channelInd++)
 		for(int z = threadIdx.x + blockIdx.x*blockDim.x; z < numCases; z += blockDim.x*gridDim.x)
 		{	
-			const int sOffset = channelInd*sharedY2*numCases + z*sharedY2;
+			const int zind = z/(blockDim.x*gridDim.x);
+			const int sOffset = channelInd*sharedY2*casePerThread + zind*sharedY2;
 			const int channelOffset = channelInd*imgPixels*numCases;
 
 			if(z < numCases)
@@ -434,8 +435,10 @@ __global__ void kMicroConvFilterAct(const float* input, float* const target,
 	for(int channelInd = 0; channelInd < channels; channelInd++)
 		for(int z = threadIdx.x + blockIdx.x*blockDim.x; z < numCases; z += blockDim.x*gridDim.x)
 		{	
-			const int sOffset = channelInd*sharedY2*numCases + z*sharedY2;
+			const int zind = z/(blockDim.x*gridDim.x);
+			const int sOffset = channelInd*sharedY2*casePerThread + zind*sharedY2;
 			const int channelOffset = channelInd*imgPixels*numCases;
+
 			if(z < numCases)
 			{
 				for(int filterID = 0; filterID <  numFilters; filterID++)
@@ -1167,7 +1170,7 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 	emuMicroConvFilterAct(threads.x, threads.y, blocks.x, blocks.y,
 										(SIZE_MODULE-1)/2, SIZE_MODULE,
 										temp, tempHostInput, tempHostTarget,
-										numCases, channels, numFilters,
+										numCases, channels, numFilters, casePerThread,
 										sharedY, img_threads_x,  img_threads_y, 
 										imgSizeX, imgSizeY,
 										imgPixels);
@@ -1181,7 +1184,7 @@ void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& para
 
 
 	kMicroConvFilterAct<(SIZE_MODULE-1)/2, SIZE_MODULE><<<blocks, threads, shared_size>>>(input.getDevData(), target.getDevData(),
-										numCases, channels, numFilters,
+										numCases, channels, numFilters, casePerThread,
 										sharedY, img_threads_x,  img_threads_y, 
 										imgSizeX, imgSizeY,
 										imgPixels);

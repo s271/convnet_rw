@@ -123,7 +123,7 @@ void debugMicroConvFilterAct(int lobe, int SIZE_MODULE, float* filterArea, const
 #define getValInput(X, Y, Z) input[channelOffset + (X)*widthyz+(Y)*widthz + (Z)]
 
 void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridDimy, int LOBE, int SIZE_MODULE, float* filterArea, const float* input, float* const target,
-								const uint numCases, const uint channels, const uint numFilters,
+								const uint numCases, const uint channels, const uint numFilters, const uint casePerThread,
 								const uint sharedY, const uint modulesPerBlockX,  const uint modulesPerBlockY, 
 								const uint imgSizeX, const uint imgSizeY,
 								const uint imgPixels)
@@ -146,11 +146,12 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 	for(int blockIdxx = 0; blockIdxx < gridDimx; blockIdxx++)
 	for(int blockIdxy = 0; blockIdxy < gridDimy; blockIdxy++)
 	{
+		for(int threadIdxx = 0; threadIdxx < blockDimx; threadIdxx++)
+		{
 
 		for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
 		{
-		for(int threadIdxx = 0; threadIdxx < blockDimx; threadIdxx++)
-		{
+
 
 			const int  sx = threadIdxy/modulesPerBlockY;
 			const int  sy = threadIdxy - sx*modulesPerBlockY;
@@ -175,7 +176,8 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 			for(int channelInd = 0; channelInd < channels; channelInd++)
 				for(int z = threadIdxx + blockIdxx*blockDimx; z < numCases; z += blockDimx*gridDimx)
 				{	
-					const int sOffset = channelInd*sharedY2*numCases + z*sharedY2;
+					const int zind = z/(blockDimx*gridDimx);
+					const int sOffset = channelInd*sharedY2*casePerThread + zind*sharedY2;
 					const int channelOffset = channelInd*imgPixels*numCases;
 
 					if(z < numCases)
@@ -197,12 +199,9 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 						}//filted
 					}//if
 				}//z,channel
-		}// x thr
-		}
+		}// y thr
 
 		for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
-		{
-		for(int threadIdxx = 0; threadIdxx < blockDimx; threadIdxx++)
 		{
 		//order x>y>z, *not* y>x
 			const int  sx = threadIdxy/modulesPerBlockY;
@@ -227,7 +226,8 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 			for(int channelInd = 0; channelInd < channels; channelInd++)
 				for(int z = threadIdxx + blockIdxx*blockDimx; z < numCases; z += blockDimx*gridDimx)
 				{	
-					const int sOffset = channelInd*sharedY2*numCases + z*sharedY2;
+					const int zind = z/(blockDimx*gridDimx);
+					const int sOffset = channelInd*sharedY2*casePerThread + zind*sharedY2;
 					const int channelOffset = channelInd*imgPixels*numCases;
 
 					if(z < numCases)
