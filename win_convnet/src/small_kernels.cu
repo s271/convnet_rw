@@ -446,8 +446,14 @@ __global__ void kMicroConvFilterAct(const float* input, float* const target,
 
 						for(int dsx = - LOBE; dsx < LOBE+1; dsx++)
 						for(int dsy = - LOBE; dsy <  LOBE+1; dsy++)
-							sum += sdata[(sx + dsx + LOBE)*sharedY+(sy + dsy + LOBE)]
-								*const_area[filterID*sizeModule2 + (-dsy + LOBE)*SIZE_MODULE +(-dsx + LOBE)];
+						{
+							int idx = min(max(ix + dsx, 0), imgSizeX-1);
+							int idy = min(max(iy + dsy, 0), imgSizeY-1);
+
+							float sd = sdata[(sx + dsx + LOBE)*sharedY+(sy + dsy + LOBE) + sOffset];
+
+							sum += sd*const_area[filterID*sizeModule2 + (-dsy + LOBE)*SIZE_MODULE +(-dsx + LOBE)];
+						}
 									
 						target[numFilters*channelOffset + filterID*imgPixels*numCases + ix*widthyz + iy*widthz + z] = sum;
 

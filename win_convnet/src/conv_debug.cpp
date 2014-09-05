@@ -140,6 +140,9 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 	const int  bw = modulesPerBlockX;
 	const int  bh = modulesPerBlockY;
 
+			const int bsizeX = imgSizeX/modulesPerBlockX;
+			const int bsizeY = imgSizeY/modulesPerBlockY;
+
 	printf("gridDimx %i gridDimy %i blockDimx %i blockDimy %i modulesPerBlockY %i channels %i sharedY %i SIZE_MODULE %i \n"
 		,gridDimx, gridDimy, blockDimx, blockDimy, modulesPerBlockY, channels, sharedY, SIZE_MODULE);
 
@@ -149,34 +152,23 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 		for(int zind = 0; zind < casePerThread; zind++)
 		{
 		for(int threadIdxx = 0; threadIdxx < blockDimx; threadIdxx++)
-		{
 		for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
 		{
 
+			const int startX = (blockIdxy/bsizeY)*modulesPerBlockX;
+			const int startY = (blockIdxy%bsizeY)*modulesPerBlockY;
 
 			const int  sx = threadIdxy/modulesPerBlockY;
 			const int  sy = threadIdxy - sx*modulesPerBlockY;
 
-			const int bsizeX = imgSizeX/modulesPerBlockX;
-			const int bsizeY = imgSizeY/modulesPerBlockY;
-			const int startX = (blockIdxy/bsizeY)*modulesPerBlockX;
-			const int startY = (blockIdxy%bsizeY)*modulesPerBlockY;
-
 			const int  ix = sx+startX;
 			const int  iy = sy+startY;
 
-			const int widthz = numCases;
-			const int widthyz = imgSizeY*numCases;
-
-			const int sizeModule2 = SIZE_MODULE*SIZE_MODULE;
-
-			const int  bw = modulesPerBlockX;
-			const int  bh = modulesPerBlockY;
+			const int z = threadIdxx + blockIdxx*blockDimx + zind*blockDimx*gridDimx;	
 
 		//put pragme unroll here	
 			for(int channelInd = 0; channelInd < channels; channelInd++)
 			{	
-					const int z = threadIdxx + blockIdxx*blockDimx + zind*blockDimx*gridDimx;					
 					const int sOffset = channelInd*sharedY2*blockDimx + threadIdxx*sharedY2;
 					const int channelOffset = channelInd*imgPixels*numCases;
 
@@ -189,36 +181,26 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 						}//filted
 					}//if
 				}//z,channel
-		}// y thr
 		}//x thr
 
 		for(int threadIdxx = 0; threadIdxx < blockDimx; threadIdxx++)
-		{
 		for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
 		{
 		//order x>y>z, *not* y>x
-			const int  sx = threadIdxy/modulesPerBlockY;
-			const int  sy = threadIdxy - sx*modulesPerBlockY;
-
-			const int bsizeX = imgSizeX/modulesPerBlockX;
-			const int bsizeY = imgSizeY/modulesPerBlockY;
 			const int startX = (blockIdxy/bsizeY)*modulesPerBlockX;
 			const int startY = (blockIdxy%bsizeY)*modulesPerBlockY;
+
+			const int  sx = threadIdxy/modulesPerBlockY;
+			const int  sy = threadIdxy - sx*modulesPerBlockY;
 
 			const int  ix = sx+startX;
 			const int  iy = sy+startY;
 
-			const int widthz = numCases;
-			const int widthyz = imgSizeY*numCases;
+			const int z = threadIdxx + blockIdxx*blockDimx + zind*blockDimx*gridDimx;	
 
-			const int sizeModule2 = SIZE_MODULE*SIZE_MODULE;
-
-			const int  bw = modulesPerBlockX;
-			const int  bh = modulesPerBlockY;
 
 			for(int channelInd = 0; channelInd < channels; channelInd++)
 			{	
-					const int z = threadIdxx + blockIdxx*blockDimx + zind*blockDimx*gridDimx;			
 					const int sOffset = channelInd*sharedY2*blockDimx + threadIdxx*sharedY2;
 					const int channelOffset = channelInd*imgPixels*numCases;
 
@@ -238,12 +220,13 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 
 									sum += sd*filterArea[filterID*sizeModule2 + (-dsy + LOBE)*SIZE_MODULE +(-dsx + LOBE)];
 
-								}											
+								}	
+										
+
 								target[numFilters*channelOffset + filterID*imgPixels*numCases + ix*widthyz + iy*widthz + z] = sum;
 						}//filterID
 					}//if(z < numCases)
 				}//channel
-		}//thread x
 		}//thread y
 		}//zind
 
@@ -269,6 +252,11 @@ void emuMicroConvFilterAct__(int blockDimx, int blockDimy, int gridDimx, int gri
 	const int sizeModule2 = SIZE_MODULE*SIZE_MODULE;
 	const int sharedY2 = sharedY*sharedY;
 
+	const int bsizeX = imgSizeX/modulesPerBlockX;
+	const int bsizeY = imgSizeY/modulesPerBlockY;
+	const int  bw = modulesPerBlockX;
+	const int  bh = modulesPerBlockY;
+
 	printf("gridDimx %i gridDimy %i blockDimx %i blockDimy %i modulesPerBlockY %i channels %i sharedY %i SIZE_MODULE %i \n"
 		,gridDimx, gridDimy, blockDimx, blockDimy, modulesPerBlockY, channels, sharedY, SIZE_MODULE);
 
@@ -281,20 +269,17 @@ void emuMicroConvFilterAct__(int blockDimx, int blockDimy, int gridDimx, int gri
 		for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
 		{
 
-	const int bsizeX = imgSizeX/modulesPerBlockX;
-	const int bsizeY = imgSizeY/modulesPerBlockY;
-	const int startX = (blockIdxy/bsizeY)*modulesPerBlockX;
-	const int startY = (blockIdxy%bsizeY)*modulesPerBlockY;
+			const int startX = (blockIdxy/bsizeY)*modulesPerBlockX;
+			const int startY = (blockIdxy%bsizeY)*modulesPerBlockY;
 
-    const int  bw = modulesPerBlockX;
-    const int  bh = modulesPerBlockY;
-    const int  sx = threadIdxy/modulesPerBlockY;
-    const int  sy = threadIdxy - sx*modulesPerBlockY;
+			const int  sx = threadIdxy/modulesPerBlockY;
+			const int  sy = threadIdxy - sx*modulesPerBlockY;
 
-	const int  ix = sx+startX;
-	const int  iy = sy+startY;
+			const int  ix = sx+startX;
+			const int  iy = sy+startY;
 
-			const int z = threadIdxx + blockIdxx*blockDimx + zind*blockDimx*gridDimx;			
+			const int z = threadIdxx + blockIdxx*blockDimx + zind*blockDimx*gridDimx;	
+
 			for(int channelInd = 0; channelInd < channels; channelInd++)
 			{	
 				const int sOffset = channelInd*sharedY2*blockDimx + threadIdxx*sharedY2;
@@ -313,18 +298,14 @@ void emuMicroConvFilterAct__(int blockDimx, int blockDimy, int gridDimx, int gri
 		for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
 		{
 
-	const int bsizeX = imgSizeX/modulesPerBlockX;
-	const int bsizeY = imgSizeY/modulesPerBlockY;
-	const int startX = (blockIdxy/bsizeY)*modulesPerBlockX;
-	const int startY = (blockIdxy%bsizeY)*modulesPerBlockY;
+			const int startX = (blockIdxy/bsizeY)*modulesPerBlockX;
+			const int startY = (blockIdxy%bsizeY)*modulesPerBlockY;
 
-    const int  bw = modulesPerBlockX;
-    const int  bh = modulesPerBlockY;
-    const int  sx = threadIdxy/modulesPerBlockY;
-    const int  sy = threadIdxy - sx*modulesPerBlockY;
+			const int  sx = threadIdxy/modulesPerBlockY;
+			const int  sy = threadIdxy - sx*modulesPerBlockY;
 
-	const int  ix = sx+startX;
-	const int  iy = sy+startY;
+			const int  ix = sx+startX;
+			const int  iy = sy+startY;
 
 			const int z = threadIdxx + blockIdxx*blockDimx + zind*blockDimx*gridDimx;			
 
