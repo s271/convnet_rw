@@ -234,3 +234,52 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 	
 }
 
+#define getValAct(X, Y, Z) actGrad[filterOffset + (X)*widthyz+(Y)*widthz + (Z)]
+
+void debugMicroConvActGrad(int LOBE, int SIZE_MODULE, float* filterArea, const float* actGrad, float* const target,
+								const uint numCases, const uint channels, const uint numFilters, const uint casePerThread,
+								const uint modulesPerBlockX, const uint modulesPerBlockY,
+								const uint sharedY, const uint sizeModule, const uint lobe,
+								const uint imgSizeX, const uint imgSizeY,
+								const uint imgPixels)
+{
+
+
+	const int widthz = numCases;
+	const int widthyz = imgSizeY*numCases;
+	int sizeModule2 = SIZE_MODULE*SIZE_MODULE;
+
+	for(int z = 0; z < numCases; z++)
+	{
+
+		for(int channelInd = 0; channelInd < channels; channelInd++)
+		{
+			const int channelOffset = channelInd*imgPixels*numCases;
+			for(int ix = 0; ix < imgSizeX; ix++)
+			for(int iy = 0; iy < imgSizeY; iy++)
+			{
+				float sum = 0;
+				for(int filterID = 0; filterID <  numFilters; filterID++)
+				{
+					const int filterOffset = numFilters*channelOffset + filterID*imgPixels*numCases;
+
+
+					
+					for(int dsx = - lobe; dsx < lobe+1; dsx++)
+					for(int dsy = - lobe; dsy <  lobe+1; dsy++)
+					{
+
+						int idx = min(max(ix - dsx, 0), imgSizeX-1);
+						int idy = min(max(iy - dsy, 0), imgSizeY-1);
+
+						float inpd = actGrad[filterOffset + idx*widthyz + idy*widthz + z];
+
+						sum += inpd*filterArea[filterID*sizeModule2 + (-dsy + lobe)*sizeModule +(-dsx + lobe)];
+					}
+				}
+				target[channelOffset + ix*widthyz + iy*widthz + z] = sum;
+			}
+		}
+	}
+}
+
