@@ -262,15 +262,13 @@ void debugMicroConvActGrad(int LOBE, int SIZE_MODULE, float* filterArea, const f
 				for(int filterID = 0; filterID <  numFilters; filterID++)
 				{
 					const int filterOffset = numFilters*channelOffset + filterID*imgPixels*numCases;
-
-
 					
 					for(int dsx = - lobe; dsx < lobe+1; dsx++)
 					for(int dsy = - lobe; dsy <  lobe+1; dsy++)
 					{
 
-						int idx = min(max(ix - dsx, 0), imgSizeX-1);
-						int idy = min(max(iy - dsy, 0), imgSizeY-1);
+						int idx = min(max(ix + dsx, 0), imgSizeX-1);
+						int idy = min(max(iy + dsy, 0), imgSizeY-1);
 
 						float inpd = actGrad[filterOffset + idx*widthyz + idy*widthz + z];
 

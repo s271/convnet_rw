@@ -34,4 +34,11 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 								const uint imgSizeX, const uint imgSizeY,
 								const uint imgPixels);
 
+void debugMicroConvActGrad(int LOBE, int SIZE_MODULE, float* filterArea, const float* actGrad, float* const target,
+								const uint numCases, const uint channels, const uint numFilters, const uint casePerThread,
+								const uint modulesPerBlockX, const uint modulesPerBlockY,
+								const uint sharedY, const uint sizeModule, const uint lobe,
+								const uint imgSizeX, const uint imgSizeY,
+								const uint imgPixels);
+
 

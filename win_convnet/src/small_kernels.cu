@@ -1268,12 +1268,34 @@ void computeMicroConvActGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& targe
 		sharedY,img_threads_x,img_threads_y,sizeModuleSide,imgSizeX,imgSizeY, imgPixels,numFilters,numCases,lobe);
 
 
+	singletonTempMem.allocFloatElement(actGrad.getNumCols()*actGrad.getNumRows());
+	singletonTempMem.allocFloatElement(target.getNumCols()*target.getNumRows());
+	float* tempHostInput = singletonTempMem.getPtr(0);
+	float* tempHostTarget = singletonTempMem.getPtr(1);
+
+	cutilSafeCallNoSync( cudaMemcpy(tempHostInput, actGrad.getDevData(), actGrad.getNumCols()*actGrad.getNumRows()*sizeof(float),
+		cudaMemcpyDeviceToHost) );
+
+	double sum_host =0;
+	debugMicroConvActGrad((SIZE_MODULE-1)/2, SIZE_MODULE, temp, tempHostInput, tempHostTarget,
+								numCases, channels, numFilters, casePerThread, 
+								img_threads_x, img_threads_y,
+								sharedY, sizeModuleSide, lobe,
+								imgSizeX, imgSizeY,
+								imgPixels);
+	sum_host = Sum(tempHostTarget, target.getNumCols()*target.getNumRows());
+	printf(" debugMicroConvFilterAct sum %f \n", sum_host);
+
+
 	kMicroConvActGrad<<<blocks, threads, shared_size>>>(actGrad.getDevData(), target.getDevData(),
 								numCases, channels, numFilters, casePerThread, 
 								img_threads_x, img_threads_y,
 								sharedY, sizeModuleSide, lobe,
 								imgSizeX, imgSizeY,
 								imgPixels);
+	double sum = target.sum();
+	printf(" kMicroConvGrad sum %f \n", sum);
+
 //debug
 	printf("kMicroConvGrad end \n");
 
