@@ -638,6 +638,7 @@ class EltwiseFuncParser(LayerWithInputParser):
         LayerWithInputParser.add_params(self, mcp)
 
         dic, name = self.dic, self.dic['name'] 
+        dic['gradConsumer'] = True
         dic['epsP'] = mcp.safe_get_float(name, 'epsP')      
         dic['wc'] = mcp.safe_get_float(name, 'wc')    
         dic['mom'] = mcp.safe_get_float(name, 'mom')     
@@ -678,6 +679,7 @@ class VectFuncParser(LayerWithInputParser):
         LayerWithInputParser.add_params(self, mcp)
 
         dic, name = self.dic, self.dic['name'] 
+        dic['gradConsumer'] = True
         dic['epsP'] = mcp.safe_get_float(name, 'epsP')      
         dic['wc'] = mcp.safe_get_float(name, 'wc')    
         dic['mom'] = mcp.safe_get_float(name, 'mom') 
@@ -736,6 +738,7 @@ class MicroConvParser(LayerWithInputParser):
         LayerWithInputParser.add_params(self, mcp)
 
         dic, name = self.dic, self.dic['name'] 
+        dic['gradConsumer'] = True
         dic['epsP'] = mcp.safe_get_float(name, 'epsP')      
         dic['wc'] = mcp.safe_get_float(name, 'wc')    
         dic['mom'] = mcp.safe_get_float(name, 'mom') 

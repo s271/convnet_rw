@@ -1406,7 +1406,7 @@ printf("kVectFuncAct start \n");
 	printf("numPixelsPerGroup %i out_width %i out_height %i sizeV %i \n",numPixelsPerGroup,out_width,out_height,sizeV);
 
 //debug
-//cudaMemset(target.getDevData(), 0, out_height*out_width*sizeof(float));
+cudaMemset(target.getDevData(), 0, out_height*out_width*sizeof(float));
 
 #define ELT_ACT(SIZE_ARR) \
 	if(sizeV == SIZE_ARR){\
