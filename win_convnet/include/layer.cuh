@@ -230,6 +230,7 @@ protected:
 	int _sizeV, _sizeH, _channels;
 
 	vector<NVMatrix> _tempMatrixArray;
+	void* _arrayPtr;
 
 	vector<double> _grad_store[NSTORE];
 	int _nstore_count[NSTORE];
@@ -239,6 +240,7 @@ protected:
     void copyToCPU();
 public:
     VectFuncLayer(ConvNet* convNet, PyObject* paramsDict);
+	~VectFuncLayer();
 };
 
 class MicroConvLayer : public Layer {
@@ -249,6 +251,7 @@ protected:
 	PyObject* hParamListInc;
 	float _epsP, _wc, _mom;
 	int _size;
+	void* _arrayPtr;
 
 	vector<NVMatrix> _tempMatrixArray;
 
@@ -262,6 +265,7 @@ protected:
     void copyToCPU();
 public:
     MicroConvLayer(ConvNet* convNet, PyObject* paramsDict);
+	~MicroConvLayer();
 };
 
 class DataLayer : public Layer {

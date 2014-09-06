@@ -533,7 +533,7 @@ ConvLayer::ConvLayer(ConvNet* convNet, PyObject* paramsDict) : LocalLayer(convNe
 void ConvLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
 //debug
-	//printf(" conv fprop name %s \n", _name.c_str());
+	printf(" conv fprop name %s \n", _name.c_str());
 
 
     if (_randSparse->at(inpIdx)) {
@@ -823,7 +823,14 @@ VectFuncLayer::VectFuncLayer(ConvNet* convNet, PyObject* paramsDict): Layer(conv
 
 	for (int j =0; j < _param.size(); j++)
 		_tempMatrixArray.push_back(NVMatrix());
+
+	cudaMalloc(&_arrayPtr, sizeof(float*)* _param.size());
 };
+
+VectFuncLayer::~VectFuncLayer()
+{
+	cudaFree(_arrayPtr);
+}
 
 void VectFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType)
 {
@@ -835,8 +842,12 @@ void VectFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
 
 void VectFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType)
 {
+
+	printf(" VectFuncLayer bpropActs start\n");
+
 	computeVectFuncWeightGrad(v, *_inputs[inpIdx],
 								_tempMatrixArray,
+								_arrayPtr,
 								_param,  _sizeV, _sizeH, _channels);
 
 	int paramSize = _param.size();
@@ -865,6 +876,8 @@ void VectFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_
 
 	computeVectFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(),
 							 _param, _sizeV, _sizeH, _channels);
+
+	printf(" VectFuncLayer bpropActs end\n");
 }
 
 void VectFuncLayer::copyToCPU()
@@ -923,8 +936,13 @@ MicroConvLayer::MicroConvLayer(ConvNet* convNet, PyObject* paramsDict) : Layer(c
 	for (int j =0; j < _param.size(); j++)
 		_tempMatrixArray.push_back(NVMatrix());
 
-
+	cudaMalloc(&_arrayPtr, sizeof(float*)* _param.size());
 };
+
+MicroConvLayer::~MicroConvLayer()
+{
+	cudaFree(_arrayPtr);	
+}
 
 void MicroConvLayer::copyToCPU()
 {
@@ -948,8 +966,11 @@ void MicroConvLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS
 {
 //weight grad
 
+	printf(" MicroConvLayer bpropActs start\n");
+
 	computeMicroConvWeightGrad(v, *_inputs[inpIdx],
 								_tempMatrixArray,
+								_arrayPtr,
 								_param, _size, _channels,
 								_imgSize,_imgPixels, _numFilters);
 
@@ -981,6 +1002,8 @@ void MicroConvLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS
 	computeMicroConvActGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(),
 							 _param, _size, _channels,
 							_imgSize, _imgPixels, _numFilters);
+
+	printf(" MicroConvLayer bpropActs end\n");
 
 };
 

@@ -1303,7 +1303,7 @@ void computeMicroConvActGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& targe
 }
 
 void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
-								vector<NVMatrix>& tempMatrix, void* arrayPtr,
+								vector<NVMatrix>& tempMatrix,
 								vector<double>& param, int sizeModuleSide, int channels,
 								int imgSize, int imgPixels, int numFilters)
 {
@@ -1349,9 +1349,8 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 		tempMatrixPtr[i] = tempMatrix[i].getDevData();
 	}
 
-	cudaMemcpy(arrayPtr, tempMatrixPtr, sizeof(float*)*tempMatrix.size(), cudaMemcpyHostToDevice);
 
-	kMicroConvWeightGrad<<<blocks, threads, shared_size>>>(actGrad.getDevData(), input.getDevData(), (float**)arrayPtr,
+	kMicroConvWeightGrad<<<blocks, threads, shared_size>>>(actGrad.getDevData(), input.getDevData(), (float**)tempMatrixPtr,
 								tag_size, numCases,
 								channels, numFilters, 
 								img_threads_x, img_threads_y, sharedY,
@@ -1493,7 +1492,6 @@ void computeVectFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target,
 
 void computeVectFuncWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 								vector<NVMatrix>& tempMatrix,
-								void* arrayPtr,
 								vector<double>& param,  int sizeV, int sizeH, int channels)
 {
 	assert(sizeV <= 4 || sizeV == 6 || sizeV == 8 || sizeV == 12 || sizeV == 16);
@@ -1501,8 +1499,6 @@ void computeVectFuncWeightGrad(NVMatrix& actGrad, NVMatrix& input,
     int inp_width = input.getNumCols(); 
     int inp_height = input.getNumRows();
 
-	int out_width = inp_width;
-	int out_height = (inp_height*sizeH)/sizeV;
 
 	int numCases = out_width;
 	int numPixelsPerGroup = inp_height/channels;
@@ -1527,25 +1523,25 @@ void computeVectFuncWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 		if (tempMatrix[i].getNumCols() != tag_width || tempMatrix[i].getNumRows() != tag_height) {
 			tempMatrix[i].resize(tag_height, tag_width);
 		}
+
 		tempMatrixPtr[i] = tempMatrix[i].getDevData();
 	}
-
-	cudaMemcpy(arrayPtr, tempMatrixPtr, sizeof(float*)*tempMatrix.size(), cudaMemcpyHostToDevice);
 
 	for(int i =0; i < tempMatrix.size(); i++)
 	{
 		cudaMemset(tempMatrix[i].getDevData(), 0, tag_size*sizeof(float));
-	}
+		printf("tempMatrix[i] %i  %i   \n",tempMatrix[i].getNumCols(), tempMatrix[i].getNumRows());
 
-	printf( "tempMatrix.size() %i tag_width %i tag_height %i actGrad %i %i tempMatrix[0].getStride() %i \n",
-			tempMatrix.size(), tag_width, tag_height, actGrad.getNumCols(), actGrad.getNumRows(), tempMatrix[0].getStride());
+	}
+	printf( tag_width %i tag_height %i actGrad %i %i  \n",
+			tag_width, tag_height, actGrad.getNumCols(), actGrad.getNumRows());
 
 
 #define ELT_GRAD(SIZE_ARR) \
 		if(sizeV == SIZE_ARR){\
 			cudaFuncSetCacheConfig(kVectFuncParamWeightGrad<SIZE_ARR>, cudaFuncCachePreferL1);\
 			kVectFuncParamWeightGrad<SIZE_ARR><<<blocks, threads>>>(actGrad.getDevData(),\
-				input.getDevData(), (float**)arrayPtr, numColors, tag_size, numPixelsPerGroup, numCases,\
+				input.getDevData(), (float**)tempMatrixPtr, numColors, tag_size, numPixelsPerGroup, numCases,\
 				input.getStride(), actGrad.getStride(), tempMatrix[0].getStride(), sizeH);};
 		ELT_GRAD(1)
 		ELT_GRAD(2)
