@@ -237,6 +237,8 @@ protected:
 
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
+	void bpropCommon(NVMatrix& v, PASS_TYPE passType);
+	void bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType);
     void copyToCPU();
 public:
     VectFuncLayer(ConvNet* convNet, PyObject* paramsDict);
@@ -262,6 +264,8 @@ protected:
 
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
+	void bpropCommon(NVMatrix& v, PASS_TYPE passType);
+	void bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType);
     void copyToCPU();
 public:
     MicroConvLayer(ConvNet* convNet, PyObject* paramsDict);
