@@ -985,9 +985,6 @@ void MicroConvLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS
 
 	printf(" MicroConvLayer bpropActs start\n");
 
-
-
-
 	computeMicroConvActGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(),
 							 _param, _size, _channels,
 							_imgSize, _imgPixels, _numFilters);

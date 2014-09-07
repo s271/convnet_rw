@@ -1239,7 +1239,7 @@ void computeMicroConvActGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& targe
 
 	int nblocksx = 2;//~number of blocks x
 
-	int case_threads = DIVUP(numCases, casePerThread); 
+	int case_threads = DIVUP(numCases, nblocksx*casePerThread); 
 
 	int lobe = sizeModuleSide/2;
 
@@ -1251,7 +1251,7 @@ void computeMicroConvActGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& targe
 	int imgBlocksX = DIVUP(imgSizeX,img_threads_y);
 
 	dim3 threads(case_threads, img_threads_x*img_threads_y);
-	dim3 blocks = dim3(DIVUP(numCases, nblocksx*casePerThread),  imgBlocksY*imgBlocksX);
+	dim3 blocks = dim3(DIVUP(numCases, threads.x*casePerThread), imgBlocksY*imgBlocksX);
 	
 
 	float temp[CONST_AREA_SIZE];
@@ -1316,8 +1316,11 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 
 	int img_threads_x = 8;
 	int img_threads_y = 8;
-	int imgsPerThread = 4;//~number of blocks x
-	int case_threads = DIVUP(numCases, imgsPerThread); 
+	int casePerThread = 16;
+
+	int nblocksx = 2;//~number of blocks x
+
+	int case_threads = DIVUP(numCases, nblocksx*casePerThread); 
 
 	int lobe = sizeModuleSide/2;
 
@@ -1329,9 +1332,12 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 	int sizeSharedBlock = sharedX*sharedY;
 	int shared_size = sizeSharedBlock*2*sizeof(float);//looped out - case_threads*imgsPerThread;
 
+	int imgBlocksY = DIVUP(imgSizeY,img_threads_x);
+	int imgBlocksX = DIVUP(imgSizeX,img_threads_y);
+
 //for optimization can change both block sizes!
 	dim3 threads(case_threads, img_threads_x*img_threads_y);
-	dim3 blocks = dim3(DIVUP(numCases, threads.x*imgsPerThread), DIVUP(imgSizeY,img_threads_x) * DIVUP(imgSizeX,img_threads_y));	
+	dim3 blocks = dim3(DIVUP(numCases, threads.x*casePerThread), imgBlocksY*imgBlocksX);
 
 
     int tag_width = input.getNumCols(); //could be reduced
@@ -1350,6 +1356,11 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 	}
 
 	cudaMemcpy(arrayPtr, tempMatrixPtr, sizeof(float*)*tempMatrix.size(), cudaMemcpyHostToDevice);
+
+	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i shared_size %i \n",
+		blocks.x, blocks.y, threads.x, threads.y, shared_size);
+	printf("sharedY %i img_threads_x %i img_threads_y %i sizeModuleSide %i imgSizeX %i imgSizeY %i imgPixels %i numFilters %i numCases %i lobe %i\n",
+		sharedY,img_threads_x,img_threads_y,sizeModuleSide,imgSizeX,imgSizeY, imgPixels,numFilters,numCases,lobe);
 
 	kMicroConvWeightGrad<<<blocks, threads, shared_size>>>(actGrad.getDevData(), input.getDevData(), (float**)arrayPtr,
 								tag_size, numCases,
