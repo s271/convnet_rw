@@ -1,6 +1,7 @@
 #include <matrix.h>
 #include <matrix_funcs.h>
 #include "conv_debug.h"
+#pragma warning( disable : 4018 )
 
 
 #define max std::max<int>
@@ -279,5 +280,56 @@ void debugMicroConvActGrad(int LOBE, int SIZE_MODULE, float* filterArea, const f
 			}
 		}
 	}
+}
+
+ void debugMicroConvWeightGrad(int LOBE, int SIZE_MODULE, int dsx, int dsy, const float* actGrad, const float* input, float* const target_,
+								const uint target_size, const uint numCases,
+								const uint channels, const uint numFilters, 
+								const uint modulesPerBlockX, const uint modulesPerBlockY, const uint sharedY,
+								const uint lobe, const uint sizeModule, const uint sizeShared,
+								const uint imgSizeX, const uint imgSizeY, const uint imgPixels)
+{
+
+//order x>y>z, *not* y>x
+
+
+	const int widthz = numCases;
+	const int widthyz = imgSizeY*numCases;
+
+	const int sizeModule2 = sizeModule*sizeModule;
+	const int sharedY2 = sharedY*sharedY;
+	const int imgSize = imgSizeX*imgSizeY;
+
+	for(int ix = 0; ix < imgSizeX; ix++)
+	for(int iy = 0; iy < imgSizeY; iy++)
+	{
+
+//pragma unroll here
+		for(int channelInd = 0; channelInd < channels; channelInd++)
+		{
+			const int channelOffset = channelInd*imgSize*numCases;
+
+			for(int filterID = 0; filterID <  numFilters; filterID++)
+			{
+				const int filterOffset = numFilters*channelOffset + filterID*imgSize*numCases;
+				const int sOffset = 0;
+
+				float sum = 0;
+
+				for(int z = 0; z < numCases; z++)
+				{	
+						int idx = min(max(ix + dsx, 0), imgSizeX-1);
+						int idy = min(max(iy + dsy, 0), imgSizeY-1);
+
+						float actd = actGrad[filterOffset + ix*widthyz + iy*widthz + z];
+						float imgd = input[channelOffset + idx*widthyz + idy*widthz + z];							
+						sum += actd*imgd;
+				}
+				const int tagOffset = (channelInd*numFilters + filterID)*imgSize;
+				int ind_coeff = filterID*sizeModule2 + (-dsy + lobe)*sizeModule +(-dsx + lobe);
+				target_[tagOffset + ix*imgSizeX + iy] = sum;
+			}//filter
+		}//channel
+	}//ix
 }
 

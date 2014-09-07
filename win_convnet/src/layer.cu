@@ -299,8 +299,6 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
     Matrix& hBiasesInc = *pyDictGetMatrix(paramsDict, "biasesInc");
 
 	string layerType = pyDictGetString(paramsDict, "type");
-	//printf("WeightLayer %s \n", _name.c_str());
-
 
 	MatrixV *phBregman_b_weights = NULL;
 	Matrix *phBregman_b_bias = NULL;

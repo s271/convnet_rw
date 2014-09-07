@@ -1362,7 +1362,7 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 	printf("sharedY %i img_threads_x %i img_threads_y %i sizeModuleSide %i imgSizeX %i imgSizeY %i imgPixels %i numFilters %i numCases %i lobe %i\n",
 		sharedY,img_threads_x,img_threads_y,sizeModuleSide,imgSizeX,imgSizeY, imgPixels,numFilters,numCases,lobe);
 //debug
-
+	int lobe = (SIZE_MODULE-1)/2;
 	const int sizeModule2 = SIZE_MODULE*SIZE_MODULE;
 	int filterID = 0;
 	int dsy = 0;
@@ -1371,7 +1371,7 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 
 	singletonTempMem.allocFloatElement(actGrad.getNumCols()*actGrad.getNumRows());
 	singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
-	singletonTempMem.allocFloatElement(tag_height*tag_width);
+	singletonTempMem.allocFloatElement(tag_height, tag_width);
 	float* tempHostAct = singletonTempMem.getPtr(0);
 	float* tempHostInp = singletonTempMem.getPtr(1);
 	float* tempHostTag = singletonTempMem.getPtr(2);
@@ -1379,7 +1379,7 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 	cutilSafeCallNoSync( cudaMemcpy(tempHostAct, actGrad.getDevData(), actGrad.getNumCols()*actGrad.getNumRows()*sizeof(float),
 		cudaMemcpyDeviceToHost) );
 
-	cutilSafeCallNoSync( cudaMemcpy(tempHostInp, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float),
+	cutilSafeCallNoSync( cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float),
 		cudaMemcpyDeviceToHost) );
 
 
@@ -1390,19 +1390,12 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 								lobe, sizeModuleSide, sizeSharedBlock,
 								imgSizeX, imgSizeY, imgPixels);
 
-  double sum_host = Sum(tempHostTag, tag_height*tag_width);
-  printf(" debugMicroConvWeightGrad sum %f \n", sum_host);
-
-
 	kMicroConvWeightGrad<<<blocks, threads, shared_size>>>(actGrad.getDevData(), input.getDevData(), (float**)arrayPtr,
 								tag_size, numCases,
 								channels, numFilters, 
 								img_threads_x, img_threads_y, sharedY,
 								lobe, sizeModuleSide, sizeSharedBlock,
 								imgSizeX, imgSizeY, imgPixels);
-
-double sum = tempMatrix[ind_coeff].sum();
-	printf(" kMicroConvWeightGrad sum %f \n", sum);
 
 //debug
 	printf("kMicroConvWeightGrad end \n");

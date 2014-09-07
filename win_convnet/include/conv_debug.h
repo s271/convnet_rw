@@ -41,4 +41,11 @@ void debugMicroConvActGrad(int LOBE, int SIZE_MODULE, float* filterArea, const f
 								const uint imgSizeX, const uint imgSizeY,
 								const uint imgPixels);
 
+ void debugMicroConvWeightGrad(int LOBE, int SIZE_MODULE, int dsx, int dsy, const float* actGrad, const float* input, float* const target_,
+								const uint target_size, const uint numCases,
+								const uint channels, const uint numFilters, 
+								const uint modulesPerBlockX, const uint modulesPerBlockY, const uint sharedY,
+								const uint lobe, const uint sizeModule, const uint sizeShared,
+								const uint imgSizeX, const uint imgSizeY, const uint imgPixels);
+
 
