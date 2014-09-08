@@ -305,16 +305,13 @@ void debugMicroConvActGrad(int LOBE, int SIZE_MODULE, float* filterArea, const f
 	{
 
 //pragma unroll here
-		for(int channelInd = 0; channelInd < channels; channelInd++)
+		for(int filterID = 0; filterID <  numFilters; filterID++)
 		{
-			const int channelOffset = channelInd*imgSize*numCases;
-
-			for(int filterID = 0; filterID <  numFilters; filterID++)
+			float sum = 0;
+			for(int channelInd = 0; channelInd < channels; channelInd++)
 			{
+				const int channelOffset = channelInd*imgSize*numCases;
 				const int filterOffset = numFilters*channelOffset + filterID*imgSize*numCases;
-				const int sOffset = 0;
-
-				float sum = 0;
 
 				for(int z = 0; z < numCases; z++)
 				{	
@@ -324,12 +321,11 @@ void debugMicroConvActGrad(int LOBE, int SIZE_MODULE, float* filterArea, const f
 						float actd = actGrad[filterOffset + ix*widthyz + iy*widthz + z];
 						float imgd = input[channelOffset + idx*widthyz + idy*widthz + z];							
 						sum += actd*imgd;
-				}
-				const int tagOffset = (channelInd*numFilters + filterID)*imgSize;
-				int ind_coeff = filterID*sizeModule2 + (-dsy + lobe)*sizeModule +(-dsx + lobe);
-				target_[tagOffset + ix*imgSizeX + iy] = sum;
-			}//filter
-		}//channel
-	}//ix
+				}//z
+			}//channel
+			int ind_coeff = filterID*sizeModule2 + (-dsy + lobe)*sizeModule +(-dsx + lobe);
+			target_[filterID*imgSize + ix*imgSizeX + iy] = sum;
+		}//filter
+	}//dx
 }
 
