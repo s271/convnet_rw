@@ -548,6 +548,56 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 	float* sdataAct = sdata; 
 	float* sdataImg = sdata + sizeShared;
 
+
+	const int bsizeX = imgSizeX/modulesPerBlockX;
+	const int bsizeY = imgSizeY/modulesPerBlockY;
+	const int startX = (blockIdx.y/bsizeY)*modulesPerBlockX;
+	const int startY = (blockIdx.y%bsizeY)*modulesPerBlockY;
+
+    const int  bw = modulesPerBlockX;
+    const int  bh = modulesPerBlockY;
+    const int  sx = threadIdx.y/modulesPerBlockY;
+    const int  sy = threadIdx.y - sx*modulesPerBlockY;
+
+	const int  ix = sx+startX;
+	const int  iy = sy+startY;
+
+	const int widthz = numCases;
+	const int widthyz = imgSizeY*numCases;
+
+	const int sizeModule2 = sizeModule*sizeModule;
+	const int sharedY2 = sharedY*sharedY;
+	
+	for(int filterID = 0; filterID <  numFilters; filterID++)
+	{
+		for(int dsx = - lobe; dsx < lobe+1; dsx++)
+		for(int dsy = - lobe; dsy <  lobe+1; dsy++)
+		{
+			int idx = min(max(ix + dsx, 0), imgSizeX-1);
+			int idy = min(max(iy + dsy, 0), imgSizeY-1);
+			int ind_coeff = filterID*sizeModule2 + (dsy + lobe)*sizeModule +(dsx + lobe);
+
+			float sum = 0;
+
+			for(int z = threadIdx.x + blockIdx.x*blockDim.x; z < numCases; z += blockDim.x*gridDim.x)
+			{
+				for(int channelInd = 0; channelInd < channels; channelInd++)
+				{	
+					const int sOffset = channelInd*sharedY2*blockDim.x + threadIdx.x*sharedY2;
+					const int channelOffset = channelInd*imgPixels*numCases;
+
+
+					float sd = input[channelOffset + idx*widthyz + idy*widthz + z];
+					sum += sd;								
+
+				}//channel
+
+			}//z
+			target[ind_coeff][ filterID*imgPixels + ix*widthyz + iy*widthz] = sum;
+		}//dx
+	}//filter
+
+/*
 	const int bsizeX = imgSizeX/modulesPerBlockX;
 	const int bsizeY = imgSizeY/modulesPerBlockY;
 	const int startX = (blockIdx.y/bsizeY)*modulesPerBlockX;
@@ -581,8 +631,8 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 			{
 				for(int channelInd = 0; channelInd < channels; channelInd++)
 				{
-					const int channelOffset = channelInd*imgSize*numCases;
-					const int filterOffset = numFilters*channelOffset + filterID*imgSize*numCases;
+					const int channelOffset =0;// channelInd*imgSize*numCases;
+					const int filterOffset =0;// numFilters*channelOffset + filterID*imgSize*numCases;
 					const int sOffset = channelInd*sharedY2;
 	
 
@@ -604,10 +654,11 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 			}//z
 			const int tagOffset = filterID*imgSize;
 			int ind_coeff = filterID*sizeModule2 + (dsy + lobe)*sizeModule +(dsx + lobe);
-			target[ind_coeff][tagOffset + ix*imgSizeX + iy] = sum;
+			target[ind_coeff][tagOffset + ix*imgSizeX + iy] =1;// sum;
 
 		}//dx
 	}//filter
+*/
 }
 //-------------------------------------------------------------
 //VectFunc
@@ -1541,8 +1592,8 @@ void computeVectFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target,
 		ELT_GRAD(16)
 #undef ELT_GRAD
 
-//	float sumt = target.sum();
-//	printf("sum_tag %f \n", sumt);
+	float sumt = target.sum();
+	printf("kVectFuncGrad sum_tag %f \n", sumt);
 
 
 	cutilCheckMsg("kVectFuncGrad: Kernel execution failed");
@@ -1614,6 +1665,9 @@ void computeVectFuncWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 		ELT_GRAD(12)
 		ELT_GRAD(16)
 #undef ELT_GRAD
+
+	//float sumt = tempMatrix[0].sum();
+	//printf("kVectFuncParamWeightGrad sum_tag %f \n", sumt);
 
 		cutilCheckMsg("kVectFuncParamWeightGrad: Kernel execution failed");
 }
