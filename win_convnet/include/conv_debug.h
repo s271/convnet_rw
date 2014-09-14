@@ -52,4 +52,7 @@ void debugMicroConvActGrad(int LOBE, int SIZE_MODULE, float* filterArea, const f
 								const uint imgInPixels, const uint numCases,
 								const uint strideInp, const uint strideTag, int numColors, int sizeH);
 
-
+void emuVectFuncAct(int sizeV, float* filterArea, int gridDimy, int blockDimy, int gridDimx, int blockDimx,
+					float* input, float* const target,
+					const uint imgInPixels, const uint numCases,
+					const uint strideInp, const uint strideTag, int numColors, int sizeH);

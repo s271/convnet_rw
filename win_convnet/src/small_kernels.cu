@@ -694,7 +694,7 @@ __global__ void kVectFuncAct(const float* input, float* const target,
 				}
 	#pragma unroll	
 				for (uint out_i = 0; out_i < sizeH; out_i++) {
-					int out_par = out_i*sizeH;
+					int out_par = out_i*sizeV;
 
 					float output = 0;
 	#pragma unroll			
@@ -1517,7 +1517,7 @@ printf("kVectFuncAct start \n");
 
 	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i numColors %i \n",blocks.x, blocks.y, threads.x, threads.y, numColors);
 	printf("numPixelsPerGroup %i out_width %i out_height %i sizeV %i \n",numPixelsPerGroup,out_width,out_height,sizeV);
-
+	printf("sizeV %i sizeH %i \n", sizeV, sizeH);
 //debug
 cudaMemset(target.getDevData(), 0, out_height*out_width*sizeof(float));
 
@@ -1527,11 +1527,21 @@ cudaMemset(target.getDevData(), 0, out_height*out_width*sizeof(float));
 	float* tempHostTarget = singletonTempMem.getPtr(1);
 	cutilSafeCallNoSync( cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost) );
 	double sum_host =0;
+	memset(tempHostTarget, 0, out_height*out_width*sizeof(float));
 	debugVectFuncAct(sizeV, temp, tempHostInput, tempHostTarget,
 								numPixelsPerGroup, numCases, input.getStride(), target.getStride(), numColors, sizeH);
 
 	sum_host = Sum(tempHostTarget, out_height*out_width);
 	printf(" debugVectFuncAct sum %f \n", sum_host);
+
+	memset(tempHostTarget, 0, out_height*out_width*sizeof(float));
+	 emuVectFuncAct(sizeV, temp, blocks.y, threads.y, blocks.x, threads.x, 
+					tempHostInput, tempHostTarget,
+					numPixelsPerGroup, numCases, input.getStride(), target.getStride(), numColors, sizeH);
+
+	sum_host = Sum(tempHostTarget, out_height*out_width);
+	printf(" emuVectFuncAct sum %f \n", sum_host);
+
 	singletonTempMem.reset();
 
 

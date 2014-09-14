@@ -2,6 +2,7 @@
 #include <matrix_funcs.h>
 #include <math.h> 
 #include "conv_debug.h"
+#include "tt.h"
 #pragma warning( disable : 4018 )
 
 
@@ -343,13 +344,12 @@ void debugVectFuncAct(int sizeV, float* filterArea, const float* input, float* c
 			for (uint color = 0; color < numColors; color ++) {	
 			
 				for (uint out_i = 0; out_i < sizeH; out_i++) {
-					int out_par = out_i*sizeH;
 
 					float output = 0;
 			
 					for (uint inp_i = 0; inp_i < sizeV; inp_i++)
 					{		
-						float param = filterArea[out_par + inp_i];
+						float param = filterArea[out_i*sizeV + inp_i];
 					    float val =
 							  input[color*sizeV*numPixelsPerGroup*strideInp + inp_i*numPixelsPerGroup*strideInp +  iy*strideInp + ix];
 	
@@ -366,6 +366,75 @@ void debugVectFuncAct(int sizeV, float* filterArea, const float* input, float* c
 			}
         }
     }
+
+
+}
+
+void emuVectFuncAct(int sizeV, float* filterArea, int gridDimy, int blockDimy, int gridDimx, int blockDimx,
+					float* input, float* const target,
+					const uint imgInPixels, const uint numCases,
+					const uint strideInp, const uint strideTag, int numColors, int sizeH) {
+
+	const int numPixelsPerGroup = imgInPixels/(sizeV*numColors);	
+#define sizeV 2
+	for(int blockIdxx = 0; blockIdxx < gridDimx; blockIdxx++)
+	for(int blockIdxy = 0; blockIdxy < gridDimy; blockIdxy++)
+	{
+
+	for(int threadIdxx = 0; threadIdxx < blockDimx; threadIdxx++)
+	for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
+	{
+
+    for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDimy*blockDimy) {
+
+        for (uint ix = 0; ix < numCases; ix += gridDimx*blockDimx) {	
+
+			for (uint color = 0; color < numColors; color ++) {	
+			
+				float inpVal[sizeV];//use shared instead?
+
+				for (uint inp_i = 0; inp_i < sizeV; inp_i++) {	
+					Offset inpOffset;
+					inpOffset << color << sizeV << Index(inp_i)
+					<< numPixelsPerGroup
+					<< Index(iy) << Index(blockDimy, blockIdxy) << Index(threadIdxy)
+					<< strideInp
+					<< Index(ix ) << Index(blockDimx, blockIdxx) << Index(threadIdxx);
+
+					float val = input[inpOffset._offset];
+					inpVal[inp_i] = val;
+				}
+	
+				for (uint out_i = 0; out_i < sizeH; out_i++) {
+					int out_par = out_i*sizeV;
+
+					float output = 0;
+			
+					for (uint inp_i = 0; inp_i < sizeV; inp_i++)
+					{		
+						float param = filterArea[out_par + inp_i];
+						float val = inpVal[inp_i];
+						output += param*val;
+					}// inp_i
+
+					//suppression filter could be here
+
+					output = max(output, 0);
+
+					Offset tagOffset;
+					tagOffset << color << sizeH <<Index(out_i)
+					<< numPixelsPerGroup
+					<< Index(iy) << Index(blockDimy, blockIdxy) << Index(threadIdxy)
+					<< strideTag
+					<< Index(ix ) << Index(blockDimx, blockIdxx) << Index(threadIdxx);
+					target[tagOffset._offset] = output;
+				}//out_i
+			}//color
+        }//ix
+    }//iy
+
+	}//threads
+	}//blocks
 
 
 }
