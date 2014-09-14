@@ -664,10 +664,9 @@ const int imgSize = imgSizeX*imgSizeY;
 //-------------------------------------------------------------
 template <int sizeV>
 __global__ void kVectFuncAct(const float* input, float* const target,
-								const uint imgInPixels, const uint numCases,
+								const uint numPixelsPerGroup, const uint numCases,
 								const uint strideInp, const uint strideTag, int numColors, int sizeH) {
-
-	const int numPixelsPerGroup = imgInPixels/(sizeV*numColors);	
+	
 
 //    dim3 blocks(std::min(NUM_BLOCKS_MAX, DIVUP(out_width, ELTWISE_THREADS_X)),
 //                std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)));
@@ -683,7 +682,7 @@ __global__ void kVectFuncAct(const float* input, float* const target,
 	#pragma unroll
 				for (uint inp_i = 0; inp_i < sizeV; inp_i++) {	
 					Offset inpOffset;
-					inpOffset << color << sizeV << Index(inp_i)
+					inpOffset << Index(color) << sizeV << Index(inp_i)
 					<< numPixelsPerGroup
 					<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
 					<< strideInp
@@ -710,14 +709,14 @@ __global__ void kVectFuncAct(const float* input, float* const target,
 					output = fmaxf(output, 0);
 
 					Offset tagOffset;
-					tagOffset << color << sizeH <<Index(out_i)
+					tagOffset << Index(color) << sizeH <<Index(out_i)
 					<< numPixelsPerGroup
 					<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
 					<< strideTag
 					<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
 					target[tagOffset._offset] = output;
 				}//out_i
-			}
+			}//color
         }
     }
 
@@ -727,12 +726,9 @@ __global__ void kVectFuncAct(const float* input, float* const target,
 
 template <int sizeV>
 __global__ void kVectFuncGrad(const float* actGrad, const float* input, float* const target,
-								const uint imgInPixels, const uint numCases,
+								const uint numPixelsPerGroup, const uint numCases,
 								const uint strideInp, const uint strideOut,
 								int numColors, int sizeH) {
-
-
-	const int numPixelsPerGroup = imgInPixels/(sizeV*numColors);
 
 	const int inStep = strideInp*numPixelsPerGroup;
 	const int outStep = strideOut*numPixelsPerGroup;
@@ -789,10 +785,9 @@ __global__ void kVectFuncGrad(const float* actGrad, const float* input, float* c
 template <int sizeV>
 __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* input, float** const target,
 											const uint numColors,
-											const uint target_size, const uint imgInPixels, const uint numCases,
+											const uint target_size, const uint numPixelsPerGroup, const uint numCases,
 											const uint strideInp, const uint strideOut, const uint strideTag, int sizeH)
 {
-	const int numPixelsPerGroup = imgInPixels/(sizeV*numColors);	
 
 	float vres[sizeV];
 	memset(vres, 0, sizeof(vres));
@@ -1516,8 +1511,8 @@ printf("kVectFuncAct start \n");
                 std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)));
 
 	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i numColors %i \n",blocks.x, blocks.y, threads.x, threads.y, numColors);
-	printf("numPixelsPerGroup %i out_width %i out_height %i sizeV %i \n",numPixelsPerGroup,out_width,out_height,sizeV);
-	printf("sizeV %i sizeH %i \n", sizeV, sizeH);
+	printf("inp_height %i numPixelsPerGroup %i out_width %i out_height %i sizeV %i \n",inp_height, numPixelsPerGroup,out_width,out_height,sizeV);
+	printf("sizeV %i sizeH %i strides %i %i \n", sizeV, sizeH, input.getStride(), target.getStride());
 //debug
 cudaMemset(target.getDevData(), 0, out_height*out_width*sizeof(float));
 

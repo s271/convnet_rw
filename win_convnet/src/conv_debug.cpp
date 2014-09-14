@@ -372,11 +372,13 @@ void debugVectFuncAct(int sizeV, float* filterArea, const float* input, float* c
 
 void emuVectFuncAct(int sizeV, float* filterArea, int gridDimy, int blockDimy, int gridDimx, int blockDimx,
 					float* input, float* const target,
-					const uint imgInPixels, const uint numCases,
+					const uint numPixelsPerGroup, const uint numCases,
 					const uint strideInp, const uint strideTag, int numColors, int sizeH) {
 
-	const int numPixelsPerGroup = imgInPixels/(sizeV*numColors);	
-#define sizeV 2
+	printf(" inp_h  %i \n", numColors*sizeV*numPixelsPerGroup);
+	printf(" inp_t  %i \n", numColors*sizeH*numPixelsPerGroup);
+
+
 	for(int blockIdxx = 0; blockIdxx < gridDimx; blockIdxx++)
 	for(int blockIdxy = 0; blockIdxy < gridDimy; blockIdxy++)
 	{
@@ -391,17 +393,20 @@ void emuVectFuncAct(int sizeV, float* filterArea, int gridDimy, int blockDimy, i
 
 			for (uint color = 0; color < numColors; color ++) {	
 			
-				float inpVal[sizeV];//use shared instead?
+				float inpVal[256];//use shared instead?
 
 				for (uint inp_i = 0; inp_i < sizeV; inp_i++) {	
-					Offset inpOffset;
-					inpOffset << color << sizeV << Index(inp_i)
-					<< numPixelsPerGroup
-					<< Index(iy) << Index(blockDimy, blockIdxy) << Index(threadIdxy)
-					<< strideInp
-					<< Index(ix ) << Index(blockDimx, blockIdxx) << Index(threadIdxx);
+					//Offset inpOffset;
+					//inpOffset << Index(color) << sizeV << Index(inp_i)
+					//<< numPixelsPerGroup
+					//<< Index(iy) << Index(blockDimy, blockIdxy) << Index(threadIdxy)
+					//<< strideInp
+					//<< Index(ix ) << Index(blockDimx, blockIdxx) << Index(threadIdxx);
+					//float val = input[inpOffset._offset];
+					int voff = color*sizeV*numPixelsPerGroup*strideInp  + (iy + blockDimy*blockIdxy + threadIdxy)*strideInp+
+						ix + blockDimx*blockIdxx + threadIdxx;
+					float val = input[voff];
 
-					float val = input[inpOffset._offset];
 					inpVal[inp_i] = val;
 				}
 	
@@ -421,13 +426,16 @@ void emuVectFuncAct(int sizeV, float* filterArea, int gridDimy, int blockDimy, i
 
 					output = max(output, 0);
 
-					Offset tagOffset;
-					tagOffset << color << sizeH <<Index(out_i)
-					<< numPixelsPerGroup
-					<< Index(iy) << Index(blockDimy, blockIdxy) << Index(threadIdxy)
-					<< strideTag
-					<< Index(ix ) << Index(blockDimx, blockIdxx) << Index(threadIdxx);
-					target[tagOffset._offset] = output;
+					//Offset tagOffset;
+					//tagOffset << Index(color) << sizeH <<Index(out_i)
+					//<< numPixelsPerGroup
+					//<< Index(iy) << Index(blockDimy, blockIdxy) << Index(threadIdxy)
+					//<< strideTag
+					//<< Index(ix ) << Index(blockDimx, blockIdxx) << Index(threadIdxx);
+					//target[tagOffset._offset] = output;
+					int toffset = color*sizeH*numPixelsPerGroup*strideInp + out_i*numPixelsPerGroup*strideInp
+						+  (iy + blockDimy*blockIdxy +threadIdxy)*strideInp + ix + blockDimx*blockIdxx + threadIdxx;
+					target[toffset] = output;
 				}//out_i
 			}//color
         }//ix
