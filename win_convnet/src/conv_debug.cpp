@@ -332,10 +332,9 @@ void debugMicroConvActGrad(int LOBE, int SIZE_MODULE, float* filterArea, const f
 }
 
 void debugVectFuncAct(int sizeV, float* filterArea, const float* input, float* const target,
-								const uint imgInPixels, const uint numCases,
+								const uint numPixelsPerGroup, const uint numCases,
 								const uint strideInp, const uint strideTag, int numColors, int sizeH)
 {
-	const int numPixelsPerGroup = 1024;//imgInPixels/(sizeV*numColors);	
 
     for (int iy = 0; iy < numPixelsPerGroup; iy ++) {
 
@@ -375,8 +374,6 @@ void emuVectFuncAct(int sizeV, float* filterArea, int gridDimy, int blockDimy, i
 					const uint numPixelsPerGroup, const uint numCases,
 					const uint strideInp, const uint strideTag, int numColors, int sizeH) {
 
-	printf(" inp_h  %i \n", numColors*sizeV*numPixelsPerGroup);
-	printf(" inp_t  %i \n", numColors*sizeH*numPixelsPerGroup);
 
 
 	for(int blockIdxx = 0; blockIdxx < gridDimx; blockIdxx++)
@@ -387,9 +384,9 @@ void emuVectFuncAct(int sizeV, float* filterArea, int gridDimy, int blockDimy, i
 	for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
 	{
 
-    for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDimy*blockDimy) {
+		for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDimy*blockDimy) {
 
-        for (uint ix = 0; ix < numCases; ix += gridDimx*blockDimx) {	
+			for (uint ix = 0; ix < numCases; ix += gridDimx*blockDimx) {	
 
 			for (uint color = 0; color < numColors; color ++) {	
 			
@@ -403,8 +400,14 @@ void emuVectFuncAct(int sizeV, float* filterArea, int gridDimy, int blockDimy, i
 					//<< strideInp
 					//<< Index(ix ) << Index(blockDimx, blockIdxx) << Index(threadIdxx);
 					//float val = input[inpOffset._offset];
-					int voff = color*sizeV*numPixelsPerGroup*strideInp  + (iy + blockDimy*blockIdxy + threadIdxy)*strideInp+
+						//int ixx = ix + blockDimx*blockIdxx + threadIdxx;
+						//int iyy = iy + blockDimy*blockIdxy +threadIdxy;
+
+					int voff = color*sizeV*numPixelsPerGroup*strideInp  +
+						inp_i*numPixelsPerGroup*strideInp +
+						(iy + blockDimy*blockIdxy + threadIdxy)*strideInp+
 						ix + blockDimx*blockIdxx + threadIdxx;
+
 					float val = input[voff];
 
 					inpVal[inp_i] = val;
@@ -418,7 +421,7 @@ void emuVectFuncAct(int sizeV, float* filterArea, int gridDimy, int blockDimy, i
 					for (uint inp_i = 0; inp_i < sizeV; inp_i++)
 					{		
 						float param = filterArea[out_par + inp_i];
-						float val = inpVal[inp_i];
+						float val =	inpVal[inp_i];
 						output += param*val;
 					}// inp_i
 
