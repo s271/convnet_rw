@@ -1,5 +1,6 @@
 #include <matrix.h>
 #include <matrix_funcs.h>
+#include <math.h> 
 #include "conv_debug.h"
 #pragma warning( disable : 4018 )
 
@@ -328,4 +329,45 @@ void debugMicroConvActGrad(int LOBE, int SIZE_MODULE, float* filterArea, const f
 		}//filter
 	}//dx
 }
+
+void debugVectFuncAct(int sizeV, float* filterArea, const float* input, float* const target,
+								const uint imgInPixels, const uint numCases,
+								const uint strideInp, const uint strideTag, int numColors, int sizeH)
+{
+	const int numPixelsPerGroup = 1024;//imgInPixels/(sizeV*numColors);	
+
+    for (int iy = 0; iy < numPixelsPerGroup; iy ++) {
+
+        for (uint ix = 0; ix < numCases; ix ++) {	
+
+			for (uint color = 0; color < numColors; color ++) {	
+			
+				for (uint out_i = 0; out_i < sizeH; out_i++) {
+					int out_par = out_i*sizeH;
+
+					float output = 0;
+			
+					for (uint inp_i = 0; inp_i < sizeV; inp_i++)
+					{		
+						float param = filterArea[out_par + inp_i];
+					    float val =
+							  input[color*sizeV*numPixelsPerGroup*strideInp + inp_i*numPixelsPerGroup*strideInp +  iy*strideInp + ix];
+	
+						output += param*val;
+					}
+
+					//suppression filter could be here
+
+					output = max(output, 0);
+
+					target[color*sizeH*numPixelsPerGroup*strideInp + out_i*numPixelsPerGroup*strideInp +  iy*strideInp + ix]
+						= output;
+				}//out_i
+			}
+        }
+    }
+
+
+}
+
 

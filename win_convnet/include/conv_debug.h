@@ -48,4 +48,8 @@ void debugMicroConvActGrad(int LOBE, int SIZE_MODULE, float* filterArea, const f
 								const uint lobe, const uint sizeModule, const uint sizeShared,
 								const uint imgSizeX, const uint imgSizeY, const uint imgPixels);
 
+ void debugVectFuncAct(int sizeV, float* filterArea, const float* input, float* const target,
+								const uint imgInPixels, const uint numCases,
+								const uint strideInp, const uint strideTag, int numColors, int sizeH);
+
 
