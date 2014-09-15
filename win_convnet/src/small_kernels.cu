@@ -670,7 +670,6 @@ __global__ void kVectFuncAct(const float* input, float* const target,
 // ix, iy == 0 almost always
     for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDim.y*blockDim.y) 
 	{
-
         for (uint ix = 0; ix < numCases; ix += gridDim.x*blockDim.x)
 		{	
 
@@ -679,22 +678,21 @@ __global__ void kVectFuncAct(const float* input, float* const target,
 				float inpVal[sizeV];//use shared instead?
 	#pragma unroll
 				for (uint inp_i = 0; inp_i < sizeV; inp_i++) {	
-					//Offset inpOffset;
-					//inpOffset << Index(color) << sizeV
-					//<< Index(inp_i)
-					//<< numPixelsPerGroup
-					//<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
-					//<< strideInp
-					//<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
-					//float val = input[inpOffset._offset];
-					
+					Offset inpOffset;
+					inpOffset << Index(color) << sizeV
+					<< Index(inp_i)
+					<< numPixelsPerGroup
+					<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
+					<< strideInp
+					<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+					float val = input[inpOffset._offset];					
 
-					int voff = color*sizeV*numPixelsPerGroup*strideInp  +
-						inp_i*numPixelsPerGroup*strideInp +
-						(iy + blockDim.y*blockIdx.y + threadIdx.y)*strideInp+
-						ix + blockDim.x*blockIdx.x + threadIdx.x;
+					//int voff = color*sizeV*numPixelsPerGroup*strideInp  +
+					//	inp_i*numPixelsPerGroup*strideInp +
+					//	(iy + blockDim.y*blockIdx.y + threadIdx.y)*strideInp+
+					//	ix + blockDim.x*blockIdx.x + threadIdx.x;
 
-					float val = input[voff];
+					//float val = input[voff];
 
 					inpVal[inp_i] = val;
 				}
@@ -715,18 +713,18 @@ __global__ void kVectFuncAct(const float* input, float* const target,
 
 					output = fmaxf(output, 0);
 
-					//Offset tagOffset;
-					//tagOffset << Index(color) << sizeH
-					//<<Index(out_i)
-					//<< numPixelsPerGroup
-					//<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
-					//<< strideTag
-					//<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
-					//target[tagOffset._offset] = output;
+					Offset tagOffset;
+					tagOffset << Index(color) << sizeH
+					<<Index(out_i)
+					<< numPixelsPerGroup
+					<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
+					<< strideTag
+					<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+					target[tagOffset._offset] = output;
 
-					int toffset = color*sizeH*numPixelsPerGroup*strideInp + out_i*numPixelsPerGroup*strideInp
-						+  (iy + blockDim.y*blockIdx.y +threadIdx.y)*strideInp + ix + blockDim.x*blockIdx.x + threadIdx.x;
-					target[toffset] = output;
+					//int toffset = color*sizeH*numPixelsPerGroup*strideInp + out_i*numPixelsPerGroup*strideInp
+					//	+  (iy + blockDim.y*blockIdx.y +threadIdx.y)*strideInp + ix + blockDim.x*blockIdx.x + threadIdx.x;
+					//target[toffset] = output;
 				}//out_i
 			}//color
         }
