@@ -1669,13 +1669,13 @@ printf("kVectFuncParamWeightGrad start ************************\n");
 	int tag_size = tag_width*tag_height;
 
 
-	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i \n",
-		blocks.x, blocks.y, threads.x, threads.y);
-	printf("numPixelsPerGroup %i numCases %i numColors %i out_width %i out_height %i\n",
-		numPixelsPerGroup, numCases, numColors, out_width, out_height);
+	//printf("blocks.x %i blocks.y %i threads.x %i threads.y %i \n",
+	//	blocks.x, blocks.y, threads.x, threads.y);
+	//printf("numPixelsPerGroup %i numCases %i numColors %i out_width %i out_height %i\n",
+	//	numPixelsPerGroup, numCases, numColors, out_width, out_height);
 
-	float sumi = input.sum();
-	printf("sumi %f \n",  sumi);
+	//float sumi = input.sum();
+	//printf("sumi %f \n",  sumi);
 
 	float temp[CONST_AREA_SIZE];
 	assert(param.size() <= CONST_AREA_SIZE);
@@ -1700,33 +1700,33 @@ printf("kVectFuncParamWeightGrad start ************************\n");
 		cudaMemset(tempMatrix[i].getDevData(), 0, tag_size*sizeof(float));
 	}
 
-	printf( "tempMatrix.size() %i tag_width %i tag_height %i actGrad %i %i tempMatrix[0].getStride() %i \n",
-			tempMatrix.size(), tag_width, tag_height, actGrad.getNumCols(), actGrad.getNumRows(), tempMatrix[0].getStride());
+	//printf( "tempMatrix.size() %i tag_width %i tag_height %i actGrad %i %i tempMatrix[0].getStride() %i \n",
+	//		tempMatrix.size(), tag_width, tag_height, actGrad.getNumCols(), actGrad.getNumRows(), tempMatrix[0].getStride());
 
 //	cudaMemset(target.getDevData(), 0, out_height*out_width*sizeof(float));
 //	
-	singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
-	singletonTempMem.allocFloatElement(tag_height*tag_width);
-	singletonTempMem.allocFloatElement(actGrad.getNumCols()*actGrad.getNumRows());
-	float* tempHostInput = singletonTempMem.getPtr(0);
-	float* tempHostTarget = singletonTempMem.getPtr(1);
-	float* tempHostActGrad = singletonTempMem.getPtr(2);
-	cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
-	cudaMemcpy(tempHostActGrad, actGrad.getDevData(), actGrad.getNumCols()*actGrad.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
-	cudaDeviceSynchronize();
+	//singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
+	//singletonTempMem.allocFloatElement(tag_height*tag_width);
+	//singletonTempMem.allocFloatElement(actGrad.getNumCols()*actGrad.getNumRows());
+	//float* tempHostInput = singletonTempMem.getPtr(0);
+	//float* tempHostTarget = singletonTempMem.getPtr(1);
+	//float* tempHostActGrad = singletonTempMem.getPtr(2);
+	//cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
+	//cudaMemcpy(tempHostActGrad, actGrad.getDevData(), actGrad.getNumCols()*actGrad.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
+	//cudaDeviceSynchronize();
 
 
-	debugVectFuncParamWeightGrad(sizeV,  temp, blocks.y, threads.y, blocks.x, threads.x, 
-				tempHostActGrad,  tempHostInput, tempHostTarget, numColors, tag_size, numPixelsPerGroup, numCases,
-				input.getStride(), actGrad.getStride(), tempMatrix[0].getStride(), sizeH);
+	//debugVectFuncParamWeightGrad(sizeV,  temp, blocks.y, threads.y, blocks.x, threads.x, 
+	//			tempHostActGrad,  tempHostInput, tempHostTarget, numColors, tag_size, numPixelsPerGroup, numCases,
+	//			input.getStride(), actGrad.getStride(), tempMatrix[0].getStride(), sizeH);
 
 
-	double sum_host = Sum(tempHostTarget, tag_height*tag_width);
-		double sum_act = Sum(tempHostActGrad, actGrad.getNumCols()*actGrad.getNumRows());
-	singletonTempMem.reset();
+	//double sum_host = Sum(tempHostTarget, tag_height*tag_width);
+	//	double sum_act = Sum(tempHostActGrad, actGrad.getNumCols()*actGrad.getNumRows());
+	//singletonTempMem.reset();
 
-	float suma = actGrad.sum();
-	printf("debugVectFuncParamWeightGrad******* sum_host %f sum_act %f suma %f\n", sum_host, sum_act, suma);
+	//float suma = actGrad.sum();
+	//printf("debugVectFuncParamWeightGrad******* sum_host %f sum_act %f suma %f\n", sum_host, sum_act, suma);
 
 
 #define ELT_GRAD(SIZE_ARR) \
