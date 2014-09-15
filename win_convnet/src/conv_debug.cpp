@@ -451,4 +451,61 @@ void emuVectFuncAct(int sizeV, float* filterArea, int gridDimy, int blockDimy, i
 
 }
 
+void debugVectFuncParamWeightGrad(int sizeV, float* filterArea,	int gridDimy, int blockDimy, int gridDimx, int blockDimx,
+							  const float* actGrad, const float* input, float* const target_,
+											const uint numColors,
+											const uint target_size, const uint numPixelsPerGroup, const uint numCases,
+											const uint strideInp, const uint strideOut, const uint strideTag, int sizeH)
+{
+
+
+	int pout = 0;
+	int pin_t = 1;
+
+
+//	for (uint pout = 0; pout < sizeH; pout++)
+//	{
+	
+		for (uint iy = 0; iy < numPixelsPerGroup; iy ++) {
+		  for (uint ix = 0; ix < numCases; ix ++) {	
+
+	float vres[256];
+	memset(vres, 0, sizeof(vres));
+
+			  for (uint color = 0; color < numColors; color ++) {	//optimize away				
+
+					float grad_next = actGrad[color*sizeH*numPixelsPerGroup*numCases +  
+					pout*numPixelsPerGroup*numCases + iy*numCases + ix];
+
+					float in_val[256];
+					float vsum = 0;
+					for (uint pin = 0; pin < sizeV; pin++)
+					{
+						
+						in_val[pin] = input[color*sizeV*numPixelsPerGroup*numCases +  
+										pin*numPixelsPerGroup*numCases + iy*numCases + ix];
+
+						vsum += 1;//in_val[pin]*filterArea[pout*sizeV + pin];
+					}
+
+					if(vsum > 0)
+					{
+						for (uint pin = 0; pin < sizeV; pin++)
+						{		
+							vres[pin] += grad_next*in_val[pin];
+						}
+					}//if
+				}//color
+
+  				target_[iy*strideTag + ix] = vres[pin_t];
+
+			}//ix
+
+		}//iy
+
+//	}// pout
+
+}
+
+
 

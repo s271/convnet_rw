@@ -863,7 +863,6 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 			<< Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
 
 			target[pout*sizeV+pin][offsetTag._offset] = vres[pin];
-			//target[1][offsetTag._offset] = vres[pin];
 		}
 
 	}// pout
@@ -1703,6 +1702,32 @@ printf("kVectFuncParamWeightGrad start ************************\n");
 
 	printf( "tempMatrix.size() %i tag_width %i tag_height %i actGrad %i %i tempMatrix[0].getStride() %i \n",
 			tempMatrix.size(), tag_width, tag_height, actGrad.getNumCols(), actGrad.getNumRows(), tempMatrix[0].getStride());
+
+//	cudaMemset(target.getDevData(), 0, out_height*out_width*sizeof(float));
+//	
+	singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
+	singletonTempMem.allocFloatElement(tag_height*tag_width);
+	singletonTempMem.allocFloatElement(actGrad.getNumCols()*actGrad.getNumRows());
+	float* tempHostInput = singletonTempMem.getPtr(0);
+	float* tempHostTarget = singletonTempMem.getPtr(1);
+	float* tempHostActGrad = singletonTempMem.getPtr(2);
+	cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
+	cudaMemcpy(tempHostActGrad, actGrad.getDevData(), actGrad.getNumCols()*actGrad.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
+	cudaDeviceSynchronize();
+
+
+	debugVectFuncParamWeightGrad(sizeV,  temp, blocks.y, threads.y, blocks.x, threads.x, 
+				tempHostActGrad,  tempHostInput, tempHostTarget, numColors, tag_size, numPixelsPerGroup, numCases,
+				input.getStride(), actGrad.getStride(), tempMatrix[0].getStride(), sizeH);
+
+
+	double sum_host = Sum(tempHostTarget, tag_height*tag_width);
+		double sum_act = Sum(tempHostActGrad, actGrad.getNumCols()*actGrad.getNumRows());
+	singletonTempMem.reset();
+
+	float suma = actGrad.sum();
+	printf("debugVectFuncParamWeightGrad******* sum_host %f sum_act %f suma %f\n", sum_host, sum_act, suma);
+
 
 #define ELT_GRAD(SIZE_ARR) \
 		if(sizeV == SIZE_ARR){\
