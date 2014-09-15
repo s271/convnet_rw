@@ -357,7 +357,7 @@ void debugVectFuncAct(int sizeV, float* filterArea, const float* input, float* c
 
 					//suppression filter could be here
 
-					output = max(output, 0);
+					output = _max(output, 0);
 
 					target[color*sizeH*numPixelsPerGroup*strideInp + out_i*numPixelsPerGroup*strideInp +  iy*strideInp + ix]
 						= output;
@@ -390,25 +390,24 @@ void emuVectFuncAct(int sizeV, float* filterArea, int gridDimy, int blockDimy, i
 
 			for (uint color = 0; color < numColors; color ++) {	
 			
-				float inpVal[256];//use shared instead?
+				float inpVal[2];//use shared instead?
 
 				for (uint inp_i = 0; inp_i < sizeV; inp_i++) {	
-					//Offset inpOffset;
-					//inpOffset << Index(color) << sizeV << Index(inp_i)
-					//<< numPixelsPerGroup
-					//<< Index(iy) << Index(blockDimy, blockIdxy) << Index(threadIdxy)
-					//<< strideInp
-					//<< Index(ix ) << Index(blockDimx, blockIdxx) << Index(threadIdxx);
-					//float val = input[inpOffset._offset];
-						//int ixx = ix + blockDimx*blockIdxx + threadIdxx;
-						//int iyy = iy + blockDimy*blockIdxy +threadIdxy;
+					Offset inpOffset;
+					inpOffset << Index(color) << sizeV
+					<< Index(inp_i)
+					<< numPixelsPerGroup
+					<< Index(iy) << Index(blockDimy, blockIdxy) << Index(threadIdxy)
+					<< strideInp
+					<< Index(ix ) << Index(blockDimx, blockIdxx) << Index(threadIdxx);
+					float val = input[inpOffset._offset];
 
-					int voff = color*sizeV*numPixelsPerGroup*strideInp  +
-						inp_i*numPixelsPerGroup*strideInp +
-						(iy + blockDimy*blockIdxy + threadIdxy)*strideInp+
-						ix + blockDimx*blockIdxx + threadIdxx;
+					//int voff = color*sizeV*numPixelsPerGroup*strideInp  +
+					//	inp_i*numPixelsPerGroup*strideInp +
+					//	(iy + blockDimy*blockIdxy + threadIdxy)*strideInp+
+					//	ix + blockDimx*blockIdxx + threadIdxx;
 
-					float val = input[voff];
+					//float val = input[voff];
 
 					inpVal[inp_i] = val;
 				}
@@ -427,18 +426,20 @@ void emuVectFuncAct(int sizeV, float* filterArea, int gridDimy, int blockDimy, i
 
 					//suppression filter could be here
 
-					output = max(output, 0);
+					//output = output >0?output: 0;
+					output = _max(output, 0);
 
-					//Offset tagOffset;
-					//tagOffset << Index(color) << sizeH <<Index(out_i)
-					//<< numPixelsPerGroup
-					//<< Index(iy) << Index(blockDimy, blockIdxy) << Index(threadIdxy)
-					//<< strideTag
-					//<< Index(ix ) << Index(blockDimx, blockIdxx) << Index(threadIdxx);
-					//target[tagOffset._offset] = output;
-					int toffset = color*sizeH*numPixelsPerGroup*strideInp + out_i*numPixelsPerGroup*strideInp
-						+  (iy + blockDimy*blockIdxy +threadIdxy)*strideInp + ix + blockDimx*blockIdxx + threadIdxx;
-					target[toffset] = output;
+					Offset tagOffset;
+					tagOffset << Index(color) << sizeH
+					<<Index(out_i)
+					<< numPixelsPerGroup
+					<< Index(iy) << Index(blockDimy, blockIdxy) << Index(threadIdxy)
+					<< strideTag
+					<< Index(ix ) << Index(blockDimx, blockIdxx) << Index(threadIdxx);
+					target[tagOffset._offset] = output;
+					//int toffset = color*sizeH*numPixelsPerGroup*strideInp + out_i*numPixelsPerGroup*strideInp
+					//	+  (iy + blockDimy*blockIdxy +threadIdxy)*strideInp + ix + blockDimx*blockIdxx + threadIdxx;
+					//target[toffset] = output;
 				}//out_i
 			}//color
         }//ix

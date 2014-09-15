@@ -19,6 +19,8 @@ public:
 
 };
 
+#define _max(a,b) (a>b?a:b)
+
 extern TempMem singletonTempMem;
 
 double Sum(const float* input, int size);

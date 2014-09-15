@@ -666,29 +666,36 @@ template <int sizeV>
 __global__ void kVectFuncAct(const float* input, float* const target,
 								const uint numPixelsPerGroup, const uint numCases,
 								const uint strideInp, const uint strideTag, int numColors, int sizeH) {
-	
-
-//    dim3 blocks(std::min(NUM_BLOCKS_MAX, DIVUP(out_width, ELTWISE_THREADS_X)),
-//                std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)));
 
 // ix, iy == 0 almost always
-    for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDim.y*blockDim.y) {
+    for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDim.y*blockDim.y) 
+	{
 
-        for (uint ix = 0; ix < numCases; ix += gridDim.x*blockDim.x) {	
+        for (uint ix = 0; ix < numCases; ix += gridDim.x*blockDim.x)
+		{	
 
 			for (uint color = 0; color < numColors; color ++) {	
 			
 				float inpVal[sizeV];//use shared instead?
 	#pragma unroll
 				for (uint inp_i = 0; inp_i < sizeV; inp_i++) {	
-					Offset inpOffset;
-					inpOffset << Index(color) << sizeV << Index(inp_i)
-					<< numPixelsPerGroup
-					<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
-					<< strideInp
-					<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+					//Offset inpOffset;
+					//inpOffset << Index(color) << sizeV
+					//<< Index(inp_i)
+					//<< numPixelsPerGroup
+					//<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
+					//<< strideInp
+					//<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+					//float val = input[inpOffset._offset];
+					
 
-					float val = input[inpOffset._offset];
+					int voff = color*sizeV*numPixelsPerGroup*strideInp  +
+						inp_i*numPixelsPerGroup*strideInp +
+						(iy + blockDim.y*blockIdx.y + threadIdx.y)*strideInp+
+						ix + blockDim.x*blockIdx.x + threadIdx.x;
+
+					float val = input[voff];
+
 					inpVal[inp_i] = val;
 				}
 	#pragma unroll	
@@ -708,13 +715,18 @@ __global__ void kVectFuncAct(const float* input, float* const target,
 
 					output = fmaxf(output, 0);
 
-					Offset tagOffset;
-					tagOffset << Index(color) << sizeH <<Index(out_i)
-					<< numPixelsPerGroup
-					<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
-					<< strideTag
-					<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
-					target[tagOffset._offset] = output;
+					//Offset tagOffset;
+					//tagOffset << Index(color) << sizeH
+					//<<Index(out_i)
+					//<< numPixelsPerGroup
+					//<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
+					//<< strideTag
+					//<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+					//target[tagOffset._offset] = output;
+
+					int toffset = color*sizeH*numPixelsPerGroup*strideInp + out_i*numPixelsPerGroup*strideInp
+						+  (iy + blockDim.y*blockIdx.y +threadIdx.y)*strideInp + ix + blockDim.x*blockIdx.x + threadIdx.x;
+					target[toffset] = output;
 				}//out_i
 			}//color
         }
@@ -1477,10 +1489,9 @@ double sum = tempMatrix[ind_coeff].sum();
 
 void computeVectFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& param, int sizeV, int sizeH, int channels)
 {
-printf("kVectFuncAct start \n");
+printf("kVectFuncAct start*** \n");
 
 	assert(sizeV <= 4 || sizeV == 6 || sizeV == 8 || sizeV == 12 || sizeV == 16);
-
 
     int inp_width = input.getNumCols(); 
     int inp_height = input.getNumRows();
@@ -1507,29 +1518,36 @@ printf("kVectFuncAct start \n");
 
 
     dim3 threads(min(ELTWISE_THREADS_X, inp_width), ELTWISE_THREADS_Y);
-    dim3 blocks(std::min(NUM_BLOCKS_MAX, (int)DIVUP(out_width, threads.x)),
+
+    dim3 blocks(std::min(NUM_BLOCKS_MAX, (int)DIVUP(inp_width, threads.x)),
                 std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)));
 
+	float sumi = input.sum();
 	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i numColors %i \n",blocks.x, blocks.y, threads.x, threads.y, numColors);
 	printf("inp_height %i numPixelsPerGroup %i out_width %i out_height %i sizeV %i \n",inp_height, numPixelsPerGroup,out_width,out_height,sizeV);
 	printf("sizeV %i sizeH %i strides %i %i \n", sizeV, sizeH, input.getStride(), target.getStride());
 //debug
-cudaMemset(target.getDevData(), 0, out_height*out_width*sizeof(float));
-
+	cudaMemset(target.getDevData(), 0, out_height*out_width*sizeof(float));
+	
 	singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
 	singletonTempMem.allocFloatElement(out_height*out_width);
 	float* tempHostInput = singletonTempMem.getPtr(0);
 	float* tempHostTarget = singletonTempMem.getPtr(1);
-	cutilSafeCallNoSync( cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost) );
+	cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
+	cudaDeviceSynchronize();
+
 	double sum_host =0;
-	memset(tempHostTarget, 0, out_height*out_width*sizeof(float));
+
+	//memset(tempHostTarget, 0, out_height*out_width*sizeof(float));
 	debugVectFuncAct(sizeV, temp, tempHostInput, tempHostTarget,
 								numPixelsPerGroup, numCases, input.getStride(), target.getStride(), numColors, sizeH);
 
 	sum_host = Sum(tempHostTarget, out_height*out_width);
-	printf(" debugVectFuncAct sum %f \n", sum_host);
+	double sum_inp = Sum(tempHostInput, input.getNumCols()*input.getNumRows());
 
-	memset(tempHostTarget, 0, out_height*out_width*sizeof(float));
+	printf(" debugVectFuncAct sum %f sum_inp %i\n", sum_host, sum_inp);
+
+	//memset(tempHostTarget, 0, out_height*out_width*sizeof(float));
 	 emuVectFuncAct(sizeV, temp, blocks.y, threads.y, blocks.x, threads.x, 
 					tempHostInput, tempHostTarget,
 					numPixelsPerGroup, numCases, input.getStride(), target.getStride(), numColors, sizeH);
@@ -1555,8 +1573,9 @@ cudaMemset(target.getDevData(), 0, out_height*out_width*sizeof(float));
 	ELT_ACT(16)
 #undef ELT_ACT
 
-float sumt = target.sum();
-	printf("kVectFuncAct sumt %f \n",  sumt);
+	float sumt = target.sum();
+
+	printf("kVectFuncAct sumt %f sumi %f \n",  sumt, sumi);
 
 printf("kVectFuncAct end \n");
 	cutilCheckMsg("kVectFuncAct: Kernel execution failed");
