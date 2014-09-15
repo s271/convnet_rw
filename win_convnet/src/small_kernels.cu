@@ -730,7 +730,6 @@ __global__ void kVectFuncAct(const float* input, float* const target,
         }
     }
 
-
 }
 
 
@@ -813,7 +812,7 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 
 					Offset offsetOut;
 					offsetOut
-					<< color
+					<< Index(color)
 					<< sizeH
 					<< Index(pout)
 					<< numPixelsPerGroup
@@ -830,7 +829,7 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 
 						Offset offsetInp;
 						offsetInp
-						<< color
+						<< Index(color)
 						<< sizeV
 						<< Index(pin)
 						<< numPixelsPerGroup
@@ -864,7 +863,7 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 			<< Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
 
 			target[pout*sizeV+pin][offsetTag._offset] = vres[pin];
-			//target[0][offsetTag._offset] = vres[pin];
+			//target[1][offsetTag._offset] = vres[pin];
 		}
 
 	}// pout
@@ -1520,6 +1519,7 @@ printf("kVectFuncAct start*** \n");
                 std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)));
 
 //	float sumi = input.sum();
+//	printf("sumi %f \n",  sumi);
 //	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i numColors %i \n",blocks.x, blocks.y, threads.x, threads.y, numColors);
 //	printf("inp_height %i numPixelsPerGroup %i out_width %i out_height %i sizeV %i \n",inp_height, numPixelsPerGroup,out_width,out_height,sizeV);
 //	printf("sizeV %i sizeH %i strides %i %i \n", sizeV, sizeH, input.getStride(), target.getStride());
@@ -1656,7 +1656,7 @@ void computeVectFuncWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 
 	int numColors = channels/sizeV;
 
-printf("kVectFuncParamWeightGrad start -------\n");
+printf("kVectFuncParamWeightGrad start ************************\n");
 
 
 #define N_SUM 1
@@ -1672,7 +1672,11 @@ printf("kVectFuncParamWeightGrad start -------\n");
 
 	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i \n",
 		blocks.x, blocks.y, threads.x, threads.y);
-	printf("numPixelsPerGroup %i numCases %i numColors %i\n", numPixelsPerGroup, numCases, numColors);
+	printf("numPixelsPerGroup %i numCases %i numColors %i out_width %i out_height %i\n",
+		numPixelsPerGroup, numCases, numColors, out_width, out_height);
+
+	float sumi = input.sum();
+	printf("sumi %f \n",  sumi);
 
 
 	float* tempMatrixPtr[CONST_AREA_SIZE];
@@ -1710,7 +1714,7 @@ printf("kVectFuncParamWeightGrad start -------\n");
 		ELT_GRAD(16)
 #undef ELT_GRAD
 
-	float sumt = tempMatrix[0].sum();
+	float sumt = tempMatrix[1].sum();
 	printf("kVectFuncParamWeightGrad sum_tag %f \n", sumt);
 
 		cutilCheckMsg("kVectFuncParamWeightGrad: Kernel execution failed");
