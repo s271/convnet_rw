@@ -1678,6 +1678,12 @@ printf("kVectFuncParamWeightGrad start ************************\n");
 	float sumi = input.sum();
 	printf("sumi %f \n",  sumi);
 
+	float temp[CONST_AREA_SIZE];
+	assert(param.size() <= CONST_AREA_SIZE);
+	memset(temp, 0, sizeof(temp));
+	for(int i = 0; i < param.size(); i++)
+		temp[i] = (float)param[i];
+	cudaMemcpyToSymbol(const_area, temp, sizeof(float)*CONST_AREA_SIZE, 0, cudaMemcpyHostToDevice);
 
 	float* tempMatrixPtr[CONST_AREA_SIZE];
 	for(int i =0; i < tempMatrix.size(); i++)
