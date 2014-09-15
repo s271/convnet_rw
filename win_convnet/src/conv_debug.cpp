@@ -469,8 +469,8 @@ void debugVectFuncParamWeightGrad(int sizeV, float* filterArea,	int gridDimy, in
 		for (uint iy = 0; iy < numPixelsPerGroup; iy ++) {
 		  for (uint ix = 0; ix < numCases; ix ++) {	
 
-	float vres[256];
-	memset(vres, 0, sizeof(vres));
+			 float vres[256];
+			  memset(vres, 0, sizeof(vres));
 
 			  for (uint color = 0; color < numColors; color ++) {	//optimize away				
 
@@ -485,7 +485,7 @@ void debugVectFuncParamWeightGrad(int sizeV, float* filterArea,	int gridDimy, in
 						in_val[pin] = input[color*sizeV*numPixelsPerGroup*numCases +  
 										pin*numPixelsPerGroup*numCases + iy*numCases + ix];
 
-						vsum += 1;//in_val[pin]*filterArea[pout*sizeV + pin];
+						vsum += in_val[pin]*filterArea[pout*sizeV + pin];
 					}
 
 					if(vsum > 0)
