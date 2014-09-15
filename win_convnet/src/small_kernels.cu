@@ -1516,47 +1516,46 @@ printf("kVectFuncAct start*** \n");
 		temp[i] = (float)param[i];
 	cudaMemcpyToSymbol(const_area, temp, sizeof(float)*CONST_AREA_SIZE, 0, cudaMemcpyHostToDevice);
 
-
     dim3 threads(min(ELTWISE_THREADS_X, inp_width), ELTWISE_THREADS_Y);
 
     dim3 blocks(std::min(NUM_BLOCKS_MAX, (int)DIVUP(inp_width, threads.x)),
                 std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)));
 
-	float sumi = input.sum();
-	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i numColors %i \n",blocks.x, blocks.y, threads.x, threads.y, numColors);
-	printf("inp_height %i numPixelsPerGroup %i out_width %i out_height %i sizeV %i \n",inp_height, numPixelsPerGroup,out_width,out_height,sizeV);
-	printf("sizeV %i sizeH %i strides %i %i \n", sizeV, sizeH, input.getStride(), target.getStride());
-//debug
-	cudaMemset(target.getDevData(), 0, out_height*out_width*sizeof(float));
-	
-	singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
-	singletonTempMem.allocFloatElement(out_height*out_width);
-	float* tempHostInput = singletonTempMem.getPtr(0);
-	float* tempHostTarget = singletonTempMem.getPtr(1);
-	cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
-	cudaDeviceSynchronize();
-
-	double sum_host =0;
-
-	//memset(tempHostTarget, 0, out_height*out_width*sizeof(float));
-	debugVectFuncAct(sizeV, temp, tempHostInput, tempHostTarget,
-								numPixelsPerGroup, numCases, input.getStride(), target.getStride(), numColors, sizeH);
-
-	sum_host = Sum(tempHostTarget, out_height*out_width);
-	double sum_inp = Sum(tempHostInput, input.getNumCols()*input.getNumRows());
-
-	printf(" debugVectFuncAct sum %f sum_inp %i\n", sum_host, sum_inp);
-
-	//memset(tempHostTarget, 0, out_height*out_width*sizeof(float));
-	 emuVectFuncAct(sizeV, temp, blocks.y, threads.y, blocks.x, threads.x, 
-					tempHostInput, tempHostTarget,
-					numPixelsPerGroup, numCases, input.getStride(), target.getStride(), numColors, sizeH);
-
-	sum_host = Sum(tempHostTarget, out_height*out_width);
-	printf(" emuVectFuncAct sum %f \n", sum_host);
-
-	singletonTempMem.reset();
-
+//	float sumi = input.sum();
+//	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i numColors %i \n",blocks.x, blocks.y, threads.x, threads.y, numColors);
+//	printf("inp_height %i numPixelsPerGroup %i out_width %i out_height %i sizeV %i \n",inp_height, numPixelsPerGroup,out_width,out_height,sizeV);
+//	printf("sizeV %i sizeH %i strides %i %i \n", sizeV, sizeH, input.getStride(), target.getStride());
+////debug
+//	cudaMemset(target.getDevData(), 0, out_height*out_width*sizeof(float));
+//	
+//	singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
+//	singletonTempMem.allocFloatElement(out_height*out_width);
+//	float* tempHostInput = singletonTempMem.getPtr(0);
+//	float* tempHostTarget = singletonTempMem.getPtr(1);
+//	cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
+//	cudaDeviceSynchronize();
+//
+//	double sum_inp = Sum(tempHostInput, input.getNumCols()*input.getNumRows());
+//	printf("sum_inp %f \n",  sum_inp);
+//
+//	double sum_host =0;
+//	//memset(tempHostTarget, 0, out_height*out_width*sizeof(float));
+//	//debugVectFuncAct(sizeV, temp, tempHostInput, tempHostTarget,
+//	//							numPixelsPerGroup, numCases, input.getStride(), target.getStride(), numColors, sizeH);
+//
+//	//sum_host = Sum(tempHostTarget, out_height*out_width);
+//
+//	//printf(" debugVectFuncAct sum %f \n", sum_host);
+//
+//	//memset(tempHostTarget, 0, out_height*out_width*sizeof(float));
+//	 emuVectFuncAct(sizeV, temp, blocks.y, threads.y, blocks.x, threads.x, 
+//					tempHostInput, tempHostTarget,
+//					numPixelsPerGroup, numCases, input.getStride(), target.getStride(), numColors, sizeH);
+//
+//	sum_host = Sum(tempHostTarget, out_height*out_width);
+//	printf(" emuVectFuncAct sum %f \n", sum_host);
+//
+//	singletonTempMem.reset();
 
 #define ELT_ACT(SIZE_ARR) \
 	if(sizeV == SIZE_ARR){\
@@ -1575,7 +1574,7 @@ printf("kVectFuncAct start*** \n");
 
 	float sumt = target.sum();
 
-	printf("kVectFuncAct sumt %f sumi %f \n",  sumt, sumi);
+	printf("kVectFuncAct sumt %f \n",  sumt);
 
 printf("kVectFuncAct end \n");
 	cutilCheckMsg("kVectFuncAct: Kernel execution failed");
