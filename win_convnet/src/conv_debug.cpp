@@ -507,5 +507,69 @@ void debugVectFuncParamWeightGrad(int sizeV, float* filterArea,	int gridDimy, in
 
 }
 
+void debugVectFuncGrad(int sizeV, float* filterArea, const float* actGrad, const float* input, float* const target,
+								const uint numPixelsPerGroup, const uint numCases,
+								const uint strideInp, const uint strideOut,
+								int numColors, int sizeH) {
+
+	const int inStep = strideInp*numPixelsPerGroup;
+	const int outStep = strideOut*numPixelsPerGroup;
+
+//with no N_SUM ix, iy == 0 almost always
+    for (uint iy = 0; iy < numPixelsPerGroup; iy ++) {
+        for (uint ix = 0; ix < numCases; ix ++) {	
+			for (uint color = 0; color < numColors; color ++) {	//optimize away
+
+				//Offset out_offset;
+				//out_offset 
+				//<< Index(color) << sizeH << numPixelsPerGroup << Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
+				//<< strideOut
+				//<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+
+				//Offset v_offset;
+				//v_offset 
+				//<< Index(color) << sizeV << numPixelsPerGroup << Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
+				//<< strideInp
+				//<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+
+				int out_off = color*sizeH*numPixelsPerGroup + iy*strideOut +ix;
+				int v_off = color*sizeV*numPixelsPerGroup + iy*strideOut +ix;
+
+				float vres[256];
+				memset(vres, 0, sizeof(vres));
+
+				for (uint out_i = 0; out_i < sizeH; out_i++)
+				{
+					float vsum = 0;
+					for (uint inp_i = 0; inp_i < sizeV; inp_i++) {	
+						int inp_offset = v_off + inp_i*inStep;
+
+							//v_offset._offset + inp_i*inStep;
+
+						vsum += input[inp_offset]*filterArea[out_i*sizeV + inp_i];
+					}
+
+					if(vsum > 0)
+					{
+						float grad_next = actGrad[out_off + outStep*out_i];
+							//actGrad[out_offset._offset + outStep*out_i];
+
+						for (uint inp_i = 0; inp_i < sizeV; inp_i++)
+							vres[inp_i] += grad_next*filterArea[out_i*sizeV + inp_i];
+					}
+				}
+
+				for (uint inp_i = 0; inp_i < sizeV; inp_i++)
+				{
+					int inp_offset = v_off + inp_i*inStep;
+						//v_offset._offset + inp_i*inStep;
+					target[inp_offset] = vres[inp_i];
+				}
+
+			}//color
+		}//ix
+	}//iy
+}
+
 
 

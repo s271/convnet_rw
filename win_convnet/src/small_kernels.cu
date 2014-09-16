@@ -749,13 +749,13 @@ __global__ void kVectFuncGrad(const float* actGrad, const float* input, float* c
 
 				Offset out_offset;
 				out_offset 
-				<< color << sizeH << numPixelsPerGroup << Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
+				<< Index(color) << sizeH << numPixelsPerGroup << Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
 				<< strideOut
 				<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
 
 				Offset v_offset;
 				v_offset 
-				<< color << sizeV << numPixelsPerGroup << Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
+				<< Index(color) << sizeV << numPixelsPerGroup << Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
 				<< strideInp
 				<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
 
@@ -1573,7 +1573,7 @@ printf("kVectFuncAct start*** \n");
 
 	printf("kVectFuncAct sumt %f \n",  sumt);
 
-printf("kVectFuncAct end \n");
+	printf("kVectFuncAct end \n");
 	cutilCheckMsg("kVectFuncAct: Kernel execution failed");
 }
 
@@ -1612,6 +1612,30 @@ void computeVectFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target,
 
     dim3 blocks(std::min(NUM_BLOCKS_MAX, (int)DIVUP(inp_width, threads.x)),
                 std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)));
+
+	printf("kVectFuncGrad start ************************\n");
+	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i \n",
+		blocks.x, blocks.y, threads.x, threads.y);
+	printf("numPixelsPerGroup %i numCases %i numColors %i out_width %i out_height %i\n",
+		numPixelsPerGroup, numCases, numColors, out_width, out_height);
+
+	singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
+	singletonTempMem.allocFloatElement(inp_height*inp_width);
+	singletonTempMem.allocFloatElement(actGrad.getNumCols()*actGrad.getNumRows());
+	float* tempHostInput = singletonTempMem.getPtr(0);
+	float* tempHostTarget = singletonTempMem.getPtr(1);
+	float* tempHostActGrad = singletonTempMem.getPtr(2);
+	cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
+	cudaMemcpy(tempHostActGrad, actGrad.getDevData(), actGrad.getNumCols()*actGrad.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
+	cudaDeviceSynchronize();
+
+	debugVectFuncGrad(sizeV, temp, tempHostActGrad,
+				tempHostInput, tempHostTarget, numPixelsPerGroup, numCases,
+				input.getStride(), actGrad.getStride(), numColors, sizeH);
+
+	double sum_host = Sum(tempHostTarget, inp_height*inp_width);
+	printf(" debugVectFuncAct sum %f \n", sum_host);
+	singletonTempMem.reset();
 
 #define ELT_GRAD(SIZE_ARR) \
 		if(sizeV == SIZE_ARR){\
@@ -1655,7 +1679,7 @@ void computeVectFuncWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 
 	int numColors = channels/sizeV;
 
-printf("kVectFuncParamWeightGrad start ************************\n");
+//printf("kVectFuncParamWeightGrad start ************************\n");
 
 
 #define N_SUM 1
@@ -1745,8 +1769,8 @@ printf("kVectFuncParamWeightGrad start ************************\n");
 		ELT_GRAD(16)
 #undef ELT_GRAD
 
-	float sumt = tempMatrix[1].sum();
-	printf("kVectFuncParamWeightGrad sum_tag %f \n", sumt);
+	//float sumt = tempMatrix[1].sum();
+	//printf("kVectFuncParamWeightGrad sum_tag %f \n", sumt);
 
 		cutilCheckMsg("kVectFuncParamWeightGrad: Kernel execution failed");
 }

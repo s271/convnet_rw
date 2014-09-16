@@ -65,3 +65,9 @@ void debugVectFuncParamWeightGrad(int sizeV, float* filterArea,	int gridDimy, in
 											const uint numColors,
 											const uint target_size, const uint numPixelsPerGroup, const uint numCases,
 											const uint strideInp, const uint strideOut, const uint strideTag, int sizeH);
+
+void debugVectFuncGrad(int sizeV, float* filterArea, const float* actGrad, const float* input, float* const target,
+								const uint numPixelsPerGroup, const uint numCases,
+								const uint strideInp, const uint strideOut,
+								int numColors, int sizeH);
+
