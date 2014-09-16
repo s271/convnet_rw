@@ -568,16 +568,17 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 
 	const int sizeModule2 = sizeModule*sizeModule;
 	const int sharedY2 = sharedY*sharedY;
-//int dsx =0;
-//int dsy =0;
-//	int lobe =1;
+
 
 	for(int dsx = - lobe; dsx < lobe+1; dsx++)
 	for(int dsy = - lobe; dsy <  lobe+1; dsy++)
 	{
+		int idx = min(max(ix + dsx, 0), imgSizeX-1);
+		int idy = min(max(iy + dsy, 0), imgSizeY-1);
 
 		for(int filterID = 0; filterID <  numFilters; filterID++)
 		{
+			float sum = 0;
 
 			for(int z = threadIdx.x + blockIdx.x*blockDim.x; z < numCases; z += blockDim.x*gridDim.x)
 			{	
@@ -585,20 +586,21 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 				{
 					const int channelOffset = channelInd*imgPixels*numCases;
 
-					float sum = 0;
 
 					const int sOffset = channelInd*numFilters*sharedY2*blockDim.x + filterID*sharedY2*blockDim.x + threadIdx.x*sharedY2;
 					const int filterOffset = numFilters*channelOffset + filterID*imgPixels*numCases;				
 
-					float vimg = input[channelOffset + ix*widthyz + iy*widthz + z];
+					float vact = actGrad[filterOffset + ix*widthyz + iy*widthz + z];
+					float vimg = input[channelOffset + idx*widthyz + idy*widthz + z];
+
 					sum += vimg;
 
 				}
 			}
 			const int tagOffset = filterID*imgSize;
-			int ind_coeff = filterID*sizeModule2 +0;// (dsy + lobe)*sizeModule +(dsx + lobe);
+			int ind_coeff = filterID*sizeModule2 + (dsy + lobe)*sizeModule +(dsx + lobe);
 
-			target[0][tagOffset + ix*imgSizeX + iy] = 1;
+			target[ind_coeff][tagOffset + ix*imgSizeX + iy] = sum;
 		}
 
 	}
