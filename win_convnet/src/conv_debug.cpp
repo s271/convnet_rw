@@ -520,20 +520,9 @@ void debugVectFuncGrad(int sizeV, float* filterArea, const float* actGrad, const
         for (uint ix = 0; ix < numCases; ix ++) {	
 			for (uint color = 0; color < numColors; color ++) {	//optimize away
 
-				//Offset out_offset;
-				//out_offset 
-				//<< Index(color) << sizeH << numPixelsPerGroup << Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
-				//<< strideOut
-				//<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
 
-				//Offset v_offset;
-				//v_offset 
-				//<< Index(color) << sizeV << numPixelsPerGroup << Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
-				//<< strideInp
-				//<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
-
-				int out_off = color*sizeH*numPixelsPerGroup + iy*strideOut +ix;
-				int v_off = color*sizeV*numPixelsPerGroup + iy*strideOut +ix;
+				int out_off = color*sizeH*numPixelsPerGroup*strideOut + iy*strideOut +ix;
+				int v_off = color*sizeV*numPixelsPerGroup*strideOut + iy*strideOut +ix;
 
 				float vres[256];
 				memset(vres, 0, sizeof(vres));
