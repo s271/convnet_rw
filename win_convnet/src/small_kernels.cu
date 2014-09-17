@@ -537,7 +537,7 @@ __global__ void kMicroConvActGrad(const float* actGrad, float* const target,
 
 template <int lobe>
 __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, float** const target,
-								const uint target_size, const uint numCases,
+								const uint target_size, const uint numCases, const uint casePerThread, const uint tagWidth,
 								const uint channels, const uint numFilters, 
 								const uint modulesPerBlockX, const uint modulesPerBlockY, const uint sharedY,
 								const uint sizeModule, const uint sizeShared,
@@ -563,6 +563,8 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 	const int  ix = sx+startX;
 	const int  iy = sy+startY;
 
+	const int zoff = threadIdx.x + blockIdx.x*blockDim.x;
+
 	const int widthz = numCases;
 	const int widthyz = imgSizeY*numCases;
 
@@ -580,8 +582,10 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 		{
 			float sum = 0;
 
-			for(int z = threadIdx.x + blockIdx.x*blockDim.x; z < numCases; z += blockDim.x*gridDim.x)
-			{	
+			for(int zind = 0; zind < casePerThread; zind++)
+			{
+				const int z = zoff + zind*blockDim.x*gridDim.x;		
+
 				for(int channelInd = 0; channelInd < channels; channelInd++)
 				{
 					const int channelOffset = channelInd*imgPixels*numCases;
@@ -592,80 +596,17 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 					float vact = actGrad[filterOffset + ix*widthyz + iy*widthz + z];
 					float vimg = input[channelOffset + idx*widthyz + idy*widthz + z];
 
-					sum += vimg;
+					sum += vact*vimg;
 
 				}
 			}
-			const int tagOffset = filterID*imgSize;
 			int ind_coeff = filterID*sizeModule2 + (dsy + lobe)*sizeModule +(dsx + lobe);
-			target[ind_coeff][tagOffset + ix*imgSizeX + iy] = sum;
+			target[ind_coeff][ix*imgSizeX*tagWidth + tagWidth*iy + zoff] = sum;
 		}
 
 	}
-
-/*
-	const int bsizeX = imgSizeX/modulesPerBlockX;
-	const int bsizeY = imgSizeY/modulesPerBlockY;
-	const int startX = (blockIdx.y/bsizeY)*modulesPerBlockX;
-	const int startY = (blockIdx.y%bsizeY)*modulesPerBlockY;
-
-    const int  bw = modulesPerBlockX;
-    const int  bh = modulesPerBlockY;
-    const int  sx = threadIdx.y/modulesPerBlockY;
-    const int  sy = threadIdx.y - sx*modulesPerBlockY;
-
-	const int  ix = sx+startX;
-	const int  iy = sy+startY;
-
-	const int widthz = numCases;
-	const int widthyz = imgSizeY*numCases;
-
-	const int sizeModule2 = sizeModule*sizeModule;
-	const int sharedY2 = sharedY*sharedY;
-	const int imgSize = imgSizeX*imgSizeY;
-
-//pragma unroll here
-
-	for(int filterID = 0; filterID <  numFilters; filterID++)
-	{			
-
-		for(int dsx = - lobe; dsx < lobe+1; dsx++)
-		for(int dsy = - lobe; dsy <  lobe+1; dsy++)
-		{
-			float sum = 0;
-			for(int z = threadIdx.x + blockIdx.x*blockDim.x; z < numCases; z += blockDim.x*gridDim.x)
-			{
-				for(int channelInd = 0; channelInd < channels; channelInd++)
-				{
-					const int channelOffset =0;// channelInd*imgSize*numCases;
-					const int filterOffset =0;// numFilters*channelOffset + filterID*imgSize*numCases;
-					const int sOffset = channelInd*sharedY2;
-	
-
-					//SHARED_MEM(ix, iy, z, lobe, getVal, sdataAct)	
-					//SHARED_MEM(ix, iy, z, lobe, getValAct, sdataImg)
-					float vact = actGrad[filterOffset + ix*widthyz + iy*widthz + z];
-
-					int idx = min(max(ix + dsx, 0), imgSizeX-1);
-					int idy = min(max(iy + dsy, 0), imgSizeY-1);
-
-					float vimg = input[channelOffset + ix*widthyz + iy*widthz + z];
-
-					sum += vimg*vact;
-						//sdataImg[(sx + dsx + lobe)*sharedY+(sy + dsy + lobe)]*sdataAct[sx*sharedY+ sy];
-
-				}//channel
-				//__syncthreads();										
-
-			}//z
-			const int tagOffset = filterID*imgSize;
-			int ind_coeff = filterID*sizeModule2 + (dsy + lobe)*sizeModule +(dsx + lobe);
-			target[ind_coeff][tagOffset + ix*imgSizeX + iy] =1;// sum;
-
-		}//dx
-	}//filter
-*/
 }
+
 //-------------------------------------------------------------
 //VectFunc
 //-------------------------------------------------------------
@@ -1406,8 +1347,8 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 	dim3 blocks = dim3(DIVUP(numCases, threads.x*casePerThread), imgBlocksY*imgBlocksX);
 
 
-    int tag_width = input.getNumCols(); //could be reduced
-    int tag_height = blocks.y*img_threads_x*img_threads_y*numFilters*img_threads_x;//could be reduced
+    int tag_width = DIVUP(input.getNumCols(), casePerThread) ; //could be reduced
+    int tag_height = blocks.y*threads.y;//could be reduced
 	int tag_size = tag_width*tag_height;
 
 	float* tempMatrixPtr[CONST_AREA_SIZE];
@@ -1467,24 +1408,11 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
   double sum_host = Sum(tempHostTag, tag_height*tag_width);
   printf(" debugMicroConvWeightGrad sum %f \n", sum_host);
 
-  memset(tempHostTag, 0, tag_height*tag_width*sizeof(float));
-
-  emuMicroConvWeightGrad(lobe, SIZE_MODULE, dsx, dsy, filterID,
-								threads.x, threads.y, blocks.x, blocks.y,
-								tempHostAct, tempHostInp, tempHostTag,
-								tag_size, numCases,
-								channels, numFilters, 
-								img_threads_x, img_threads_y, sharedY,
-								sizeModuleSide, sizeSharedBlock,
-								imgSizeX, imgSizeY, imgPixels);
-
-  double sum_emu = Sum(tempHostTag, tag_height*tag_width);
-  printf(" debugMicroConvWeightGrad emu sum %f \n", sum_emu);
 
   singletonTempMem.reset();
 
 	kMicroConvWeightGrad<SIZE_MODULE/2><<<blocks, threads, shared_size>>>(actGrad.getDevData(), input.getDevData(), (float**)arrayPtr,
-								tag_size, numCases,
+								tag_size, numCases, casePerThread, tag_width,
 								channels, numFilters, 
 								img_threads_x, img_threads_y, sharedY,
 								sizeModuleSide, sizeSharedBlock,
@@ -1706,7 +1634,7 @@ void computeVectFuncWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 
 #define N_SUM 1
     dim3 threads(min(ELTWISE_THREADS_X, inp_width), ELTWISE_THREADS_Y);
-    dim3 blocks(std::min(NUM_BLOCKS_MAX, (int)DIVUP(inp_width, threads.x)),
+    dim3 blocks(std::min(NUM_BLOCKS_MAX, (int)DIVUP(inp_width, threads.x)),//reduce
                 std::min(NUM_BLOCKS_MAX, (int)DIVUP(numPixelsPerGroup/N_SUM, ELTWISE_THREADS_Y)));
 #undef N_SUM
 

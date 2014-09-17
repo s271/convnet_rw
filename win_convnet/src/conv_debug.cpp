@@ -323,88 +323,10 @@ void debugMicroConvActGrad(int LOBE, int SIZE_MODULE, float* filterArea, const f
 					sum += actd*imgd;
 			}//z
 		}//channel
-		target_[filterID*imgSize + ix*imgSizeX + iy] = sum;
+		target_[ix*imgSizeX + iy] = sum;
 	}//ix
 }
 
-void emuMicroConvWeightGrad(int lobe, int SIZE_MODULE, int dsx, int dsy, int filterID,
-							int blockDimx, int blockDimy, int gridDimx, int gridDimy,
-						   const float* actGrad, const float* input, float* const target,
-								const uint target_size, const uint numCases,
-								const uint channels, const uint numFilters, 
-								const uint modulesPerBlockX, const uint modulesPerBlockY, const uint sharedY,
-								const uint sizeModule, const uint sizeShared,
-								const uint imgSizeX, const uint imgSizeY, const uint imgPixels)
-{
-
-//order x>y>z, *not* y>x
-	const int imgSize = imgSizeX*imgSizeY;
-
-	const int bsizeX = imgSizeX/modulesPerBlockX;
-	const int bsizeY = imgSizeY/modulesPerBlockY;
-
-    const int  bw = modulesPerBlockX;
-    const int  bh = modulesPerBlockY;
-
-	const int widthz = numCases;
-	const int widthyz = imgSizeY*numCases;
-
-	const int sizeModule2 = sizeModule*sizeModule;
-	const int sharedY2 = sharedY*sharedY;
-
-	for(int blockIdxx = 0; blockIdxx < gridDimx; blockIdxx++)
-	for(int blockIdxy = 0; blockIdxy < gridDimy; blockIdxy++)
-	{
-	for(int threadIdxx = 0; threadIdxx < blockDimx; threadIdxx++)
-	for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
-	{
-
-	const int startX = (blockIdxy/bsizeY)*modulesPerBlockX;
-	const int startY = (blockIdxy%bsizeY)*modulesPerBlockY;
-
-    const int  sx = threadIdxy/modulesPerBlockY;
-    const int  sy = threadIdxy - sx*modulesPerBlockY;
-
-	const int  ix = sx+startX;
-	const int  iy = sy+startY;
-
-
-
-//	for(int dsx = - lobe; dsx < lobe+1; dsx++)
-//	for(int dsy = - lobe; dsy <  lobe+1; dsy++)
-//	{
-		int idx = min(max(ix + dsx, 0), imgSizeX-1);
-		int idy = min(max(iy + dsy, 0), imgSizeY-1);
-
-//		for(int filterID = 0; filterID <  numFilters; filterID++)
-//		{
-			float sum = 0;
-
-			for(int z = threadIdxx + blockIdxx*blockDimx; z < numCases; z += blockDimx*gridDimx)
-			{	
-				for(int channelInd = 0; channelInd < channels; channelInd++)
-				{
-					const int channelOffset = channelInd*imgPixels*numCases;
-
-					//const int sOffset = channelInd*numFilters*sharedY2*blockDim.x + filterID*sharedY2*blockDim.x + threadIdx.x*sharedY2;
-					const int filterOffset = numFilters*channelOffset + filterID*imgPixels*numCases;				
-
-					float vact = actGrad[filterOffset + ix*widthyz + iy*widthz + z];
-					float vimg = input[channelOffset + idx*widthyz + idy*widthz + z];
-
-					sum += vimg;
-
-				}
-			}
-			const int tagOffset = filterID*imgSize;
-			int ind_coeff = filterID*sizeModule2 + (dsy + lobe)*sizeModule +(dsx + lobe);
-			target[tagOffset + ix*imgSizeX + iy] = sum;
-//		}
-
-//	}
-	}//thread
-	}//bloack
-}
 
 void debugVectFuncAct(int sizeV, float* filterArea, const float* input, float* const target,
 								const uint numPixelsPerGroup, const uint numCases,
