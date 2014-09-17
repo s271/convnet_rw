@@ -43,11 +43,20 @@ void debugMicroConvActGrad(int LOBE, int SIZE_MODULE, float* filterArea, const f
 								const uint imgSizeX, const uint imgSizeY,
 								const uint imgPixels);
 
- void debugMicroConvWeightGrad(int LOBE, int SIZE_MODULE, int dsx, int dsy, const float* actGrad, const float* input, float* const target_,
+ void debugMicroConvWeightGrad(int LOBE, int SIZE_MODULE, int dsx, int dsy, int  filterID, const float* actGrad, const float* input, float* const target_,
 								const uint target_size, const uint numCases,
 								const uint channels, const uint numFilters, 
 								const uint modulesPerBlockX, const uint modulesPerBlockY, const uint sharedY,
 								const uint lobe, const uint sizeModule, const uint sizeShared,
+								const uint imgSizeX, const uint imgSizeY, const uint imgPixels);
+
+ void emuMicroConvWeightGrad(int lobe, int SIZE_MODULE, int dsx, int dsy, int filterID,
+							int blockDimx, int blockDimy, int gridDimx, int gridDimy,
+						   const float* actGrad, const float* input, float* const target,
+								const uint target_size, const uint numCases,
+								const uint channels, const uint numFilters, 
+								const uint modulesPerBlockX, const uint modulesPerBlockY, const uint sharedY,
+								const uint sizeModule, const uint sizeShared,
 								const uint imgSizeX, const uint imgSizeY, const uint imgPixels);
 
  void debugVectFuncAct(int sizeV, float* filterArea, const float* input, float* const target,
