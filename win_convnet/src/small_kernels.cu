@@ -540,7 +540,7 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 								const uint target_size, const uint numCases, const uint casePerThread, const uint tagWidth,
 								const uint channels, const uint numFilters, 
 								const uint modulesPerBlockX, const uint modulesPerBlockY, const uint sharedY,
-								const uint sizeModule, const uint sizeSharedBlock,
+								const uint sizeSharedBlock,
 								const uint imgSizeX, const uint imgSizeY, const uint imgPixels)
 {
 
@@ -568,7 +568,6 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 	const int widthz = numCases;
 	const int widthyz = imgSizeY*numCases;
 
-	const int sizeModule2 = sizeModule*sizeModule;
 	const int sharedY2 = sharedY*sharedY;
 
 	const int conv_size = 2*lobe+1;
@@ -1454,7 +1453,7 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 								tag_size, numCases, casePerThread, tag_width,
 								channels, numFilters, 
 								img_threads_x, img_threads_y, sharedY,
-								sizeModuleSide, sizeSharedBlock,
+								sizeSharedBlock,
 								imgSizeX, imgSizeY, imgPixels);
 
 	double sum_ag = actGrad.sum();
