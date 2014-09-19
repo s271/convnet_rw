@@ -69,7 +69,7 @@ double Sum(const float* input, int size)
 //MicroConv
 //-------------------------------------------------------------
 
-void debugMicroConvFilterAct(int lobe, int SIZE_MODULE, float* filterArea, const float* input, float* const target, 
+void debugMicroConvFilterAct(int lobe, int SIZE_CONV, float* filterArea, const float* input, float* const target, 
 								const uint numCases, const uint channels, const uint numFilters,
 								const uint sharedY, const uint modulesPerBlockX,  const uint modulesPerBlockY, 
 								const uint imgSizeX, const uint imgSizeY,
@@ -77,7 +77,7 @@ void debugMicroConvFilterAct(int lobe, int SIZE_MODULE, float* filterArea, const
 {
 	const int widthz = numCases;
 	const int widthyz = imgSizeY*numCases;
-	int sizeModule2 = SIZE_MODULE*SIZE_MODULE;
+	int sizeConv2 = SIZE_CONV*SIZE_CONV;
 
 	for(int channelInd = 0; channelInd < channels; channelInd++)
 	for(int ix = 0; ix < imgSizeX; ix++)
@@ -96,7 +96,7 @@ void debugMicroConvFilterAct(int lobe, int SIZE_MODULE, float* filterArea, const
 			int idx = min(max(ix + dsx, 0), imgSizeX-1);
 			int idy = min(max(iy + dsy, 0), imgSizeY-1);
 			float sdata = input[channelOffset + idx*widthyz + idy*widthz + z];
-			sum += sdata*filterArea[filterID*sizeModule2 + (-dsy + lobe)*SIZE_MODULE +(-dsx + lobe)];
+			sum += sdata*filterArea[filterID*sizeConv2 + (-dsy + lobe)*SIZE_CONV +(-dsx + lobe)];
 		}
 
 		target[numFilters*channelOffset + filterID*imgPixels*numCases + ix*widthyz + iy*widthz + z] = sum;
@@ -125,7 +125,7 @@ void debugMicroConvFilterAct(int lobe, int SIZE_MODULE, float* filterArea, const
 
 #define getValInput(X, Y, Z) input[channelOffset + (X)*widthyz+(Y)*widthz + (Z)]
 
-void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridDimy, int LOBE, int SIZE_MODULE, float* filterArea, const float* input, float* const target,
+void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridDimy, int LOBE, int SIZE_CONV, float* filterArea, const float* input, float* const target,
 								const uint numCases, const uint channels, const uint numFilters, const uint casePerThread,
 								const uint sharedY, const uint modulesPerBlockX,  const uint modulesPerBlockY, 
 								const uint imgSizeX, const uint imgSizeY,
@@ -137,7 +137,7 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 	const int widthz = numCases;
 	const int widthyz = imgSizeY*numCases;
 
-	const int sizeModule2 = SIZE_MODULE*SIZE_MODULE;
+	const int sizeConv2 = SIZE_CONV*SIZE_CONV;
 	const int sharedY2 = sharedY*sharedY;
 
 	const int  bw = modulesPerBlockX;
@@ -146,8 +146,8 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 			const int bsizeX = imgSizeX/modulesPerBlockX;
 			const int bsizeY = imgSizeY/modulesPerBlockY;
 
-	printf("gridDimx %i gridDimy %i blockDimx %i blockDimy %i modulesPerBlockY %i channels %i sharedY %i SIZE_MODULE %i \n"
-		,gridDimx, gridDimy, blockDimx, blockDimy, modulesPerBlockY, channels, sharedY, SIZE_MODULE);
+	printf("gridDimx %i gridDimy %i blockDimx %i blockDimy %i modulesPerBlockY %i channels %i sharedY %i SIZE_CONV %i \n"
+		,gridDimx, gridDimy, blockDimx, blockDimy, modulesPerBlockY, channels, sharedY, SIZE_CONV);
 
 	for(int blockIdxx = 0; blockIdxx < gridDimx; blockIdxx++)
 	for(int blockIdxy = 0; blockIdxy < gridDimy; blockIdxy++)
@@ -221,7 +221,7 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 
 									float sd = sdata[(sx + dsx + LOBE)*sharedY+(sy + dsy + LOBE) + sOffset];
 
-									sum += sd*filterArea[filterID*sizeModule2 + (-dsy + LOBE)*SIZE_MODULE +(-dsx + LOBE)];
+									sum += sd*filterArea[filterID*sizeConv2 + (-dsy + LOBE)*SIZE_CONV +(-dsx + LOBE)];
 
 								}	
 										
@@ -239,7 +239,7 @@ void emuMicroConvFilterAct(int blockDimx, int blockDimy, int gridDimx, int gridD
 
 #define getValAct(X, Y, Z) actGrad[filterOffset + (X)*widthyz+(Y)*widthz + (Z)]
 
-void debugMicroConvActGrad(int LOBE, int SIZE_MODULE, float* filterArea, const float* actGrad, float* const target,
+void debugMicroConvActGrad(int LOBE, int SIZE_CONV, float* filterArea, const float* actGrad, float* const target,
 								const uint numCases, const uint channels, const uint numFilters, const uint casePerThread,
 								const uint modulesPerBlockX, const uint modulesPerBlockY,
 								const uint sharedY, const uint sizeModule, const uint lobe,
@@ -250,7 +250,7 @@ void debugMicroConvActGrad(int LOBE, int SIZE_MODULE, float* filterArea, const f
 
 	const int widthz = numCases;
 	const int widthyz = imgSizeY*numCases;
-	int sizeModule2 = SIZE_MODULE*SIZE_MODULE;
+	int sizeConv2 = SIZE_CONV*SIZE_CONV;
 
 	for(int z = 0; z < numCases; z++)
 	{
@@ -275,7 +275,7 @@ void debugMicroConvActGrad(int LOBE, int SIZE_MODULE, float* filterArea, const f
 
 						float inpd = actGrad[filterOffset + idx*widthyz + idy*widthz + z];
 
-						sum += inpd*filterArea[filterID*sizeModule2 + (-dsy + lobe)*sizeModule +(-dsx + lobe)];
+						sum += inpd*filterArea[filterID*sizeConv2 + (-dsy + lobe)*sizeModule +(-dsx + lobe)];
 					}
 				}
 				target[channelOffset + ix*widthyz + iy*widthz + z] = sum;
@@ -284,7 +284,7 @@ void debugMicroConvActGrad(int LOBE, int SIZE_MODULE, float* filterArea, const f
 	}
 }
 
- void debugMicroConvWeightGrad(int LOBE, int SIZE_MODULE, int dsx, int dsy, int filterID,
+ void debugMicroConvWeightGrad(int LOBE, int SIZE_CONV, int dsx, int dsy, int filterID,
 								const float* actGrad, const float* input, float* const target_,
 								const uint target_size, const uint numCases,
 								const uint channels, const uint numFilters, 
