@@ -540,14 +540,14 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 								const uint target_size, const uint numCases, const uint casePerThread, const uint tagWidth,
 								const uint channels, const uint numFilters, 
 								const uint modulesPerBlockX, const uint modulesPerBlockY, const uint sharedY,
-								const uint sizeModule, const uint sizeShared,
+								const uint sizeModule, const uint sizeSharedBlock,
 								const uint imgSizeX, const uint imgSizeY, const uint imgPixels)
 {
 
 //order x>y>z, *not* y>x
 	extern __shared__ float sdata[];
 	float* sdataImg = sdata;
-	float* sdataRes = sdata + sizeShared;
+	float* sdataRes = sdata + channels*sizeSharedBlock;
 	const int imgSize = imgSizeX*imgSizeY;
 
 	const int bsizeX = imgSizeX/modulesPerBlockX;
@@ -574,29 +574,29 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 	const int conv_size = 2*lobe+1;
 	const int conv2 = conv_size*conv_size;
 
+	int resStride = numFilters*conv2;
+	int res_off = resStride*(threadIdx.y*blockDim.x + threadIdx.x);
 
-	int res_off = sx*modulesPerBlockY + sy;
-
-	memset(sdataRes + res_off, 0, numFilters*conv_size*conv_size*sizeof(float));
+	memset(sdataRes + res_off, 0, resStride*sizeof(float));
 
 //float stor_buff[9*3];
 //memset(stor_buff, 0, sizeof(stor_buff));
 
 
-
-	for(int dsx = - lobe; dsx < lobe+1; dsx++)
-	for(int dsy = - lobe; dsy <  lobe+1; dsy++)
+	for(int zind = 0; zind < casePerThread; zind++)
 	{
-		int idx = min(max(ix + dsx, 0), imgSizeX-1);
-		int idy = min(max(iy + dsy, 0), imgSizeY-1);
+		const int z = zoff + zind*blockDim.x*gridDim.x;		
 
-		for(int filterID = 0; filterID <  numFilters; filterID++)
+		for(int dsx = - lobe; dsx < lobe+1; dsx++)
+		for(int dsy = - lobe; dsy <  lobe+1; dsy++)
 		{
-			float sum = 0;
+			int idx = min(max(ix + dsx, 0), imgSizeX-1);
+			int idy = min(max(iy + dsy, 0), imgSizeY-1);
 
-			for(int zind = 0; zind < casePerThread; zind++)
+			for(int filterID = 0; filterID <  numFilters; filterID++)
 			{
-				const int z = zoff + zind*blockDim.x*gridDim.x;		
+				float sum = 0;
+
 
 				for(int channelInd = 0; channelInd < channels; channelInd++)
 				{
@@ -610,13 +610,28 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 
 					sum += vact*vimg;
 
-				}
-			}
-			int ind_coeff = filterID*conv2 + (dsy + lobe)*conv_size +(dsx + lobe);
-			target[ind_coeff][ix*imgSizeX*tagWidth + tagWidth*iy + zoff] = sum;
-		}
+				}//channel
+				int ind_coeff = filterID*conv2 + (dsy + lobe)*conv_size +(dsx + lobe);
+				//stor_buff[ind_coeff]+= sum;
+				sdataRes[res_off + ind_coeff] += sum;
+			}//filter
 
+		}//dsx
+	}//zind
+
+
+	for(int isx = 0; isx < conv_size; isx++)
+	for(int isy = 0; isy <  conv_size; isy++)
+	{
+		for(int filterID = 0; filterID <  numFilters; filterID++)
+		{
+
+			int ind_coeff = filterID*conv2 + isy*conv_size + isx;
+			target[ind_coeff][ix*imgSizeX*tagWidth + tagWidth*iy + zoff] = sdataRes[res_off + ind_coeff];
+				//stor_buff[ind_coeff];
+		}
 	}
+
 }
 
 //-------------------------------------------------------------
@@ -1351,8 +1366,6 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 
 //	int shared_size = sharedX*sharedY*numFilters*channels*case_threads*sizeof(float);
 
-	int sizeSharedBlock = sharedX*sharedY;
-	int shared_size = (channels*sizeSharedBlock + img_threads_x*img_threads_y*numFilters*conv_size2)*sizeof(float);//looped out - case_threads*imgsPerThread;
 
 	int imgBlocksY = DIVUP(imgSizeY,img_threads_x);
 	int imgBlocksX = DIVUP(imgSizeX,img_threads_y);
@@ -1361,6 +1374,8 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 	dim3 threads(case_threads, img_threads_x*img_threads_y);
 	dim3 blocks = dim3(DIVUP(numCases, threads.x*casePerThread), imgBlocksY*imgBlocksX);
 
+	int sizeSharedBlock = sharedX*sharedY;
+	int shared_size = (channels*sizeSharedBlock + threads.x*threads.y*numFilters*conv_size2)*sizeof(float);//looped out - case_threads*imgsPerThread;
 
     int tag_width = DIVUP(input.getNumCols(), casePerThread) ; //could be reduced
     int tag_height = blocks.y*threads.y;//could be reduced
