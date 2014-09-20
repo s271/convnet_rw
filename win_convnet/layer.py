@@ -759,7 +759,7 @@ class MicroConvParser(LayerWithInputParser):
         
         meta_param = [0]*size_param     
         meta_param_inc = [0]*size_param
-        
+        '''
         for cn in range(dic['channels']):  
              for f in range(dic['filters']): 
                 off = f*dic['size']*dic['size'] + cn*dic['filters']*dic['size']*dic['size']
@@ -772,6 +772,16 @@ class MicroConvParser(LayerWithInputParser):
                     else:
                         meta_param[0 + j*dic['size'] + off] = 1. + fbkg
                         meta_param[dic['size']-1 + j*dic['size'] + off] = -1. + fbkg
+        '''
+        
+        for cn in range(dic['channels']):  
+            off = cn*dic['size']*dic['size']
+            for j in range(dic['size']): 
+                fbkg = 0
+                #fbkg = nr.uniform(0., 1.)
+                meta_param[j + off] = 1. + fbkg
+                meta_param[j + dic['size']*(dic['size']-1) +off] = -1. + fbkg
+      
 
         dic['meta_param'] = meta_param    
         dic['meta_param_inc'] = meta_param_inc 

@@ -841,13 +841,13 @@ void VectFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
 void VectFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType)
 {
 
-	printf(" VectFuncLayer bpropActs start\n");
+//	printf(" VectFuncLayer bpropActs start\n");
 
 
 	computeVectFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(),
 							 _param, _sizeV, _sizeH, _channels);
 
-	printf(" VectFuncLayer bpropActs end\n");
+//	printf(" VectFuncLayer bpropActs end\n");
 }
 
 void VectFuncLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType)
@@ -860,7 +860,7 @@ void VectFuncLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType)
 
 void VectFuncLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType)
 {
-printf(" VectFuncLayer bpropWeights start\n");
+//printf(" VectFuncLayer bpropWeights start\n");
 
 
 	computeVectFuncWeightGrad(v, *_inputs[inpIdx],
@@ -892,7 +892,7 @@ printf(" VectFuncLayer bpropWeights start\n");
 	}
 //renormalize here possibly
 
-printf(" VectFuncLayer bpropWeights end\n");
+//printf(" VectFuncLayer bpropWeights end\n");
 }
 
 void VectFuncLayer::copyToCPU()
@@ -912,21 +912,13 @@ void VectFuncLayer::copyToCPU()
 MicroConvLayer::MicroConvLayer(ConvNet* convNet, PyObject* paramsDict) : Layer(convNet, paramsDict, false) {
 
 	hParamList = PyDict_GetItemString(paramsDict, "meta_param");
+
 	_param = getVectorDouble(hParamList);
 
-	{
-		int numl = (_param.size()+8)/8;
-		printf("** params *** \n");
-		for (int nk = 0; nk < numl; nk++)
-		{
-			for (int k = 0; k < 8; k++)
-				if(k + nk*8 < _param.size())
-				printf("%f ", _param[k + nk*8]);
-			printf("\n");
-		}
-	}
+
 	hParamListInc = PyDict_GetItemString(paramsDict, "meta_param_inc");
 	_param_inc = getVectorDouble(hParamListInc);
+
 
 	 _size = pyDictGetInt(paramsDict, "size");
     _channels = pyDictGetInt(paramsDict, "channels");
@@ -938,8 +930,27 @@ MicroConvLayer::MicroConvLayer(ConvNet* convNet, PyObject* paramsDict) : Layer(c
     _epsP = pyDictGetFloat(paramsDict, "epsP");
     _wc = pyDictGetFloat(paramsDict, "wc");
 
-	assert(_size*_size*_channels*_numFilters == _param.size());
+
+//temporary - one filter
+	_param.erase(_param.begin() + _param.size()/_numFilters, _param.end());
+	_param_inc.erase(_param_inc.begin() + _param_inc.size()/_numFilters, _param_inc.end());
+	assert(_size*_size*_channels == _param.size());
+//
+//	assert(_size*_size*_channels*_numFilters == _param.size());
 //debug
+
+	{
+		int numl = (_param.size()+9)/9;
+		printf("** MicroConvLayer params *** \n");
+		for (int nk = 0; nk < numl; nk++)
+		{
+			for (int k = 0; k < 9; k++)
+				if(k + nk*9 < _param.size())
+				printf("%f ", _param[k + nk*9]);
+			printf("\n");
+		}
+	}
+
 	memset(_nstore_count, 0, sizeof(_nstore_count));
 	for (int i =0; i < NSTORE; i++)
 	for (int j =0; j < _param.size(); j++)
@@ -982,13 +993,13 @@ void MicroConvLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS
 {
 //weight grad
 
-	printf(" MicroConvLayer bpropActs start\n");
+//	printf(" MicroConvLayer bpropActs start\n");
 
 	computeMicroConvActGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(),
 							 _param, _size, _channels,
 							_imgSize, _imgPixels, _numFilters);
 
-	printf(" MicroConvLayer bpropActs end\n");
+//	printf(" MicroConvLayer bpropActs end\n");
 
 };
 
@@ -1002,7 +1013,7 @@ void MicroConvLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType)
 
 void MicroConvLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType)
 {
-	printf(" MicroConvLayer bpropWeights start\n");
+//	printf(" MicroConvLayer bpropWeights start\n");
 
 	computeMicroConvWeightGrad(v, *_inputs[inpIdx],
 								_tempMatrixArray,
@@ -1031,7 +1042,7 @@ void MicroConvLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType)
 //		_param[kp] += _param_inc[kp];
 	}
 //renormalize here possibly
-	printf(" MicroConvLayer bpropWeights end\n");
+//	printf(" MicroConvLayer bpropWeights end\n");
 }
 
 /* 
