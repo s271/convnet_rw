@@ -211,7 +211,7 @@ protected:
 	NVMatrix _temp, _temp_m;
 
 	vector<double> _grad_store[NSTORE];
-	int _nstore_count[NSTORE];
+	vector<int> _nstore_count;
 
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
@@ -233,7 +233,7 @@ protected:
 	void* _arrayPtr;
 
 	vector<double> _grad_store[NSTORE];
-	int _nstore_count[NSTORE];
+	vector<int> _nstore_count;
 
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
@@ -260,7 +260,7 @@ protected:
     int _numFilters, _channels, _imgSize, _imgPixels;
 
 	vector<double> _grad_store[NSTORE];
-	int _nstore_count[NSTORE];
+	vector<int> _nstore_count;
 
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);

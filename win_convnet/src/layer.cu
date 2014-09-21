@@ -810,8 +810,10 @@ VectFuncLayer::VectFuncLayer(ConvNet* convNet, PyObject* paramsDict): Layer(conv
     _wc = pyDictGetFloat(paramsDict, "wc");
 
 	assert(_sizeV*_sizeH == _param.size());
-//debug
-	memset(_nstore_count, 0, sizeof(_nstore_count));
+
+	for (int j =0; j < _param.size(); j++)
+		_nstore_count.push_back(0);
+
 	for (int i =0; i < NSTORE; i++)
 	for (int j =0; j < _param.size(); j++)
 		_grad_store[i].push_back(0);
@@ -951,7 +953,9 @@ MicroConvLayer::MicroConvLayer(ConvNet* convNet, PyObject* paramsDict) : Layer(c
 		}
 	}
 
-	memset(_nstore_count, 0, sizeof(_nstore_count));
+	for (int j =0; j < _param.size(); j++)
+		_nstore_count.push_back(0);
+
 	for (int i =0; i < NSTORE; i++)
 	for (int j =0; j < _param.size(); j++)
 		_grad_store[i].push_back(0);
@@ -1013,7 +1017,7 @@ void MicroConvLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType)
 
 void MicroConvLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType)
 {
-//	printf(" MicroConvLayer bpropWeights start\n");
+	printf(" MicroConvLayer bpropWeights start\n");
 
 	computeMicroConvWeightGrad(v, *_inputs[inpIdx],
 								_tempMatrixArray,
@@ -1023,14 +1027,21 @@ void MicroConvLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType)
 
 	int paramSize = _param.size();
 
-
+printf("  paramSize %i _tempMatrixArray %i \n", paramSize, _tempMatrixArray.size());
 	for(int kp = 0; kp < paramSize; kp++)
 	{
 		double grad = _tempMatrixArray[kp].sum();
+
+printf("  grad %f _nstore_count %i \n", grad, _nstore_count[kp]);
+
 		double sum_grad = 0;
 		for(int k = 0; k < NSTORE; k++)
+		{
 			sum_grad += _grad_store[k][kp]*_grad_store[k][kp];
+		}
 
+
+printf("  _grad_store %f kp %i \n", _grad_store[_nstore_count[kp]][kp], kp);
 
 		_grad_store[_nstore_count[kp]][kp] = grad;
 		_nstore_count[kp] = (_nstore_count[kp]+1)%NSTORE;
@@ -1042,7 +1053,7 @@ void MicroConvLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType)
 //		_param[kp] += _param_inc[kp];
 	}
 //renormalize here possibly
-//	printf(" MicroConvLayer bpropWeights end\n");
+	printf(" MicroConvLayer bpropWeights end\n");
 }
 
 /* 
@@ -1065,8 +1076,10 @@ EltwiseFuncLayer::EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict) : Lay
     _mom = pyDictGetFloat(paramsDict, "mom");
     _epsP = pyDictGetFloat(paramsDict, "epsP");
     _wc = pyDictGetFloat(paramsDict, "wc");
-//debug
-	memset(_nstore_count, 0, sizeof(_nstore_count));
+
+	for (int j =0; j < _param.size(); j++)
+		_nstore_count.push_back(0);
+
 	for (int i =0; i < NSTORE; i++)
 	for (int j =0; j < _param.size(); j++)
 		_grad_store[i].push_back(0);

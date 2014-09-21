@@ -1407,7 +1407,7 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 	int dsy = 0;
 	int dsx = 0;
 	int choff=0;
-	int ind_coeff = choff+filterID*sizeConv2 + (dsy + lobe)*SIZE_CONV +(dsx + lobe);
+	int ind_coeff = filterID*sizeConv2 + (dsy + lobe)*SIZE_CONV +(dsx + lobe);
 
 	singletonTempMem.allocFloatElement(actGrad.getNumCols()*actGrad.getNumRows());
 	singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
