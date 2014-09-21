@@ -1017,7 +1017,7 @@ void MicroConvLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType)
 
 void MicroConvLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType)
 {
-	printf(" MicroConvLayer bpropWeights start\n");
+//	printf(" MicroConvLayer bpropWeights start\n");
 
 	computeMicroConvWeightGrad(v, *_inputs[inpIdx],
 								_tempMatrixArray,
@@ -1027,12 +1027,10 @@ void MicroConvLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType)
 
 	int paramSize = _param.size();
 
-printf("  paramSize %i _tempMatrixArray %i \n", paramSize, _tempMatrixArray.size());
 	for(int kp = 0; kp < paramSize; kp++)
 	{
 		double grad = _tempMatrixArray[kp].sum();
 
-printf("  grad %f _nstore_count %i \n", grad, _nstore_count[kp]);
 
 		double sum_grad = 0;
 		for(int k = 0; k < NSTORE; k++)
@@ -1040,8 +1038,6 @@ printf("  grad %f _nstore_count %i \n", grad, _nstore_count[kp]);
 			sum_grad += _grad_store[k][kp]*_grad_store[k][kp];
 		}
 
-
-printf("  _grad_store %f kp %i \n", _grad_store[_nstore_count[kp]][kp], kp);
 
 		_grad_store[_nstore_count[kp]][kp] = grad;
 		_nstore_count[kp] = (_nstore_count[kp]+1)%NSTORE;
@@ -1053,7 +1049,7 @@ printf("  _grad_store %f kp %i \n", _grad_store[_nstore_count[kp]][kp], kp);
 //		_param[kp] += _param_inc[kp];
 	}
 //renormalize here possibly
-	printf(" MicroConvLayer bpropWeights end\n");
+//	printf(" MicroConvLayer bpropWeights end\n");
 }
 
 /* 
