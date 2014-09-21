@@ -301,6 +301,7 @@ void debugMicroConvActGrad(int LOBE, int SIZE_CONV, float* filterArea, const flo
 	const int sizeModule2 = sizeModule*sizeModule;
 	const int sharedY2 = sharedY*sharedY;
 	const int imgSize = imgSizeX*imgSizeY;
+	const int channelOffset = 0;//channelInd*imgSize*numCases;
 
 	for(int ix = 0; ix < imgSizeX; ix++)
 	for(int iy = 0; iy < imgSizeY; iy++)
@@ -308,9 +309,7 @@ void debugMicroConvActGrad(int LOBE, int SIZE_CONV, float* filterArea, const flo
 
 //pragma unroll here
 		float sum = 0;
-		for(int channelInd = 0; channelInd < channels; channelInd++)
-		{
-			const int channelOffset = channelInd*imgSize*numCases;
+
 			const int filterOffset = numFilters*channelOffset + filterID*imgSize*numCases;
 
 			for(int z = 0; z < numCases; z++)
@@ -322,8 +321,7 @@ void debugMicroConvActGrad(int LOBE, int SIZE_CONV, float* filterArea, const flo
 					float imgd = input[channelOffset + idx*widthyz + idy*widthz + z];							
 					sum += actd*imgd;
 			}//z
-		}//channel
-		target_[ix*imgSizeX + iy] = sum;
+			target_[ix*imgSizeX + iy] = sum;
 	}//ix
 }
 

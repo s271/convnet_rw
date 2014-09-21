@@ -932,9 +932,9 @@ MicroConvLayer::MicroConvLayer(ConvNet* convNet, PyObject* paramsDict) : Layer(c
 
 
 //temporary - one filter
-	_param.erase(_param.begin() + _param.size()/_numFilters, _param.end());
-	_param_inc.erase(_param_inc.begin() + _param_inc.size()/_numFilters, _param_inc.end());
-	assert(_size*_size*_channels == _param.size());
+	//_param.erase(_param.begin() + _param.size()/_numFilters, _param.end());
+	//_param_inc.erase(_param_inc.begin() + _param_inc.size()/_numFilters, _param_inc.end());
+	//assert(_size*_size*_channels == _param.size());
 //
 //	assert(_size*_size*_channels*_numFilters == _param.size());
 //debug
