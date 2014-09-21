@@ -705,19 +705,14 @@ class VectFuncParser(LayerWithInputParser):
         if len(dic['rotate']) > 0:
             da = math.pi/sizeH
             
-            for r in range(sizeH):
-                meta_param[r*sizeV] = 1
-                 
-            for ind_rot in dic['rotate']:
-                
-                for r in range(sizeH):
-                    cosa = cos(r*da)
-                    sina = sin(r*da)    
-                    vx = meta_param[r*sizeV]*cosa - meta_param[r*sizeV+ind_rot]*sina
-                    vy = meta_param[r*sizeV]*sina + meta_param[r*sizeV+ind_rot]*cosa
-                
-                    meta_param[r*sizeV] = vx
-                    meta_param[r*sizeV + ind_rot] = vy               
+            for ri in range(size_param/sizeV):
+                angl = da*ri
+                for vi in range(sizeV):
+                    meta_param[ri*sizeV + vi] =  nr.uniform(0, 1.)
+                    if vi==0:
+                         meta_param[ri*sizeV + vi] = sin(angl)
+                    if vi==1:
+                         meta_param[ri*sizeV + vi] = cos(angl)                   
 
         else:
             for ii in range(size_param):

@@ -1497,6 +1497,9 @@ void computeVectFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& param
     dim3 blocks(std::min(NUM_BLOCKS_MAX, (int)DIVUP(inp_width, threads.x)),
                 std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)));
 
+	//for(int i = 0; i < param.size(); i++)
+	//	printf("param %f \n",  param[i]);
+
 //	float sumi = input.sum();
 //	printf("sumi %f \n",  sumi);
 //	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i numColors %i \n",blocks.x, blocks.y, threads.x, threads.y, numColors);
@@ -1516,15 +1519,15 @@ void computeVectFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& param
 //	printf("sum_inp %f \n",  sum_inp);
 //
 //	double sum_host =0;
-//	//memset(tempHostTarget, 0, out_height*out_width*sizeof(float));
-//	//debugVectFuncAct(sizeV, temp, tempHostInput, tempHostTarget,
-//	//							numPixelsPerGroup, numCases, input.getStride(), target.getStride(), numColors, sizeH);
+//	memset(tempHostTarget, 0, out_height*out_width*sizeof(float));
+//	debugVectFuncAct(sizeV, temp, tempHostInput, tempHostTarget,
+//								numPixelsPerGroup, numCases, input.getStride(), target.getStride(), numColors, sizeH);
 //
-//	//sum_host = Sum(tempHostTarget, out_height*out_width);
+//	sum_host = Sum(tempHostTarget, out_height*out_width);
 //
-//	//printf(" debugVectFuncAct sum %f \n", sum_host);
+//	printf(" debugVectFuncAct sum %f \n", sum_host);
 //
-//	//memset(tempHostTarget, 0, out_height*out_width*sizeof(float));
+//	memset(tempHostTarget, 0, out_height*out_width*sizeof(float));
 //	 emuVectFuncAct(sizeV, temp, blocks.y, threads.y, blocks.x, threads.x, 
 //					tempHostInput, tempHostTarget,
 //					numPixelsPerGroup, numCases, input.getStride(), target.getStride(), numColors, sizeH);
