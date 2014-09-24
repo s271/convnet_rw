@@ -969,6 +969,54 @@ float NVMatrix::min() {
     return _totalAgg(NVMatrixAggs::Min());
 }
 
+void NVMatrix::SetAggStorage(vector<NVMatrix>& aggStorage, Matrix& srcCPU)
+{
+    assert(isContiguous());
+    dim3 blocks, threads;
+    int numCols;
+    // Sum most of it on GPU
+    NVMatrix* src = this;
+    for (NVMatrix* target = NULL; src->getNumElements() > CPUSUM_MAX; src = target) {
+        _sum_setParams(src->getNumElements(), &blocks, &threads, &numCols);
+		aggStorage.push_back(NVMatrix());
+		NVMatrix& mx = aggStorage[aggStorage.size()-1];
+		mx.resize(1, blocks.x);
+		target = &mx;
+    }
+
+	srcCPU.resize(src->getNumRows(), src->getNumCols());
+};
+
+template<class Agg>
+float NVMatrix::_totalAgg(Agg agg, vector<NVMatrix>& aggStorage, Matrix& srcCPU) {
+    assert(isContiguous());
+    dim3 blocks, threads;
+    int numCols;
+    // Sum most of it on GPU
+    NVMatrix* src = this;
+	int count = 0;
+    for (int count = 0; count < aggStorage.size(); count++) {
+        NVMatrix* target = &aggStorage[count];
+        kTotalAgg<<<blocks, threads>>>(src->getDevData(), target->getDevData(), numCols, src->getNumElements(), agg);
+        cutilCheckMsg("kTotalAgg: Kernel execution failed");
+    }
+
+    src->copyToHost(srcCPU);
+    if (src->getNumElements() > 1) { // Sum remainder on CPU
+        delete (src == this ? NULL : src);
+        if (typeid(Agg) == typeid(NVMatrixAggs::Sum)) {
+            return srcCPU.sum();
+        } else if (typeid(Agg) == typeid(NVMatrixAggs::Max)) {
+            return srcCPU.max();
+        } else if (typeid(Agg) == typeid(NVMatrixAggs::Min)) {
+            return srcCPU.min();
+        } else {
+            assert(false);
+        }
+    }
+    return srcCPU(0,0);
+}
+
 template<class Agg>
 float NVMatrix::_totalAgg(Agg agg) {
     assert(isContiguous());

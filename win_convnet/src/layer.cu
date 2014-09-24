@@ -1046,8 +1046,31 @@ void MicroConvLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType)
 			grad = grad*sqrt(NSTORE)/sqrt(sum_grad);
 
 		_param_inc[kp] = _mom*_param_inc[kp] + _epsP*grad - _wc*_param[kp];
-//		_param[kp] += _param_inc[kp];
+		_param[kp] += _param_inc[kp];
+
 	}
+
+	double sumScale = 3;
+	double l1sum = 0;
+	for(int i =0; i < _param.size(); i++)
+		l1sum += fabs(_param[i]);
+
+	for(int i =0; i < _param.size(); i++)
+		_param[i] *= sumScale/l1sum;
+
+	if(minibatch == 0)
+	{
+		int numl = (_param.size()+9)/9;
+		printf("** params *** \n");
+		for (int nk = 0; nk < numl; nk++)
+		{
+			for (int k = 0; k < 9; k++)
+				if(k + nk*9 < _param.size())
+				printf("%f ", _param[k + nk*9]);
+			printf("\n");
+		}
+	}
+
 //renormalize here possibly
 //	printf(" MicroConvLayer bpropWeights end\n");
 }
