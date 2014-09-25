@@ -392,6 +392,8 @@ public:
     float min();
     float norm2();
     float norm();
+
+	float sum_fast(vector<NVMatrix>& aggStorage,  Matrix& srcCPU);
     
     void inRangeInc(float lower, float upper);
     void inRangeInc(float lower, float upper, NVMatrix& target);

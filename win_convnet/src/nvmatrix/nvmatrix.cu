@@ -961,6 +961,10 @@ float NVMatrix::sum() {
     return _totalAgg(NVMatrixAggs::Sum());
 }
 
+float NVMatrix::sum_fast(vector<NVMatrix>& aggStorage,  Matrix& srcCPU) {
+	return _totalAgg(NVMatrixAggs::Sum(), aggStorage, srcCPU);
+}
+
 float NVMatrix::max() {
     return _totalAgg(NVMatrixAggs::Max());
 }

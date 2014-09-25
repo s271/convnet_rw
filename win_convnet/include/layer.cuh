@@ -43,6 +43,12 @@ class ConvNet;
 class CostLayer;
 class DataLayer;
 
+struct AggStorage
+{ 
+	vector<NVMatrixV> _aggMatrix;
+	Matrix _srcCPU;
+};
+
 /*
  * Abstract layer.
  */
