@@ -47,6 +47,9 @@
 #include "nvmatrix_kernels.cuh"
 #include "nvmatrix_operators.cuh"
 using std::vector;
+class AggData;
+
+typedef vector<AggData> AggVector;
 
 #ifdef WARNINGS
 #define WARN(msg) printf("WARN: File %s, line %d: %s\n", __FILE__, __LINE__, msg);
@@ -94,8 +97,7 @@ private:
     void _init(int numRows, int numCols);
     void _init(int numRows, int numCols, int stride, bool isTrans);
     void _sum_setParams(int n, dim3* blocks, dim3* threads, int* numCols);
-	void SetAggStorage(vector<NVMatrix>& aggStorage, Matrix& srcCPU);
-    template<class Agg> float _totalAgg(Agg agg, vector<NVMatrix>& aggStorage, Matrix& srcCPU);
+    template<class Agg> float _totalAgg(Agg agg, AggVector& aggStorage, Matrix& srcCPU);
     template<class Agg> float _totalAgg(Agg agg);
     template<class Agg, class BinaryOp> void _aggregate(int axis, NVMatrix& target, Agg agg, BinaryOp op);
     template<class Agg, class BinaryOp> NVMatrix& _aggregate(int axis, Agg agg, BinaryOp op);
@@ -119,6 +121,8 @@ public:
     static curandState* getCurandState();
     static void destroyRandom();
     static pthread_mutex_t* makeMutex();
+	void SetAggStorage(AggVector& aggStorage, Matrix& srcCPU);
+
 
     /*
      * DO NOT DEREFERENCE IN HOST CODE! This is a device memory pointer.
@@ -393,7 +397,7 @@ public:
     float norm2();
     float norm();
 
-	float sum_fast(vector<NVMatrix>& aggStorage,  Matrix& srcCPU);
+	float sum_fast(AggVector& aggStorage,  Matrix& srcCPU);
     
     void inRangeInc(float lower, float upper);
     void inRangeInc(float lower, float upper, NVMatrix& target);
@@ -470,6 +474,15 @@ public:
     template<class UnaryOperator> float argMax(UnaryOperator u) {
        return _totalAgg(NVMatrixAggs::ArgMax<UnaryOperator>(u));
     }
+};
+
+struct AggData
+{
+	NVMatrix mtrx;
+	int blocksx;
+	int blocksy;
+	int threadsx;
+	int threadsy;
 };
 
 #endif /* NVMATRIX_H_ */

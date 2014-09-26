@@ -1450,9 +1450,10 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 
 //	double sum_ag = actGrad.sum();
 //	double sum_ig = input.sum();
-//double sum = tempMatrix[ind_coeff].sum();
-//	printf(" kMicroConvWeightGrad sum %f sum_ag %f sum_ig %f \n", sum, sum_ag, sum_ig);
-//
+double sum = tempMatrix[0].sum();
+printf(" kMicroConvWeightGrad sum %f  \n", sum);
+	//printf(" kMicroConvWeightGrad sum %f sum_ag %f sum_ig %f \n", sum, sum_ag, sum_ig);
+
 ////debug
 //	printf("kMicroConvWeightGrad end \n");
 

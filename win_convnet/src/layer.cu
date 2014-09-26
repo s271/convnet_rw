@@ -1015,6 +1015,8 @@ void MicroConvLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType)
 
 }
 
+
+
 void MicroConvLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType)
 {
 //	printf(" MicroConvLayer bpropWeights start\n");
@@ -1027,10 +1029,18 @@ void MicroConvLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType)
 
 	int paramSize = _param.size();
 
+	if(_aggStorage._aggMatrix.size() == 0)
+	{	
+		_tempMatrixArray[0].SetAggStorage(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+		printf(" _aggStorage._aggMatrix.size()%i  \n", _aggStorage._aggMatrix.size());
+	}
+
 	for(int kp = 0; kp < paramSize; kp++)
 	{
-		double grad = _tempMatrixArray[kp].sum();
+		//double grad = _tempMatrixArray[kp].sum();
+		double grad = _tempMatrixArray[kp].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 
+printf(" MicroConvLayer sum %i %f \n", kp, grad);
 
 		double sum_grad = 0;
 		for(int k = 0; k < NSTORE; k++)

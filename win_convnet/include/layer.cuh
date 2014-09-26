@@ -43,9 +43,11 @@ class ConvNet;
 class CostLayer;
 class DataLayer;
 
+using std::vector;
+
 struct AggStorage
 { 
-	vector<NVMatrixV> _aggMatrix;
+	AggVector _aggMatrix;
 	Matrix _srcCPU;
 };
 
@@ -267,6 +269,8 @@ protected:
 
 	vector<double> _grad_store[NSTORE];
 	vector<int> _nstore_count;
+
+	AggStorage _aggStorage;
 
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);

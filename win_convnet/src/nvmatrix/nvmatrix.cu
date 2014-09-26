@@ -961,7 +961,7 @@ float NVMatrix::sum() {
     return _totalAgg(NVMatrixAggs::Sum());
 }
 
-float NVMatrix::sum_fast(vector<NVMatrix>& aggStorage,  Matrix& srcCPU) {
+float NVMatrix::sum_fast(AggVector& aggStorage,  Matrix& srcCPU) {
 	return _totalAgg(NVMatrixAggs::Sum(), aggStorage, srcCPU);
 }
 
@@ -973,7 +973,7 @@ float NVMatrix::min() {
     return _totalAgg(NVMatrixAggs::Min());
 }
 
-void NVMatrix::SetAggStorage(vector<NVMatrix>& aggStorage, Matrix& srcCPU)
+void NVMatrix::SetAggStorage(AggVector& aggStorage, Matrix& srcCPU)
 {
     assert(isContiguous());
     dim3 blocks, threads;
@@ -982,28 +982,43 @@ void NVMatrix::SetAggStorage(vector<NVMatrix>& aggStorage, Matrix& srcCPU)
     NVMatrix* src = this;
     for (NVMatrix* target = NULL; src->getNumElements() > CPUSUM_MAX; src = target) {
         _sum_setParams(src->getNumElements(), &blocks, &threads, &numCols);
-		aggStorage.push_back(NVMatrix());
-		NVMatrix& mx = aggStorage[aggStorage.size()-1];
-		mx.resize(1, blocks.x);
-		target = &mx;
+		AggData dummy;
+		aggStorage.push_back(dummy);
+		AggData& aggData = aggStorage[aggStorage.size()-1];
+		aggData.mtrx.resize(1, blocks.x);
+		aggData.blocksx = blocks.x;
+		aggData.blocksy = blocks.y;
+		aggData.threadsx = threads.x;
+		aggData.threadsy = threads.y;
+		
+		target = &aggData.mtrx;
     }
-
 	srcCPU.resize(src->getNumRows(), src->getNumCols());
 };
 
 template<class Agg>
-float NVMatrix::_totalAgg(Agg agg, vector<NVMatrix>& aggStorage, Matrix& srcCPU) {
+float NVMatrix::_totalAgg(Agg agg, AggVector& aggStorage, Matrix& srcCPU) {
     assert(isContiguous());
     dim3 blocks, threads;
     int numCols;
     // Sum most of it on GPU
     NVMatrix* src = this;
-	int count = 0;
+
+	printf(" aggStorage.size() %i \n", aggStorage.size());
+
+
     for (int count = 0; count < aggStorage.size(); count++) {
-        NVMatrix* target = &aggStorage[count];
-        kTotalAgg<<<blocks, threads>>>(src->getDevData(), target->getDevData(), numCols, src->getNumElements(), agg);
+        NVMatrix* target = &aggStorage[count].mtrx;
+		blocks.x = aggStorage[count].blocksx;
+        blocks.y = aggStorage[count].blocksy;
+		threads.x = aggStorage[count].threadsx;
+		threads.y = aggStorage[count].threadsy;
+		kTotalAgg<<<blocks, threads>>>(src->getDevData(), target->getDevData(), numCols, src->getNumElements(), agg);
         cutilCheckMsg("kTotalAgg: Kernel execution failed");
+		src = target;
     }
+
+	printf(" src %i %i \n", src->getNumRows(), src->getNumCols());
 
     src->copyToHost(srcCPU);
     if (src->getNumElements() > 1) { // Sum remainder on CPU
