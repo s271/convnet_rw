@@ -962,7 +962,12 @@ float NVMatrix::sum() {
 }
 
 float NVMatrix::sum_fast(AggVector& aggStorage,  Matrix& srcCPU) {
-	return _totalAgg(NVMatrixAggs::Sum(), aggStorage, srcCPU);
+			printf("sum_fast bfr  mtrx %i %i \n",aggStorage[0].mtrx.getNumRows(), aggStorage[0].mtrx.getNumCols());
+	
+		float res = _totalAgg(NVMatrixAggs::Sum(), aggStorage, srcCPU);
+			printf("sum_fast aft  mtrx %i %i \n",aggStorage[0].mtrx.getNumRows(), aggStorage[0].mtrx.getNumCols());
+
+		return res;
 }
 
 float NVMatrix::max() {
@@ -1004,27 +1009,58 @@ float NVMatrix::_totalAgg(Agg agg, AggVector& aggStorage, Matrix& srcCPU) {
     // Sum most of it on GPU
     NVMatrix* src = this;
 
-	printf(" aggStorage.size() %i \n", aggStorage.size());
 
+int count = 0;
 
-    for (int count = 0; count < aggStorage.size(); count++) {
-        NVMatrix* target = &aggStorage[count].mtrx;
+    for (NVMatrix* target = NULL; src->getNumElements() > CPUSUM_MAX; src = target) {
+        _sum_setParams(src->getNumElements(), &blocks, &threads, &numCols);
+
+		printf("count %i blocks.x %i blocks.y %i threads.x %i threads.y %i \n",
+			count, blocks.x, blocks.y, threads.x, threads.y);
+
+		printf("agg**  blocks.x %i blocks.y %i threads.x %i threads.y %i \n",
+			aggStorage[count].blocksx, aggStorage[count].blocksy, aggStorage[count].threadsx, aggStorage[count].threadsy);
+		printf("agg**  mtrx %i %i \n",aggStorage[count].mtrx.getNumRows(), aggStorage[count].mtrx.getNumCols());
+
 		blocks.x = aggStorage[count].blocksx;
         blocks.y = aggStorage[count].blocksy;
 		threads.x = aggStorage[count].threadsx;
 		threads.y = aggStorage[count].threadsy;
-		kTotalAgg<<<blocks, threads>>>(src->getDevData(), target->getDevData(), numCols, src->getNumElements(), agg);
+
+		target = &aggStorage[count].mtrx;
+
+        //target = new NVMatrix(1, blocks.x);
+        kTotalAgg<<<blocks, threads>>>(src->getDevData(), target->getDevData(), numCols, src->getNumElements(), agg);
         cutilCheckMsg("kTotalAgg: Kernel execution failed");
-		src = target;
+        cudaThreadSynchronize(); // not really necessary?
+        //delete (src == this ? NULL : src);
+		count++;
     }
 
-	printf(" src %i %i \n", src->getNumRows(), src->getNumCols());
-
+  // for (int count = 0; count < aggStorage.size(); count++) {
+  //      NVMatrix* target = &aggStorage[count].mtrx;
+		//blocks.x = aggStorage[count].blocksx;
+  //      blocks.y = aggStorage[count].blocksy;
+		//threads.x = aggStorage[count].threadsx;
+		//threads.y = aggStorage[count].threadsy;
+		//kTotalAgg<<<blocks, threads>>>(src->getDevData(), target->getDevData(), numCols, src->getNumElements(), agg);
+  //      cutilCheckMsg("kTotalAgg: Kernel execution failed");
+		//src = target;
+  //  }
+printf("bfr copy %i %i \n", aggStorage[0].mtrx.getNumRows(), aggStorage[0].mtrx.getNumCols());
     src->copyToHost(srcCPU);
+	 printf("end loop 1 aft  mtrx %i %i \n", aggStorage[0].mtrx.getNumRows(), aggStorage[0].mtrx.getNumCols());
+		printf("end loop aft  src %i %i \n", src->getNumRows(), src->getNumCols());
+
     if (src->getNumElements() > 1) { // Sum remainder on CPU
-        delete (src == this ? NULL : src);
+  //      delete (src == this ? NULL : src);
         if (typeid(Agg) == typeid(NVMatrixAggs::Sum)) {
-            return srcCPU.sum();
+			printf("bfr cpu sum  %i %i \n", aggStorage[0].mtrx.getNumRows(), aggStorage[0].mtrx.getNumCols());
+
+            float res= srcCPU.sum();
+					printf("bfr return %i %i \n", aggStorage[0].mtrx.getNumRows(), aggStorage[0].mtrx.getNumCols());
+
+				return res;
         } else if (typeid(Agg) == typeid(NVMatrixAggs::Max)) {
             return srcCPU.max();
         } else if (typeid(Agg) == typeid(NVMatrixAggs::Min)) {
@@ -1033,6 +1069,7 @@ float NVMatrix::_totalAgg(Agg agg, AggVector& aggStorage, Matrix& srcCPU) {
             assert(false);
         }
     }
+
     return srcCPU(0,0);
 }
 

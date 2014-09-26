@@ -1037,10 +1037,17 @@ void MicroConvLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType)
 
 	for(int kp = 0; kp < paramSize; kp++)
 	{
-		//double grad = _tempMatrixArray[kp].sum();
+
+
+		double grad_0 = _tempMatrixArray[kp].sum();
+
+		printf("layer bfr  mtrx %i %i \n",_aggStorage._aggMatrix[0].mtrx.getNumRows(), _aggStorage._aggMatrix[0].mtrx.getNumCols());
+
 		double grad = _tempMatrixArray[kp].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 
-printf(" MicroConvLayer sum %i %f \n", kp, grad);
+		printf("layer aft  mtrx %i %i \n",_aggStorage._aggMatrix[0].mtrx.getNumRows(), _aggStorage._aggMatrix[0].mtrx.getNumCols());
+
+		printf(" MicroConvLayer sum %i %f grad_0 %f\n", kp, grad, grad_0);
 
 		double sum_grad = 0;
 		for(int k = 0; k < NSTORE; k++)
