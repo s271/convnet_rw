@@ -870,12 +870,17 @@ void VectFuncLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType)
 								_arrayPtr,
 								_param,  _sizeV, _sizeH, _channels);
 
+	
+	_tempMatrixArray[0].ResizeAggStorage(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+
 	int paramSize = _param.size();
 
 
 	for(int kp = 0; kp < paramSize; kp++)
 	{
-		double grad = _tempMatrixArray[kp].sum();
+		//double grad = _tempMatrixArray[kp].sum();
+		double grad = _tempMatrixArray[kp].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+
 		double sum_grad = 0;
 		for(int k = 0; k < NSTORE; k++)
 			sum_grad += _grad_store[k][kp]*_grad_store[k][kp];
@@ -894,7 +899,7 @@ void VectFuncLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType)
 	}
 //renormalize here possibly
 
-//printf(" VectFuncLayer bpropWeights end\n");
+//	printf(" VectFuncLayer bpropWeights end\n");
 }
 
 void VectFuncLayer::copyToCPU()
@@ -1029,32 +1034,18 @@ void MicroConvLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType)
 
 	int paramSize = _param.size();
 
-	if(_aggStorage._aggMatrix.size() == 0)
-	{	
-		_tempMatrixArray[0].SetAggStorage(_aggStorage._aggMatrix, _aggStorage._srcCPU);
-		printf(" _aggStorage._aggMatrix.size()%i  \n", _aggStorage._aggMatrix.size());
-	}
+
+	_tempMatrixArray[0].ResizeAggStorage(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 
 	for(int kp = 0; kp < paramSize; kp++)
 	{
-
-
-		double grad_0 = _tempMatrixArray[kp].sum();
-
-		printf("layer bfr  mtrx %i %i \n",_aggStorage._aggMatrix[0].mtrx.getNumRows(), _aggStorage._aggMatrix[0].mtrx.getNumCols());
-
 		double grad = _tempMatrixArray[kp].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
-
-		printf("layer aft  mtrx %i %i \n",_aggStorage._aggMatrix[0].mtrx.getNumRows(), _aggStorage._aggMatrix[0].mtrx.getNumCols());
-
-		printf(" MicroConvLayer sum %i %f grad_0 %f\n", kp, grad, grad_0);
 
 		double sum_grad = 0;
 		for(int k = 0; k < NSTORE; k++)
 		{
 			sum_grad += _grad_store[k][kp]*_grad_store[k][kp];
 		}
-
 
 		_grad_store[_nstore_count[kp]][kp] = grad;
 		_nstore_count[kp] = (_nstore_count[kp]+1)%NSTORE;
@@ -1162,13 +1153,16 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 									  _temp, _temp_m,
 									 pin, pout,  _sizeIn, _sizeOut);
 
-//	printf(" temp %i pin %i pout %i  \n", temp.getNumElements(), pin, pout);
-	
 
-//	printf(" temp_m %i  \n", temp_m.getNumElements());
+		_temp.ResizeAggStorage(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 
-		double grad = _temp.sum();
-		double grad_m = _temp_m.sum();
+//		double grad = _temp.sum();
+//		double grad_m = _temp_m.sum();
+
+
+		double grad = _temp.sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+		double grad_m = _temp_m.sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+
 		int ind_p = pin + pout*2*_sizeIn;
 		int ind_p_m = ind_p + _sizeIn;
 
@@ -1230,7 +1224,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 	computeEltwiseFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(), _param, _sizeIn, _sizeOut);
 
-		//printf(" bpropActs end\n");
+//		printf("EltwiseFuncLayer bpropActs end\n");
 }
 
 

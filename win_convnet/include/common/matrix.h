@@ -116,6 +116,7 @@ private:
     bool _ownsData;
     long int _numRows, _numCols;
     long int _numElements;
+	long int _max_size;
     CBLAS_TRANSPOSE _trans;
 
     void _init(MTYPE* data, long int numRows, long int numCols, bool transpose, bool ownsData);
@@ -265,6 +266,7 @@ public:
     void eltWiseDivideByVector(const Matrix& vec);
     void eltWiseDivideByVector(const Matrix& vec, Matrix& target);
     void resize(long int newNumRows, long int newNumCols);
+	void resizeUp(long int newNumRows, long int newNumCols);
     void resize(const Matrix& like);
     Matrix& slice(long int startRow, long int endRow, long int startCol, long int endCol) const;
     void slice(long int startRow, long int endRow, long int startCol, long int endCol, Matrix &target) const;

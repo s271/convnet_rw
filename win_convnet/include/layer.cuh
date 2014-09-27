@@ -216,6 +216,8 @@ protected:
 	PyObject* hParamListInc;
 	float _epsP, _wc, _mom;
 	int _sizeIn, _sizeOut, _updates;
+
+	AggStorage _aggStorage;
 	NVMatrix _temp, _temp_m;
 
 	vector<double> _grad_store[NSTORE];
@@ -237,6 +239,7 @@ protected:
 	float _epsP, _wc, _mom;
 	int _sizeV, _sizeH, _channels;
 
+	AggStorage _aggStorage;
 	vector<NVMatrix> _tempMatrixArray;
 	void* _arrayPtr;
 

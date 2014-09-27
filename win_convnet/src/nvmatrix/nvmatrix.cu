@@ -62,6 +62,7 @@ void NVMatrix::_init(int numRows, int numCols, int stride, bool isTrans) {
 
     _isTrans = isTrans;
     _devData = NULL;
+	_max_size = _numElements;
     if (_numElements > 0) {
         cublasAlloc(_numElements, sizeof(float), (void**) &_devData);
         checkCublasError("!!!! device memory allocation error\n");
@@ -493,10 +494,46 @@ bool NVMatrix::resize(int numRows, int numCols) {
         _numRows = numRows;
         _numCols = numCols;
         _numElements = numRows * numCols;
+		_max_size = _numElements;
         _stride = getLeadingDim();
     }
     return reallocated;
 }
+
+bool NVMatrix::resizeUp(int numRows, int numCols) {
+    bool reallocated = false;
+    if (numRows != _numRows || numCols != _numCols)
+	{
+        assert(_ownsData);
+
+        if (numRows * numCols > _max_size)
+		{ // allocate new memory
+
+			if (_numElements > 0)
+			{ // free old memory
+				cublasStatus status = cublasFree(_devData);
+				if (status != CUBLAS_STATUS_SUCCESS)
+				{
+					fprintf(stderr, "!!!! memory free error: %X\n", status);
+					exit(EXIT_FAILURE);
+				}
+			}
+            cublasStatus status = cublasAlloc(numCols * numRows, sizeof(float), (void**) &_devData);
+            if (status != CUBLAS_STATUS_SUCCESS) {
+                fprintf(stderr, "!!!! device memory allocation error\n");
+                exit(EXIT_FAILURE);
+            }//exit
+			_max_size = numCols * numRows;
+            reallocated = true;
+        }
+        _numRows = numRows;
+        _numCols = numCols;
+        _numElements = numRows * numCols;
+        _stride = getLeadingDim();
+    }//numRows != _numRows || numCols != _numCols
+    return reallocated;
+}
+
 
 bool NVMatrix::resize(const NVMatrix& like) {
     setTrans(like.isTrans());
@@ -962,12 +999,7 @@ float NVMatrix::sum() {
 }
 
 float NVMatrix::sum_fast(AggVector& aggStorage,  Matrix& srcCPU) {
-			printf("sum_fast bfr  mtrx %i %i \n",aggStorage[0].mtrx.getNumRows(), aggStorage[0].mtrx.getNumCols());
-	
-		float res = _totalAgg(NVMatrixAggs::Sum(), aggStorage, srcCPU);
-			printf("sum_fast aft  mtrx %i %i \n",aggStorage[0].mtrx.getNumRows(), aggStorage[0].mtrx.getNumCols());
-
-		return res;
+		return _totalAgg(NVMatrixAggs::Sum(), aggStorage, srcCPU);
 }
 
 float NVMatrix::max() {
@@ -978,27 +1010,27 @@ float NVMatrix::min() {
     return _totalAgg(NVMatrixAggs::Min());
 }
 
-void NVMatrix::SetAggStorage(AggVector& aggStorage, Matrix& srcCPU)
+void NVMatrix::ResizeAggStorage(AggVector& aggStorage, Matrix& srcCPU)
 {
     assert(isContiguous());
     dim3 blocks, threads;
     int numCols;
     // Sum most of it on GPU
     NVMatrix* src = this;
+	int count = 0;
     for (NVMatrix* target = NULL; src->getNumElements() > CPUSUM_MAX; src = target) {
         _sum_setParams(src->getNumElements(), &blocks, &threads, &numCols);
-		AggData dummy;
-		aggStorage.push_back(dummy);
+		if(aggStorage.size() <= count)
+		{
+			AggData dummy;
+			aggStorage.push_back(dummy);
+		}
 		AggData& aggData = aggStorage[aggStorage.size()-1];
-		aggData.mtrx.resize(1, blocks.x);
-		aggData.blocksx = blocks.x;
-		aggData.blocksy = blocks.y;
-		aggData.threadsx = threads.x;
-		aggData.threadsy = threads.y;
-		
+		aggData.mtrx.resizeUp(1, blocks.x);
 		target = &aggData.mtrx;
+		count++;
     }
-	srcCPU.resize(src->getNumRows(), src->getNumCols());
+	srcCPU.resizeUp(src->getNumRows(), src->getNumCols());
 };
 
 template<class Agg>
@@ -1009,58 +1041,22 @@ float NVMatrix::_totalAgg(Agg agg, AggVector& aggStorage, Matrix& srcCPU) {
     // Sum most of it on GPU
     NVMatrix* src = this;
 
-
-int count = 0;
+	int count = 0;
 
     for (NVMatrix* target = NULL; src->getNumElements() > CPUSUM_MAX; src = target) {
         _sum_setParams(src->getNumElements(), &blocks, &threads, &numCols);
-
-		printf("count %i blocks.x %i blocks.y %i threads.x %i threads.y %i \n",
-			count, blocks.x, blocks.y, threads.x, threads.y);
-
-		printf("agg**  blocks.x %i blocks.y %i threads.x %i threads.y %i \n",
-			aggStorage[count].blocksx, aggStorage[count].blocksy, aggStorage[count].threadsx, aggStorage[count].threadsy);
-		printf("agg**  mtrx %i %i \n",aggStorage[count].mtrx.getNumRows(), aggStorage[count].mtrx.getNumCols());
-
-		blocks.x = aggStorage[count].blocksx;
-        blocks.y = aggStorage[count].blocksy;
-		threads.x = aggStorage[count].threadsx;
-		threads.y = aggStorage[count].threadsy;
-
 		target = &aggStorage[count].mtrx;
-
-        //target = new NVMatrix(1, blocks.x);
         kTotalAgg<<<blocks, threads>>>(src->getDevData(), target->getDevData(), numCols, src->getNumElements(), agg);
         cutilCheckMsg("kTotalAgg: Kernel execution failed");
         cudaThreadSynchronize(); // not really necessary?
-        //delete (src == this ? NULL : src);
 		count++;
     }
 
-  // for (int count = 0; count < aggStorage.size(); count++) {
-  //      NVMatrix* target = &aggStorage[count].mtrx;
-		//blocks.x = aggStorage[count].blocksx;
-  //      blocks.y = aggStorage[count].blocksy;
-		//threads.x = aggStorage[count].threadsx;
-		//threads.y = aggStorage[count].threadsy;
-		//kTotalAgg<<<blocks, threads>>>(src->getDevData(), target->getDevData(), numCols, src->getNumElements(), agg);
-  //      cutilCheckMsg("kTotalAgg: Kernel execution failed");
-		//src = target;
-  //  }
-printf("bfr copy %i %i \n", aggStorage[0].mtrx.getNumRows(), aggStorage[0].mtrx.getNumCols());
     src->copyToHost(srcCPU);
-	 printf("end loop 1 aft  mtrx %i %i \n", aggStorage[0].mtrx.getNumRows(), aggStorage[0].mtrx.getNumCols());
-		printf("end loop aft  src %i %i \n", src->getNumRows(), src->getNumCols());
 
-    if (src->getNumElements() > 1) { // Sum remainder on CPU
-  //      delete (src == this ? NULL : src);
+    if (src->getNumElements() > 1) { 
         if (typeid(Agg) == typeid(NVMatrixAggs::Sum)) {
-			printf("bfr cpu sum  %i %i \n", aggStorage[0].mtrx.getNumRows(), aggStorage[0].mtrx.getNumCols());
-
-            float res= srcCPU.sum();
-					printf("bfr return %i %i \n", aggStorage[0].mtrx.getNumRows(), aggStorage[0].mtrx.getNumCols());
-
-				return res;
+				return srcCPU.sum();
         } else if (typeid(Agg) == typeid(NVMatrixAggs::Max)) {
             return srcCPU.max();
         } else if (typeid(Agg) == typeid(NVMatrixAggs::Min)) {

@@ -39,6 +39,7 @@ void Matrix::_init(MTYPE* data, long int numRows, long int numCols, bool transpo
     _ownsData = ownsData;
     _trans = transpose ? CblasTrans : CblasNoTrans;
     _data = data;
+	_max_size = numRows*numCols;
 }
 
 Matrix::Matrix() {
@@ -455,11 +456,27 @@ void Matrix::resize(long int newNumRows, long int newNumCols) {
         if (this->getNumElements() != newNumRows * newNumCols) {
             delete[] this->_data; //deleting NULL is ok, sez c++
             this->_data = new MTYPE[newNumRows * newNumCols];
+			_max_size = newNumRows * newNumCols;
         }
         this->_updateDims(newNumRows, newNumCols);
         this->_trans = CblasNoTrans;
     }
 }
+
+void Matrix::resizeUp(long int newNumRows, long int newNumCols) {
+    if(this->_numRows != newNumRows || this->_numCols != newNumCols)
+	{
+        assert(!isView());
+        if (newNumRows * newNumCols > _max_size) {
+            delete[] this->_data; //deleting NULL is ok, sez c++
+            this->_data = new MTYPE[newNumRows * newNumCols];
+			_max_size = newNumRows * newNumCols;
+        }
+        this->_updateDims(newNumRows, newNumCols);
+        this->_trans = CblasNoTrans;
+    }
+}
+
 
 void Matrix::resize(const Matrix& like) {
     resize(like.getNumRows(), like.getNumCols());

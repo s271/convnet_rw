@@ -72,6 +72,7 @@ private:
     float* _devData;
     bool _isTrans;
     bool _ownsData;
+	int _max_size;
 
 //    static std::map<int,curandGenerator_t> rndGen;
     static std::map<int,curandState*> rndDevStates;
@@ -94,7 +95,7 @@ private:
         return _isTrans ? 'n' : 't';
     }
 
-    void _init(int numRows, int numCols);
+    //void _init(int numRows, int numCols);
     void _init(int numRows, int numCols, int stride, bool isTrans);
     void _sum_setParams(int n, dim3* blocks, dim3* threads, int* numCols);
     template<class Agg> float _totalAgg(Agg agg, AggVector& aggStorage, Matrix& srcCPU);
@@ -121,8 +122,7 @@ public:
     static curandState* getCurandState();
     static void destroyRandom();
     static pthread_mutex_t* makeMutex();
-	void SetAggStorage(AggVector& aggStorage, Matrix& srcCPU);
-
+	void ResizeAggStorage(AggVector& aggStorage, Matrix& srcCPU);
 
     /*
      * DO NOT DEREFERENCE IN HOST CODE! This is a device memory pointer.
@@ -352,6 +352,7 @@ public:
     }
 
     bool resize(int numRows, int numCols);
+	bool resizeUp(int numRows, int numCols);
     bool resize(const NVMatrix &like);
     bool resize(const Matrix &like);
     void reshape(int numRows, int numCols);
@@ -479,10 +480,6 @@ public:
 struct AggData
 {
 	NVMatrix mtrx;
-	int blocksx;
-	int blocksy;
-	int threadsx;
-	int threadsy;
 };
 
 #endif /* NVMATRIX_H_ */
