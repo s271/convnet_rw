@@ -1585,8 +1585,9 @@ void L2SVMCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passTyp
         NVMatrix& acts = getActs(), correctPreds;
 
 		computeL2SVMCost(labels, acts_prev, acts, correctPreds);
+		acts.ResizeAggStorage(_aggStorage._aggMatrix, _aggStorage._srcCPU);
         _costv.clear();
-        _costv.push_back(acts.sum());//should be max(1-t*act_prev, 0) instead
+        _costv.push_back(acts.sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU));//should be max(1-t*act_prev, 0) instead
 		_costv.push_back(numCases - correctPreds.sum());
     }
 
