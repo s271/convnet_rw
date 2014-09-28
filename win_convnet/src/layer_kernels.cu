@@ -104,7 +104,7 @@ __global__ void kL2SVMCost(float* acts, float* labels, float* maxActs, float* ac
 				 svm_val =  fmaxf(1+max_svm, 0);
 			 else
 				 svm_val =  fmaxf(1-max_svm, 0);
-			 sum_svm +=  svm_val*svm_val + L1_SVM_C*svm_val;
+			 sum_svm +=  .5*svm_val*svm_val + L1_SVM_C*svm_val;
 		}
 
         acts_out[tx] = sum_svm;
