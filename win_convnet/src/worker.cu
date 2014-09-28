@@ -94,6 +94,10 @@ void TrainingWorker::run() {
 	_convNet->setEpoch(_epoch);
 //debug
 	gepoch = _epoch;
+	size_t free_mem;
+	size_t total_mem;
+	cudaError_t  err = cudaMemGetInfo(&free_mem, &total_mem);
+//	printf(" free memory  %f \n", free_mem/1e6);
 
     Cost& batchCost = *new Cost(0);
 
@@ -110,8 +114,8 @@ void TrainingWorker::run() {
 //if (!_test)
 //printf(" eps %f \n", _eps_scale);
 //debug
-//	for (int ki = 0; ki < 1; ki++) {
-   for (int ki = 0; ki < _dp->getNumMinibatches(); ki++) {
+	for (int ki = 0; ki < 1; ki++) {
+//   for (int ki = 0; ki < _dp->getNumMinibatches(); ki++) {
 		int mini_ind = shaffle[ki];
 //debug
 minibatch=ki;

@@ -72,6 +72,8 @@ __global__ void kLogregCost(float* probs, float* labels, float* maxProbs, float*
     }
 }
 
+#define L1_SVM_C .3
+
 __global__ void kL2SVMCost(float* acts, float* labels, float* maxActs, float* acts_out, float* correctPreds,
                             const int numCases, const int numOut) {
     const int tx = blockIdx.x * LOGREG_ERR_THREADS_X + threadIdx.x;
@@ -82,22 +84,30 @@ __global__ void kL2SVMCost(float* acts, float* labels, float* maxActs, float* ac
         const float max_svm = maxActs[tx];
         const float svm_label_value = acts[label * numCases + tx]; 
 
-		float cost_val;
-
         if (svm_label_value != max_svm) {
             correctPreds[tx] = 0;
-			cost_val = fmaxf(1+max_svm, 0);
 
         } else {
             int numMax = 0;
             for (int i = 0; i < numOut; i++) {
                 numMax += acts[i * numCases + tx] == max_svm;
-			cost_val = fmaxf(1-max_svm, 0);
             }
             correctPreds[tx] = 1.0f / float(numMax);
         }
 
-        acts_out[tx] = cost_val*cost_val + .3*cost_val;//not correct value, just estimation, should be a sum really
+		float sum_svm = 0;
+		for(int i = 0; i < numOut; i++)
+		{
+			const float wx = acts[i * numCases + tx];
+			float svm_val;
+			 if (wx != max_svm)
+				 svm_val =  fmaxf(1+max_svm, 0);
+			 else
+				 svm_val =  fmaxf(1-max_svm, 0);
+			 sum_svm +=  svm_val*svm_val + L1_SVM_C*svm_val;
+		}
+
+        acts_out[tx] = sum_svm;
     }
 }
 
@@ -290,7 +300,7 @@ __global__ void kL2SVMGrad(float* y_l, float* labels, float* dE_dx_l, const int 
 		//y_l = w*act_prev
         //float v = gradCoeff*t*(1 - t*y_l[tidx] > 0); //-grad, because we are adding it and minimize
 		float act = 1 - t*y_l[tidx];
-		float max_val = fmaxf(act, 0) + .3*(act > 0);
+		float max_val = fmaxf(act, 0) + L1_SVM_C*(act > 0);
 
 		float v = gradCoeff*t*max_val; //-grad, because we are adding it and minimize
         if (add) {
