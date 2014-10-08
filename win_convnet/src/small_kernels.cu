@@ -595,8 +595,8 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 			for(int dsx = - lobe; dsx < lobe+1; dsx++)
 			for(int dsy = - lobe; dsy <  lobe+1; dsy++)
 			{
-				int idx = min(max(ix - dsx, 0), imgSizeX-1);
-				int idy = min(max(iy - dsy, 0), imgSizeY-1);
+				int idx = min(max(ix + dsx, 0), imgSizeX-1);
+				int idy = min(max(iy + dsy, 0), imgSizeY-1);
 
 				for(int filterID = 0; filterID <  numFilters; filterID++)
 				{
@@ -604,8 +604,8 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 
 					const int filterOffset = numFilters*channelOffset + filterID*imgPixels*numCases;				
 					float vact = actGrad[filterOffset + ix*widthyz + iy*widthz + z];
-					float vimg = sdata[(sx - dsx + lobe)*sharedY+(sy - dsy + lobe) + sOffset];
-						//input[channelOffset + idx*widthyz + idy*widthz + z];
+					float vimg = //sdata[(sx - dsx + lobe)*sharedY+(sy - dsy + lobe) + sOffset];
+						input[channelOffset + idx*widthyz + idy*widthz + z];
 
 					sum += vact*vimg;
 

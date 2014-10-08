@@ -314,7 +314,7 @@ void debugMicroConvLinApprox(int lobe, int SIZE_CONV, float* filterArea, const f
 			float sdata = input[channelOffset + idx*widthyz + idy*widthz + z];
 
 
-			sum += sdata*filterArea[channelInd*sizeConv2*numFilters + filterID*sizeConv2 + (-dsy + lobe)*SIZE_CONV +(-dsx + lobe)];
+			sum += sdata*filterArea[channelInd*sizeConv2*numFilters + filterID*sizeConv2 + (dsy + lobe)*SIZE_CONV +(dsx + lobe)];
 		}
 
 		float act = actGrad[numFilters*channelOffset + filterID*imgPixels*numCases + ix*widthyz + iy*widthz + z];
@@ -353,8 +353,8 @@ void debugMicroConvLinApprox(int lobe, int SIZE_CONV, float* filterArea, const f
 
 			for(int z = 0; z < numCases; z++)
 			{	
-					int idx = min(max(ix - dsx, 0), imgSizeX-1);
-					int idy = min(max(iy - dsy, 0), imgSizeY-1);
+					int idx = min(max(ix + dsx, 0), imgSizeX-1);
+					int idy = min(max(iy + dsy, 0), imgSizeY-1);
 
 					float actd = actGrad[filterOffset + ix*widthyz + iy*widthz + z];
 					float imgd = input[channelOffset + idx*widthyz + idy*widthz + z];							
