@@ -380,7 +380,7 @@ __global__ void kEltwiseFuncParamGradSingle_t(float* actGrad, float* input, floa
     if ((sx < (LOBE)) && (sy < (LOBE))) {\
         SMEM(sx, sy, sdata) = getVal(max(x - (LOBE), 0), max(y - (LOBE), 0), z);\
         SMEM(sx, (LOBE) + bh + sy, sdata) = getVal(max(x - (LOBE), 0), min(y + bh, imgSizeY-1), z);\
-        SMEM((LOBE) + bw + sx, sy, sdata) = getVal(min(x + bh, imgSizeX-1), max(y - (LOBE), 0), z);\
+        SMEM((LOBE) + bw + sx, sy, sdata) = getVal(min(x + bw, imgSizeX-1), max(y - (LOBE), 0), z);\
         SMEM((LOBE) + bw + sx, (LOBE) + bh + sy, sdata) = getVal(min(x + bw, imgSizeX-1), min(y + bh, imgSizeY-1), z);\
     }
 
@@ -600,17 +600,14 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 
 				for(int filterID = 0; filterID <  numFilters; filterID++)
 				{
-					float sum = 0;
 
 					const int filterOffset = numFilters*channelOffset + filterID*imgPixels*numCases;				
 					float vact = actGrad[filterOffset + ix*widthyz + iy*widthz + z];
-					float vimg = //sdata[(sx - dsx + lobe)*sharedY+(sy - dsy + lobe) + sOffset];
-						input[channelOffset + idx*widthyz + idy*widthz + z];
-
-					sum += vact*vimg;
+					float vimg = sdata[(sx + dsx + lobe)*sharedY+(sy + dsy + lobe) + sOffset];
+						//input[channelOffset + idx*widthyz + idy*widthz + z];
 
 					int ind_coeff = filterID*conv2 + (dsy + lobe)*conv_size +(dsx + lobe);
-					sdataRes[res_off + ind_coeff] += sum;
+					sdataRes[res_off + ind_coeff] += vact*vimg;
 
 				}//filter
 
