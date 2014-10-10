@@ -386,43 +386,53 @@ void emuMicroConvWeightGrad(int blockDimx, int blockDimy, int gridDimx, int grid
 	const int bsizeX = imgSizeX/modulesPerBlockX;
 	const int bsizeY = imgSizeY/modulesPerBlockY;
 
+    const int  bw = modulesPerBlockX;
+    const int  bh = modulesPerBlockY;
 
 
+	const int sharedY2 = sharedY*sharedY;
+
+	const int conv_size = 2*lobe+1;
+	const int conv2 = conv_size*conv_size;
+	int resStride = numFilters*conv2;
 
 	for(int blockIdxx = 0; blockIdxx < gridDimx; blockIdxx++)
 	for(int blockIdxy = 0; blockIdxy < gridDimy; blockIdxy++)
 	{
 
-	//for(int threadIdxx = 0; threadIdxx < blockDimx; threadIdxx++)
-	//for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
-	//{
-	//	const int startX = (blockIdxy/bsizeY)*modulesPerBlockX;
-	//	const int startY = (blockIdxy%bsizeY)*modulesPerBlockY;
 
-	//	const int  bw = modulesPerBlockX;
-	//	const int  bh = modulesPerBlockY;
-	//	const int  sx = threadIdxy/modulesPerBlockY;
-	//	const int  sy = threadIdxy - sx*modulesPerBlockY;
 
-	//	const int  ix = sx+startX;
-	//	const int  iy = sy+startY;
+	memset(sdataRes, 0, blockDimx*blockDimy*resStride*sizeof(float));
 
-	//	const int zoff = threadIdxx + blockIdxx*blockDimx;
-	//	const int widthz = numCases;
-	//	const int widthyz = imgSizeY*numCases;
+	for(int zind = 0; zind < casePerThread; zind++)
+	{
 
-	//	const int sharedY2 = sharedY*sharedY;
-	//	const int sOffset = threadIdxx*sharedY2;
+	for(int threadIdxx = 0; threadIdxx < blockDimx; threadIdxx++)
+	for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
+	{
+		const int startX = (blockIdxy/bsizeY)*modulesPerBlockX;
+		const int startY = (blockIdxy%bsizeY)*modulesPerBlockY;
 
-	//	const int channelOffset = channelInd*imgPixels*numCases;
+		const int  bw = modulesPerBlockX;
+		const int  bh = modulesPerBlockY;
+		const int  sx = threadIdxy/modulesPerBlockY;
+		const int  sy = threadIdxy - sx*modulesPerBlockY;
 
-	//	for(int zind = 0; zind < casePerThread; zind++)
-	//	{
+		const int  ix = sx+startX;
+		const int  iy = sy+startY;
 
-	//		const int z = zoff + zind*blockDimx*gridDimx;
-	//		SHARED_MEM(ix, iy, z, lobe, getValInput, sdataImg)	
-	//	}
-	//}
+		const int zoff = threadIdxx + blockIdxx*blockDimx;
+		const int widthz = numCases;
+		const int widthyz = imgSizeY*numCases;
+
+		const int sharedY2 = sharedY*sharedY;
+		const int sOffset = threadIdxx*sharedY2;
+
+		const int channelOffset = channelInd*imgPixels*numCases;
+		const int z = zoff + zind*blockDimx*gridDimx;
+		SHARED_MEM(ix, iy, z, lobe, getValInput, sdataImg)	
+	}
+
 
 	for(int threadIdxx = 0; threadIdxx < blockDimx; threadIdxx++)
 	for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
@@ -431,8 +441,7 @@ void emuMicroConvWeightGrad(int blockDimx, int blockDimy, int gridDimx, int grid
 	const int startX = (blockIdxy/bsizeY)*modulesPerBlockX;
 	const int startY = (blockIdxy%bsizeY)*modulesPerBlockY;
 
-    const int  bw = modulesPerBlockX;
-    const int  bh = modulesPerBlockY;
+
     const int  sx = threadIdxy/modulesPerBlockY;
     const int  sy = threadIdxy - sx*modulesPerBlockY;
 
@@ -444,23 +453,15 @@ void emuMicroConvWeightGrad(int blockDimx, int blockDimy, int gridDimx, int grid
 	const int widthz = numCases;
 	const int widthyz = imgSizeY*numCases;
 
-	const int sharedY2 = sharedY*sharedY;
 
-	const int conv_size = 2*lobe+1;
-	const int conv2 = conv_size*conv_size;
-
-	int resStride = numFilters*conv2;
 	int res_off = resStride*(threadIdxy*blockDimx + threadIdxx);
 
-	memset(sdataRes + res_off, 0, resStride*sizeof(float));
+//	memset(sdataRes + res_off, 0, resStride*sizeof(float));
 	const int sOffset = threadIdxx*sharedY2;
-
-	target[ix*imgSizeX*tagWidth + tagWidth*iy + zoff] = 0;
 
 
 		const int channelOffset = channelInd*imgPixels*numCases;
 
-		for(int zind = 0; zind < casePerThread; zind++)
 		{
 
 			const int z = zoff + zind*blockDimx*gridDimx;		
@@ -473,8 +474,8 @@ void emuMicroConvWeightGrad(int blockDimx, int blockDimy, int gridDimx, int grid
 
 					const int filterOffset = numFilters*channelOffset + filterID*imgPixels*numCases;				
 					float vact = actGrad[filterOffset + ix*widthyz + iy*widthz + z];
-					float vimg = //sdataImg[(sx + dsx + lobe)*sharedY+(sy + dsy + lobe) + sOffset];
-						input[channelOffset + idx*widthyz + idy*widthz + z];
+					float vimg = sdataImg[(sx + dsx + lobe)*sharedY+(sy + dsy + lobe) + sOffset];
+						//input[channelOffset + idx*widthyz + idy*widthz + z];
 
 					int ind_coeff = filterID*conv2 + (dsy + lobe)*conv_size +(dsx + lobe);
 					sdataRes[res_off + ind_coeff] += vact*vimg;
@@ -484,6 +485,25 @@ void emuMicroConvWeightGrad(int blockDimx, int blockDimy, int gridDimx, int grid
 
 			}//dsx
 		}//z
+
+	}//threads
+	}//zind
+
+	for(int threadIdxx = 0; threadIdxx < blockDimx; threadIdxx++)
+	for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
+	{
+		const int startX = (blockIdxy/bsizeY)*modulesPerBlockX;
+		const int startY = (blockIdxy%bsizeY)*modulesPerBlockY;
+
+
+		const int  sx = threadIdxy/modulesPerBlockY;
+		const int  sy = threadIdxy - sx*modulesPerBlockY;
+
+		const int  ix = sx+startX;
+		const int  iy = sy+startY;
+		const int zoff = threadIdxx + blockIdxx*blockDimx;
+		int res_off = resStride*(threadIdxy*blockDimx + threadIdxx);
+
 
 		int isx = dsx+lobe;
 		int isy = dsy+lobe;
@@ -495,8 +515,8 @@ void emuMicroConvWeightGrad(int blockDimx, int blockDimy, int gridDimx, int grid
 			}
 		}
 
+	}
 
-	}//threads
 	}//blocks
 
 }
