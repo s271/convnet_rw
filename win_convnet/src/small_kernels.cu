@@ -576,12 +576,13 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 	int resStride = numFilters*conv2;
 	int res_off = resStride*(threadIdx.y*blockDim.x + threadIdx.x);
 
-	memset(sdataRes + res_off, 0, resStride*sizeof(float));
 	const int sOffset = threadIdx.x*sharedY2;
 
 	for(int channelInd = 0; channelInd < channels; channelInd++)
 	{
 		const int channelOffset = channelInd*imgPixels*numCases;
+
+		memset(sdataRes + res_off, 0, resStride*sizeof(float));
 
 		for(int zind = 0; zind < casePerThread; zind++)
 		{
