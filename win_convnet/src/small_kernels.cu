@@ -588,12 +588,12 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 
 			const int z = zoff + zind*blockDim.x*gridDim.x;		
 
-			SHARED_MEM(ix, iy, z, lobe, getValInput, sdata)	
+			SHARED_MEM(ix, iy, z, lobe, getValInput, sdataImg)	
 
 			__syncthreads();
 
 			for(int dsx = - lobe; dsx < lobe+1; dsx++)
-			for(int dsy = - lobe; dsy <  lobe+1; dsy++)
+			for(int dsy = - lobe; dsy < lobe+1; dsy++)
 			{
 				int idx = min(max(ix + dsx, 0), imgSizeX-1);
 				int idy = min(max(iy + dsy, 0), imgSizeY-1);
@@ -603,7 +603,7 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 
 					const int filterOffset = numFilters*channelOffset + filterID*imgPixels*numCases;				
 					float vact = actGrad[filterOffset + ix*widthyz + iy*widthz + z];
-					float vimg = sdata[(sx + dsx + lobe)*sharedY+(sy + dsy + lobe) + sOffset];
+					float vimg = sdataImg[(sx + dsx + lobe)*sharedY+(sy + dsy + lobe) + sOffset];
 						//input[channelOffset + idx*widthyz + idy*widthz + z];
 
 					int ind_coeff = filterID*conv2 + (dsy + lobe)*conv_size +(dsx + lobe);
@@ -615,7 +615,7 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 		}//z
 
 		for(int isx = 0; isx < conv_size; isx++)
-		for(int isy = 0; isy <  conv_size; isy++)
+		for(int isy = 0; isy < conv_size; isy++)
 		{
 			for(int filterID = 0; filterID <  numFilters; filterID++)
 			{
@@ -1401,7 +1401,7 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 
 	const int sizeConv2 = SIZE_CONV*SIZE_CONV;
 	int filterID = 0;
-	int dsy = 1;
+	int dsy = 0;
 	int dsx = 1;
 	int channelID = 0;
 	int ind_coeff = filterID*sizeConv2 + (dsy + lobe)*SIZE_CONV +(dsx + lobe);
@@ -1424,7 +1424,7 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 	cudaMemcpy(tempHostInp, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float),
 		cudaMemcpyDeviceToHost);
 	//memset(tempHostTagA, 0, tag_height*tag_width*sizeof(float));
-	//memset(tempHostTag, 0, tag_height*tag_width*sizeof(float));
+	memset(tempHostTag, 0, tag_height*tag_width*sizeof(float));
 
 	double sum_a = Sum(tempHostAct, actGrad.getNumCols()*actGrad.getNumRows());
 	double sum_i = Sum(tempHostInp, input.getNumCols()*input.getNumRows());
@@ -1458,7 +1458,7 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 	printf(" debugMicroConv grad %f \n", (sum_host1-sum_host0)/delta);
 
 
-
+memset(tempHostTag, 0, tag_height*tag_width*sizeof(float));
   debugMicroConvWeightGrad(lobe, SIZE_CONV, dsx, dsy, filterID, channelID, tempHostAct, tempHostInp, tempHostTag,
 								tag_size, numCases,
 								channels, numFilters, 
@@ -1468,6 +1468,19 @@ void computeMicroConvWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 
   double sum_host = Sum(tempHostTag, tag_height*tag_width);
   printf(" debugMicroConvWeightGrad sum %f \n", sum_host);
+
+memset(tempHostTag, 0, tag_height*tag_width*sizeof(float));
+
+  emuMicroConvWeightGrad(threads.x, threads.y, blocks.x, blocks.y,
+							lobe, SIZE_CONV, dsx, dsy, filterID, channelID, tempHostAct, tempHostInp, tempHostTag,
+								tag_size, numCases, casePerThread, tag_width,
+								channels, numFilters, 
+								img_threads_x, img_threads_y, sharedY,
+								sizeSharedBlock,
+								imgSizeX, imgSizeY, imgPixels);
+
+   double sum_host_emu = Sum(tempHostTag, tag_height*tag_width);
+  printf(" emuMicroConvWeightGrad sum %f \n", sum_host_emu);
 
 
 	kMicroConvWeightGrad<SIZE_CONV/2><<<blocks, threads, shared_size>>>(actGrad.getDevData(), input.getDevData(), (float**)arrayPtr,

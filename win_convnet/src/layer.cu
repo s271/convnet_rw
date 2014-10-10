@@ -824,7 +824,9 @@ VectFuncLayer::VectFuncLayer(ConvNet* convNet, PyObject* paramsDict): Layer(conv
 	for (int j =0; j < _param.size(); j++)
 		_tempMatrixArray.push_back(NVMatrix());
 
-	cudaMalloc(&_arrayPtr, sizeof(float*)* _param.size());
+	int size_arr = (_param.size()+8)/8;
+	size_arr *= 8;
+	cudaMalloc(&_arrayPtr, sizeof(float*)*size_arr);
 };
 
 VectFuncLayer::~VectFuncLayer()
@@ -971,8 +973,9 @@ MicroConvLayer::MicroConvLayer(ConvNet* convNet, PyObject* paramsDict) : Layer(c
 	for (int j =0; j < _param.size(); j++)
 		_tempMatrixArray.push_back(NVMatrix());
 
-	//cudaMalloc(&_arrayPtr, sizeof(float*)* _param.size());
-	cudaMalloc(&_arrayPtr, sizeof(float*)*256);
+	int size_arr = (_param.size()+8)/8;
+	size_arr *= 8;
+	cudaMalloc(&_arrayPtr, sizeof(float*)*size_arr);
 };
 
 MicroConvLayer::~MicroConvLayer()
