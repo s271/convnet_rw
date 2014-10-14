@@ -703,7 +703,7 @@ class VectFuncParser(LayerWithInputParser):
         meta_param_inc = [0]*size_param
         
         if len(dic['rotate']) > 0:
-            da = math.pi/sizeH
+            da = 2*math.pi/sizeH
             
             for ri in range(size_param/sizeV):
                 angl = da*ri
