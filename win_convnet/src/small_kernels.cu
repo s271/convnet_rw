@@ -1751,7 +1751,7 @@ void computeVectFuncWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 
 	
 	singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
-	singletonTempMem.allocFloatElement(tag_height*tag_width);
+	singletonTempMem.allocFloatElement(max(tag_height*tag_width, out_height*out_width));
 	singletonTempMem.allocFloatElement(actGrad.getNumCols()*actGrad.getNumRows());
 	float* tempHostInput = singletonTempMem.getPtr(0);
 	float* tempHostTarget = singletonTempMem.getPtr(1);
@@ -1778,15 +1778,15 @@ void computeVectFuncWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 								tempHostActGrad, tempHostTarget,
 								numPixelsPerGroup, numCases,
 								input.getStride(), tempMatrix[0].getStride(), numColors, sizeH);
-	float delta = 1e-5;
-	float sumLA0 =  Sum(tempHostTarget, tag_height*tag_width);
-	temp[0] += delta;
+	float delta = 1e-3;
+	float sumLA0 =  Sum(tempHostTarget, out_height*out_width);
+	temp[1] += delta;
 	debugVectFuncLinApprox(sizeV, temp, tempHostInput,
 								tempHostActGrad, tempHostTarget,
 								numPixelsPerGroup, numCases,
 								input.getStride(), tempMatrix[0].getStride(), numColors, sizeH);
 
-	float sumLA1 =  Sum(tempHostTarget, tag_height*tag_width);
+	float sumLA1 =  Sum(tempHostTarget, out_height*out_width);
 
 	printf("debugVectFunc * s0 %f s1 %f deriv %f\n", sumLA0, sumLA1, (sumLA1-sumLA0)/delta);
 
