@@ -520,11 +520,49 @@ void emuMicroConvWeightGrad(int blockDimx, int blockDimy, int gridDimx, int grid
 
 }
 
+void debugVectFuncLinApprox(int sizeV, float* filterArea, const float* input,
+								const float* actGrad, float* const target,
+								const uint numPixelsPerGroup, const uint numCases,
+								const uint strideInp, const uint strideTag, int numColors, int sizeH)
+{
+    for (int iy = 0; iy < numPixelsPerGroup; iy ++) {
+
+        for (uint ix = 0; ix < numCases; ix ++) {	
+
+			for (uint color = 0; color < numColors; color ++) {	
+			
+				for (uint out_i = 0; out_i < sizeH; out_i++) {
+
+					float grad_next = actGrad[color*sizeH*numPixelsPerGroup*numCases +  
+					out_i*numPixelsPerGroup*numCases + iy*numCases + ix];
+					
+					float output = 0;
+			
+					for (uint inp_i = 0; inp_i < sizeV; inp_i++)
+					{		
+						float param = filterArea[out_i*sizeV + inp_i];
+					    float val =
+							  input[color*sizeV*numPixelsPerGroup*strideInp + inp_i*numPixelsPerGroup*strideInp +  iy*strideInp + ix];
+	
+						output += param*val;
+					}
+
+					//suppression filter could be here
+
+					output = grad_next*_max(output, 0);
+
+					target[color*sizeH*numPixelsPerGroup*strideInp + out_i*numPixelsPerGroup*strideInp +  iy*strideInp + ix]
+						= output;
+				}//out_i
+			}
+        }
+    }
+}
+
 void debugVectFuncAct(int sizeV, float* filterArea, const float* input, float* const target,
 								const uint numPixelsPerGroup, const uint numCases,
 								const uint strideInp, const uint strideTag, int numColors, int sizeH)
 {
-
     for (int iy = 0; iy < numPixelsPerGroup; iy ++) {
 
         for (uint ix = 0; ix < numCases; ix ++) {	
@@ -554,8 +592,6 @@ void debugVectFuncAct(int sizeV, float* filterArea, const float* input, float* c
 			}
         }
     }
-
-
 }
 
 void emuVectFuncAct(int sizeV, float* filterArea, int gridDimy, int blockDimy, int gridDimx, int blockDimx,
@@ -707,7 +743,7 @@ void debugVectFuncGrad(int sizeV, float* filterArea, const float* actGrad, const
 //with no N_SUM ix, iy == 0 almost always
     for (uint iy = 0; iy < numPixelsPerGroup; iy ++) {
         for (uint ix = 0; ix < numCases; ix ++) {	
-			for (uint color = 0; color < numColors; color ++) {	//optimize away
+			for (uint color = 0; color < numColors; color ++) {	
 
 
 				int out_off = color*sizeH*numPixelsPerGroup*strideOut + iy*strideOut +ix;

@@ -75,6 +75,10 @@ void emuVectFuncAct(int sizeV, float* filterArea, int gridDimy, int blockDimy, i
 					const uint imgInPixels, const uint numCases,
 					const uint strideInp, const uint strideTag, int numColors, int sizeH);
 
+void debugVectFuncLinApprox(int sizeV, float* filterArea, const float* input,
+								const float* actGrad, float* const target,
+								const uint numPixelsPerGroup, const uint numCases,
+								const uint strideInp, const uint strideTag, int numColors, int sizeH);
 
 void debugVectFuncParamWeightGrad(int sizeV, float* filterArea,	int gridDimy, int blockDimy, int gridDimx, int blockDimx,
 							  const float* actGrad, const float* input, float* const target_,
