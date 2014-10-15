@@ -409,6 +409,14 @@
 			<File
 				RelativePath=".\src\small_kernels.cu"
 				>
+				<FileConfiguration
+					Name="Release|x64"
+					>
+					<Tool
+						Name="Cudart Build Rule"
+						PtxAsOptionV="true"
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\src\util.cu"

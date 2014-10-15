@@ -634,46 +634,47 @@ __global__ void kMicroConvWeightGrad(const float* actGrad, const float* input, f
 //-------------------------------------------------------------
 //VectFunc
 //-------------------------------------------------------------
+#define SCALE_H 1.
+
 template <int sizeV>
 __global__ void kVectFuncAct(const float* input, float* const target,
 								const uint numPixelsPerGroup, const uint numCases,
 								const uint strideInp, const uint strideTag, int numColors, int sizeH) {
 
 // ix, iy == 0 almost always
+	const int bd_off =  (blockDim.y*blockIdx.y + threadIdx.y)*strideInp + blockDim.x*blockIdx.x + threadIdx.x;
+	const int pix_stride = numPixelsPerGroup*strideInp;
+	const int pix_tag_stride = numPixelsPerGroup*strideTag;
+
     for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDim.y*blockDim.y) 
 	{
         for (uint ix = 0; ix < numCases; ix += gridDim.x*blockDim.x)
 		{	
 
+			int xy_off = iy*strideInp +	ix + bd_off;
+
 			for (uint color = 0; color < numColors; color ++) {	
+
+				int color_off =  color*pix_stride;
 			
 				float inpVal[sizeV];//use shared instead?
 	#pragma unroll
-				for (uint inp_i = 0; inp_i < sizeV; inp_i++) {	
-					Offset inpOffset;
-					inpOffset << Index(color) << sizeV
-					<< Index(inp_i)
-					<< numPixelsPerGroup
-					<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
-					<< strideInp
-					<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
-					float val = input[inpOffset._offset];					
+				for (uint inp_i = 0; inp_i < sizeV; inp_i++) {					
 
-					//int voff = color*sizeV*numPixelsPerGroup*strideInp  +
-					//	inp_i*numPixelsPerGroup*strideInp +
-					//	(iy + blockDim.y*blockIdx.y + threadIdx.y)*strideInp+
-					//	ix + blockDim.x*blockIdx.x + threadIdx.x;
+					int voff = color_off*sizeV + inp_i*pix_stride + xy_off;
 
-					//float val = input[voff];
+					float val = input[voff];
 
 					inpVal[inp_i] = val;
 				}
-	#pragma unroll	
+
+				float vmax= 0;
+#pragma unroll	
 				for (uint out_i = 0; out_i < sizeH; out_i++) {
 					int out_par = out_i*sizeV;
 
 					float output = 0;
-	#pragma unroll			
+#pragma unroll			
 					for (uint inp_i = 0; inp_i < sizeV; inp_i++)
 					{		
 						float param = const_area[out_par + inp_i];
@@ -681,23 +682,32 @@ __global__ void kVectFuncAct(const float* input, float* const target,
 						output += param*val;
 					}// inp_i
 
-					//suppression filter could be here
+					//suppression filter
 
-					output = fmaxf(output, 0);
-
-					Offset tagOffset;
-					tagOffset << Index(color) << sizeH
-					<<Index(out_i)
-					<< numPixelsPerGroup
-					<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
-					<< strideTag
-					<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
-					target[tagOffset._offset] = output;
-
-					//int toffset = color*sizeH*numPixelsPerGroup*strideInp + out_i*numPixelsPerGroup*strideInp
-					//	+  (iy + blockDim.y*blockIdx.y +threadIdx.y)*strideInp + ix + blockDim.x*blockIdx.x + threadIdx.x;
-					//target[toffset] = output;
+					//output = fmaxf(output, 0);
+					vmax = fmaxf(output, vmax);
 				}//out_i
+
+
+				for (uint out_i = 0; out_i < sizeH; out_i++) {
+					int out_par = out_i*sizeV;
+
+					float output = 0;
+#pragma unroll
+					for (uint inp_i = 0; inp_i < sizeV; inp_i++)
+					{		
+						float param = const_area[out_par + inp_i];
+						float val = inpVal[inp_i];
+						output += param*val;
+					}// inp_i
+
+					//suppression filter
+					output = fmaxf(output - SCALE_H*(vmax-output), 0);
+
+					int toffset = color_off*sizeH + out_i*pix_tag_stride +  xy_off;
+					target[toffset] = output;
+				}//out_i
+
 			}//color
         }
     }
@@ -773,6 +783,13 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 	float vres[sizeV];
 	memset(vres, 0, sizeof(vres));
 
+	const int bd_off_in =  (blockDim.y*blockIdx.y + threadIdx.y)*strideInp + blockDim.x*blockIdx.x + threadIdx.x;
+	const int bd_off_out =  (blockDim.y*blockIdx.y + threadIdx.y)*strideOut + blockDim.x*blockIdx.x + threadIdx.x;
+	const int bd_off_tag =  (blockDim.y*blockIdx.y + threadIdx.y)*strideTag + blockDim.x*blockIdx.x + threadIdx.x;
+
+	const int pix_out_stride = numPixelsPerGroup*strideOut;
+	const int pix_in_stride = numPixelsPerGroup*strideInp;
+
 	for (uint pout = 0; pout < sizeH; pout++)
 	{
 
@@ -780,36 +797,44 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 		for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDim.y*blockDim.y) {
 	#pragma unroll
 		  for (uint ix = 0; ix < numCases; ix += gridDim.x*blockDim.x) {	
-			  for (uint color = 0; color < numColors; color ++) {	//optimize away				
 
-					Offset offsetOut;
-					offsetOut
-					<< Index(color)
-					<< sizeH
-					<< Index(pout)
-					<< numPixelsPerGroup
-					<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
-					<< strideOut
-					<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+			int xy_off_in = iy*strideInp +	ix + bd_off_in;
+			int xy_off_out = iy*strideOut +	ix + bd_off_out;
 
-					float grad_next = actGrad[offsetOut._offset];
+			for (uint color = 0; color < numColors; color ++) {	
+
+					//Offset offsetOut;
+					//offsetOut
+					//<< Index(color)
+					//<< sizeH
+					//<< Index(pout)
+					//<< numPixelsPerGroup
+					//<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
+					//<< strideOut
+					//<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+
+					int out_off = color*pix_out_stride*sizeH + pout*pix_out_stride + xy_off_out;
+
+					float grad_next = actGrad[out_off];
 
 					float in_val[sizeV];
 					float vsum = 0;
 					for (uint pin = 0; pin < sizeV; pin++)
 					{
 
-						Offset offsetInp;
-						offsetInp
-						<< Index(color)
-						<< sizeV
-						<< Index(pin)
-						<< numPixelsPerGroup
-						<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
-						<< strideInp
-						<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+						//Offset offsetInp;
+						//offsetInp
+						//<< Index(color)
+						//<< sizeV
+						//<< Index(pin)
+						//<< numPixelsPerGroup
+						//<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
+						//<< strideInp
+						//<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+
+						int in_off = color*pix_in_stride*sizeV + pin*pix_in_stride + xy_off_in;
 						
-						in_val[pin] = input[offsetInp._offset];
+						in_val[pin] = input[in_off];
 						vsum += in_val[pin]*const_area[pout*sizeV + pin];
 					}
 
@@ -825,16 +850,18 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 
 		}//color
 
+		
+
 		for (uint pin = 0; pin < sizeV; pin++)
 		{
 
-			Offset offsetTag;
-			offsetTag
-			<< Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
-			<< strideTag
-			<< Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+			//Offset offsetTag;
+			//offsetTag
+			//<< Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
+			//<< strideTag
+			//<< Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
 
-			target[pout*sizeV+pin][offsetTag._offset] = vres[pin];
+			target[pout*sizeV+pin][bd_off_tag] = vres[pin];
 		}
 
 	}// pout
@@ -1534,47 +1561,39 @@ void computeVectFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& param
     dim3 blocks(std::min(NUM_BLOCKS_MAX, (int)DIVUP(inp_width, threads.x)),
                 std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)));
 
-//	for(int i = 0; i < param.size()/2; i++)
-//	{
-//		printf("param %f %f \n",  param[2*i], param[2*i]);
-//	}
-//
-//	float sumi = input.sum();
-//	printf("sumi %f \n",  sumi);
-//	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i numColors %i \n",blocks.x, blocks.y, threads.x, threads.y, numColors);
-//	printf("inp_height %i numPixelsPerGroup %i out_width %i out_height %i sizeV %i \n",inp_height, numPixelsPerGroup,out_width,out_height,sizeV);
-//	printf("sizeV %i sizeH %i strides %i %i \n", sizeV, sizeH, input.getStride(), target.getStride());
-////debug
-//	cudaMemset(target.getDevData(), 0, out_height*out_width*sizeof(float));
-//	
-//	singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
-//	singletonTempMem.allocFloatElement(out_height*out_width);
-//	float* tempHostInput = singletonTempMem.getPtr(0);
-//	float* tempHostTarget = singletonTempMem.getPtr(1);
-//	cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
-//	cudaDeviceSynchronize();
-//
-//	double sum_inp = Sum(tempHostInput, input.getNumCols()*input.getNumRows());
-//	printf("sum_inp %f \n",  sum_inp);
-//
-//	double sum_host =0;
-//	memset(tempHostTarget, 0, out_height*out_width*sizeof(float));
-//	debugVectFuncAct(sizeV, temp, tempHostInput, tempHostTarget,
-//								numPixelsPerGroup, numCases, input.getStride(), target.getStride(), numColors, sizeH);
-//
-//	sum_host = Sum(tempHostTarget, out_height*out_width);
-//
-//	printf(" debugVectFuncAct sum %f \n", sum_host);
-//
-//	memset(tempHostTarget, 0, out_height*out_width*sizeof(float));
-//	 emuVectFuncAct(sizeV, temp, blocks.y, threads.y, blocks.x, threads.x, 
-//					tempHostInput, tempHostTarget,
-//					numPixelsPerGroup, numCases, input.getStride(), target.getStride(), numColors, sizeH);
-//
-//	sum_host = Sum(tempHostTarget, out_height*out_width);
-//	printf(" emuVectFuncAct sum %f \n", sum_host);
-//
-//	singletonTempMem.reset();
+	for(int i = 0; i < param.size()/2; i++)
+	{
+		printf("param %f %f \n",  param[2*i], param[2*i]);
+	}
+
+	float sumi = input.sum();
+	printf("sumi %f \n",  sumi);
+	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i numColors %i \n",blocks.x, blocks.y, threads.x, threads.y, numColors);
+	printf("inp_height %i numPixelsPerGroup %i out_width %i out_height %i sizeV %i \n",inp_height, numPixelsPerGroup,out_width,out_height,sizeV);
+	printf("sizeV %i sizeH %i strides %i %i \n", sizeV, sizeH, input.getStride(), target.getStride());
+//debug
+	cudaMemset(target.getDevData(), 0, out_height*out_width*sizeof(float));
+	
+	singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
+	singletonTempMem.allocFloatElement(out_height*out_width);
+	float* tempHostInput = singletonTempMem.getPtr(0);
+	float* tempHostTarget = singletonTempMem.getPtr(1);
+	cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
+	cudaDeviceSynchronize();
+
+	double sum_inp = Sum(tempHostInput, input.getNumCols()*input.getNumRows());
+	printf("sum_inp %f \n",  sum_inp);
+
+	double sum_host =0;
+	memset(tempHostTarget, 0, out_height*out_width*sizeof(float));
+	debugVectFuncAct(sizeV, temp, tempHostInput, tempHostTarget,
+								numPixelsPerGroup, numCases, input.getStride(), target.getStride(), numColors, sizeH);
+
+	sum_host = Sum(tempHostTarget, out_height*out_width);
+
+	printf(" debugVectFuncAct sum %f \n", sum_host);
+
+	singletonTempMem.reset();
 
 #define ELT_ACT(SIZE_ARR) \
 	if(sizeV == SIZE_ARR){\
@@ -1591,9 +1610,9 @@ void computeVectFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& param
 	ELT_ACT(16)
 #undef ELT_ACT
 
-	//float sumt = target.sum();
+	float sumt = target.sum();
 
-	//printf("kVectFuncAct sumt %f \n",  sumt);
+	printf("kVectFuncAct sumt %f \n",  sumt);
 
 	//printf("kVectFuncAct end \n");
 	cutilCheckMsg("kVectFuncAct: Kernel execution failed");

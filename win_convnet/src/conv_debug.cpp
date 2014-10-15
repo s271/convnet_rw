@@ -559,6 +559,8 @@ void debugVectFuncLinApprox(int sizeV, float* filterArea, const float* input,
     }
 }
 
+#define SCALE_H 1.
+
 void debugVectFuncAct(int sizeV, float* filterArea, const float* input, float* const target,
 								const uint numPixelsPerGroup, const uint numCases,
 								const uint strideInp, const uint strideTag, int numColors, int sizeH)
@@ -568,7 +570,7 @@ void debugVectFuncAct(int sizeV, float* filterArea, const float* input, float* c
         for (uint ix = 0; ix < numCases; ix ++) {	
 
 			for (uint color = 0; color < numColors; color ++) {	
-			
+				float vmax =0;
 				for (uint out_i = 0; out_i < sizeH; out_i++) {
 
 					float output = 0;
@@ -585,95 +587,35 @@ void debugVectFuncAct(int sizeV, float* filterArea, const float* input, float* c
 					//suppression filter could be here
 
 					output = _max(output, 0);
+					vmax = _max(output, vmax);
 
-					target[color*sizeH*numPixelsPerGroup*strideInp + out_i*numPixelsPerGroup*strideInp +  iy*strideInp + ix]
-						= output;
 				}//out_i
-			}
-        }
-    }
-}
 
-void emuVectFuncAct(int sizeV, float* filterArea, int gridDimy, int blockDimy, int gridDimx, int blockDimx,
-					float* input, float* const target,
-					const uint numPixelsPerGroup, const uint numCases,
-					const uint strideInp, const uint strideTag, int numColors, int sizeH) {
-
-
-
-	for(int blockIdxx = 0; blockIdxx < gridDimx; blockIdxx++)
-	for(int blockIdxy = 0; blockIdxy < gridDimy; blockIdxy++)
-	{
-
-	for(int threadIdxx = 0; threadIdxx < blockDimx; threadIdxx++)
-	for(int threadIdxy = 0; threadIdxy < blockDimy; threadIdxy++)
-	{
-
-		for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDimy*blockDimy) {
-
-			for (uint ix = 0; ix < numCases; ix += gridDimx*blockDimx) {	
-
-			for (uint color = 0; color < numColors; color ++) {	
-			
-				float inpVal[2];//use shared instead?
-
-				for (uint inp_i = 0; inp_i < sizeV; inp_i++) {	
-					Offset inpOffset;
-					inpOffset << Index(color) << sizeV
-					<< Index(inp_i)
-					<< numPixelsPerGroup
-					<< Index(iy) << Index(blockDimy, blockIdxy) << Index(threadIdxy)
-					<< strideInp
-					<< Index(ix ) << Index(blockDimx, blockIdxx) << Index(threadIdxx);
-					float val = input[inpOffset._offset];
-
-					//int voff = color*sizeV*numPixelsPerGroup*strideInp  +
-					//	inp_i*numPixelsPerGroup*strideInp +
-					//	(iy + blockDimy*blockIdxy + threadIdxy)*strideInp+
-					//	ix + blockDimx*blockIdxx + threadIdxx;
-
-					//float val = input[voff];
-
-					inpVal[inp_i] = val;
-				}
-	
 				for (uint out_i = 0; out_i < sizeH; out_i++) {
-					int out_par = out_i*sizeV;
 
 					float output = 0;
 			
 					for (uint inp_i = 0; inp_i < sizeV; inp_i++)
 					{		
-						float param = filterArea[out_par + inp_i];
-						float val =	inpVal[inp_i];
+						float param = filterArea[out_i*sizeV + inp_i];
+					    float val =
+							  input[color*sizeV*numPixelsPerGroup*strideInp + inp_i*numPixelsPerGroup*strideInp +  iy*strideInp + ix];
+	
 						output += param*val;
-					}// inp_i
+					}
 
 					//suppression filter could be here
 
-					//output = output >0?output: 0;
 					output = _max(output, 0);
+					output = _max(output - SCALE_H*(vmax-output), 0);
 
-					Offset tagOffset;
-					tagOffset << Index(color) << sizeH
-					<<Index(out_i)
-					<< numPixelsPerGroup
-					<< Index(iy) << Index(blockDimy, blockIdxy) << Index(threadIdxy)
-					<< strideTag
-					<< Index(ix ) << Index(blockDimx, blockIdxx) << Index(threadIdxx);
-					target[tagOffset._offset] = output;
-					//int toffset = color*sizeH*numPixelsPerGroup*strideInp + out_i*numPixelsPerGroup*strideInp
-					//	+  (iy + blockDimy*blockIdxy +threadIdxy)*strideInp + ix + blockDimx*blockIdxx + threadIdxx;
-					//target[toffset] = output;
+					target[color*sizeH*numPixelsPerGroup*strideInp + out_i*numPixelsPerGroup*strideInp +  iy*strideInp + ix]
+						= output;
 				}//out_i
-			}//color
-        }//ix
-    }//iy
 
-	}//threads
-	}//blocks
-
-
+			}
+        }
+    }
 }
 
 void debugVectFuncParamWeightGrad(int sizeV, float* filterArea,	int gridDimy, int blockDimy, int gridDimx, int blockDimx,
