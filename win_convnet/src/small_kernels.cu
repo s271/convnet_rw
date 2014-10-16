@@ -780,11 +780,11 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 											const uint strideInp, const uint strideOut, const uint strideTag, int sizeH)
 {
 	extern __shared__ float sh_mem[];
-
-	float* inp_val = sh_mem;
-	float* resh = sh_mem + sizeV*sizeH*blockDim.x* blockDim.y;
+	const int res_off = (threadIdx.y*blockDim.x + threadIdx.x)*sizeV*sizeH;
+	float* inp_val = sh_mem + res_off;
+	float* resh = sh_mem + sizeV*sizeH*blockDim.x*blockDim.y + res_off;
 	
-	memset(resh, 0, sizeof(resh));
+	memset(resh, 0, sizeV*sizeH*sizeof(float));
 
 	const int btx = blockDim.x*blockIdx.x + threadIdx.x;
 	const int bty = blockDim.y*blockIdx.y + threadIdx.y;
