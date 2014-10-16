@@ -780,9 +780,10 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 											const uint strideInp, const uint strideOut, const uint strideTag, int sizeH)
 {
 	extern __shared__ float sh_mem[];
-	const int res_off = (threadIdx.y*blockDim.x + threadIdx.x)*sizeV*sizeH;
-	float* inp_val = sh_mem + res_off;
-	float* resh = sh_mem + sizeV*sizeH*blockDim.x*blockDim.y + res_off;
+	const int xy_off = threadIdx.y*blockDim.x + threadIdx.x;
+	const int res_off = xy_off*sizeV*sizeH;
+	float* resh = sh_mem + sizeV*blockDim.x*blockDim.y + res_off;
+	float* in_store = sh_mem;
 	
 	memset(resh, 0, sizeV*sizeH*sizeof(float));
 
@@ -795,7 +796,6 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 
 	const int pix_out_stride = numPixelsPerGroup*strideOut;
 	const int pix_in_stride = numPixelsPerGroup*strideInp;
-
 	
 	for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDim.y*blockDim.y) {
 
@@ -805,10 +805,15 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 		int xy_off_out = iy*strideOut +	ix + bd_off_out;
 
 		for (uint color = 0; color < numColors; color ++) {	
-
-				float in_max[sizeV];
 				int kmax= 0;
 				float vmax = 0;
+
+				float* inp_val = in_store + xy_off*sizeV;
+				for (uint pin = 0; pin < sizeV; pin++)
+				{
+					int in_off = color*pix_in_stride*sizeV + pin*pix_in_stride + xy_off_in;
+					inp_val[pin] = input[in_off];
+				}
 
 				for (uint pout = 0; pout < sizeH; pout++)
 				{
@@ -816,20 +821,12 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 					float vsum = 0;
 					for (uint pin = 0; pin < sizeV; pin++)
 					{
-
-						int in_off = color*pix_in_stride*sizeV + pin*pix_in_stride + xy_off_in;
-						float vin = input[in_off];
-						inp_val[pout*sizeV + pin] = vin;
-						vsum += vin*const_area[pout*sizeV + pin];
+						vsum += inp_val[pin]*const_area[pout*sizeV + pin];
 					}
 
 					if(vmax <= vsum)
 					{
 						vmax = vsum;
-						for (uint pin = 0; pin < sizeV; pin++)
-						{
-							in_max[pin] = inp_val[pout*sizeV + pin];
-						}
 						kmax = pout;
 					};
 				}//pout
@@ -847,7 +844,7 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 					float vsum = 0;
 					for (uint pin = 0; pin < sizeV; pin++)
 					{
-						vsum +=  inp_val[pout*sizeV + pin]*const_area[pout*sizeV + pin];
+						vsum +=  inp_val[pin]*const_area[pout*sizeV + pin];
 					}
 
 					if(vsum > 0)
@@ -856,8 +853,8 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 
 						for (uint pin = 0; pin < sizeV; pin++)
 						{
-							vres[pin] += grad_next*(1+SCALE_H)*inp_val[pout*sizeV + pin];
-							vres_max[pin] += - SCALE_H*grad_next*in_max[pin];
+							vres[pin] += grad_next*(1+SCALE_H)*inp_val[pin];
+							vres_max[pin] += - SCALE_H*grad_next*inp_val[pin];
 						}
 					}//vsum
 
@@ -1745,7 +1742,7 @@ printf("kVectFuncParamWeightGrad start ************************\n");
                 std::min(NUM_BLOCKS_MAX, (int)DIVUP(numPixelsPerGroup/N_SUM, ELTWISE_THREADS_Y)));
 #undef N_SUM
 
-	int shared_size = 2*sizeV*sizeH*threads.x*threads.y*sizeof(float);
+	int shared_size = sizeV*(sizeH+1)*threads.x*threads.y*sizeof(float);
 
     int tag_width = blocks.x*threads.x; //could be reduced
     int tag_height = blocks.y*threads.y;//could be reduced
@@ -1815,7 +1812,7 @@ printf("kVectFuncParamWeightGrad start ************************\n");
 								tempHostActGrad, tempHostTarget,
 								numPixelsPerGroup, numCases,
 								input.getStride(), tempMatrix[0].getStride(), numColors, sizeH);
-	float delta = 1e-3;
+	float delta = 1e-4;
 	float sumLA0 =  Sum(tempHostTarget, out_height*out_width);
 	temp[1] += delta;
 	debugVectFuncLinApprox(sizeV, temp, tempHostInput,
