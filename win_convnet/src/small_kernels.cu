@@ -779,92 +779,108 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 											const uint target_size, const uint numPixelsPerGroup, const uint numCases,
 											const uint strideInp, const uint strideOut, const uint strideTag, int sizeH)
 {
+	extern __shared__ float sh_mem[];
 
-	float vres[sizeV];
-	memset(vres, 0, sizeof(vres));
+	float* inp_val = sh_mem;
+	float* resh = sh_mem + sizeV*sizeH*blockDim.x* blockDim.y;
+	
+	memset(resh, 0, sizeof(resh));
 
-	const int bd_off_in =  (blockDim.y*blockIdx.y + threadIdx.y)*strideInp + blockDim.x*blockIdx.x + threadIdx.x;
-	const int bd_off_out =  (blockDim.y*blockIdx.y + threadIdx.y)*strideOut + blockDim.x*blockIdx.x + threadIdx.x;
-	const int bd_off_tag =  (blockDim.y*blockIdx.y + threadIdx.y)*strideTag + blockDim.x*blockIdx.x + threadIdx.x;
+	const int btx = blockDim.x*blockIdx.x + threadIdx.x;
+	const int bty = blockDim.y*blockIdx.y + threadIdx.y;
+
+	const int bd_off_in =  bty*strideInp + btx;
+	const int bd_off_out = bty*strideOut + btx;
+	const int bd_off_tag = bty*strideTag + btx;
 
 	const int pix_out_stride = numPixelsPerGroup*strideOut;
 	const int pix_in_stride = numPixelsPerGroup*strideInp;
 
-	for (uint pout = 0; pout < sizeH; pout++)
-	{
+	
+	for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDim.y*blockDim.y) {
 
-	#pragma unroll	
-		for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDim.y*blockDim.y) {
-	#pragma unroll
-		  for (uint ix = 0; ix < numCases; ix += gridDim.x*blockDim.x) {	
+	  for (uint ix = 0; ix < numCases; ix += gridDim.x*blockDim.x) {	
 
-			int xy_off_in = iy*strideInp +	ix + bd_off_in;
-			int xy_off_out = iy*strideOut +	ix + bd_off_out;
+		int xy_off_in = iy*strideInp +	ix + bd_off_in;
+		int xy_off_out = iy*strideOut +	ix + bd_off_out;
 
-			for (uint color = 0; color < numColors; color ++) {	
+		for (uint color = 0; color < numColors; color ++) {	
 
-					//Offset offsetOut;
-					//offsetOut
-					//<< Index(color)
-					//<< sizeH
-					//<< Index(pout)
-					//<< numPixelsPerGroup
-					//<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
-					//<< strideOut
-					//<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+				float in_max[sizeV];
+				int kmax= 0;
+				float vmax = 0;
 
-					int out_off = color*pix_out_stride*sizeH + pout*pix_out_stride + xy_off_out;
+				for (uint pout = 0; pout < sizeH; pout++)
+				{
 
-					float grad_next = actGrad[out_off];
-
-					float in_val[sizeV];
 					float vsum = 0;
 					for (uint pin = 0; pin < sizeV; pin++)
 					{
 
-						//Offset offsetInp;
-						//offsetInp
-						//<< Index(color)
-						//<< sizeV
-						//<< Index(pin)
-						//<< numPixelsPerGroup
-						//<< Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
-						//<< strideInp
-						//<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
-
 						int in_off = color*pix_in_stride*sizeV + pin*pix_in_stride + xy_off_in;
-						
-						in_val[pin] = input[in_off];
-						vsum += in_val[pin]*const_area[pout*sizeV + pin];
+						float vin = input[in_off];
+						inp_val[pout*sizeV + pin] = vin;
+						vsum += vin*const_area[pout*sizeV + pin];
+					}
+
+					if(vmax <= vsum)
+					{
+						vmax = vsum;
+						for (uint pin = 0; pin < sizeV; pin++)
+						{
+							in_max[pin] = inp_val[pout*sizeV + pin];
+						}
+						kmax = pout;
+					};
+				}//pout
+
+				float vres_max[sizeV];
+				memset(vres_max, 0, sizeof(vres_max));
+
+				for (uint pout = 0; pout < sizeH; pout++)
+				{
+					float* vres =  resh + sizeV*pout;
+
+					int out_off = color*pix_out_stride*sizeH + pout*pix_out_stride + xy_off_out;
+					float grad_next = actGrad[out_off];
+
+					float vsum = 0;
+					for (uint pin = 0; pin < sizeV; pin++)
+					{
+						vsum +=  inp_val[pout*sizeV + pin]*const_area[pout*sizeV + pin];
 					}
 
 					if(vsum > 0)
 					{
-						for (uint pin = 0; pin < sizeV; pin++)
-						{		
-							vres[pin] += grad_next*in_val[pin];
-						}
-					}
-				}
-			}
+						//output = fmaxf(output - SCALE_H*(vmax-output), 0);
 
-		}//color
+						for (uint pin = 0; pin < sizeV; pin++)
+						{
+							vres[pin] += grad_next*(1+SCALE_H)*inp_val[pout*sizeV + pin];
+							vres_max[pin] += - SCALE_H*grad_next*in_max[pin];
+						}
+					}//vsum
+
+				}//pout
+
+				for (uint pin = 0; pin < sizeV; pin++)
+				{
+					resh[kmax*sizeV + pin] += vres_max[pin];
+				}
+
+			}//color
+		}//ix
+	}//iy
 
 		
+	for (uint pout = 0; pout < sizeH; pout++)
+	for (uint pin = 0; pin < sizeV; pin++)
+	{
 
-		for (uint pin = 0; pin < sizeV; pin++)
-		{
+		target[pout*sizeV+pin][bd_off_tag] = resh[pout*sizeV+pin];
+	}
 
-			//Offset offsetTag;
-			//offsetTag
-			//<< Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
-			//<< strideTag
-			//<< Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
 
-			target[pout*sizeV+pin][bd_off_tag] = vres[pin];
-		}
-
-	}// pout
 }
 
 //*************************************************************************************
@@ -1720,7 +1736,7 @@ void computeVectFuncWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 
 	int numColors = channels/sizeV;
 
-//printf("kVectFuncParamWeightGrad start ************************\n");
+printf("kVectFuncParamWeightGrad start ************************\n");
 
 
 #define N_SUM 1
@@ -1729,15 +1745,17 @@ void computeVectFuncWeightGrad(NVMatrix& actGrad, NVMatrix& input,
                 std::min(NUM_BLOCKS_MAX, (int)DIVUP(numPixelsPerGroup/N_SUM, ELTWISE_THREADS_Y)));
 #undef N_SUM
 
+	int shared_size = 2*sizeV*sizeH*threads.x*threads.y*sizeof(float);
+
     int tag_width = blocks.x*threads.x; //could be reduced
     int tag_height = blocks.y*threads.y;//could be reduced
 	int tag_size = tag_width*tag_height;
 
 
-	//printf("blocks.x %i blocks.y %i threads.x %i threads.y %i \n",
-	//	blocks.x, blocks.y, threads.x, threads.y);
-	//printf("numPixelsPerGroup %i numCases %i numColors %i out_width %i out_height %i\n",
-	//	numPixelsPerGroup, numCases, numColors, out_width, out_height);
+	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i shared_size %i \n",
+		blocks.x, blocks.y, threads.x, threads.y, shared_size);
+	printf("numPixelsPerGroup %i numCases %i numColors %i out_width %i out_height %i\n",
+		numPixelsPerGroup, numCases, numColors, out_width, out_height);
 
 	//float sumi = input.sum();
 	//printf("sumi %f \n",  sumi);
@@ -1815,7 +1833,7 @@ void computeVectFuncWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 #define ELT_GRAD(SIZE_ARR) \
 		if(sizeV == SIZE_ARR){\
 			cudaFuncSetCacheConfig(kVectFuncParamWeightGrad<SIZE_ARR>, cudaFuncCachePreferL1);\
-			kVectFuncParamWeightGrad<SIZE_ARR><<<blocks, threads>>>(actGrad.getDevData(),\
+			kVectFuncParamWeightGrad<SIZE_ARR><<<blocks, threads, shared_size>>>(actGrad.getDevData(),\
 				input.getDevData(), (float**)arrayPtr, numColors, tag_size, numPixelsPerGroup, numCases,\
 				input.getStride(), actGrad.getStride(), tempMatrix[0].getStride(), sizeH);};
 		ELT_GRAD(1)
