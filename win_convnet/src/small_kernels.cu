@@ -805,26 +805,26 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 		int xy_off_out = iy*strideOut +	ix + bd_off_out;
 
 		for (uint color = 0; color < numColors; color ++) {	
-				int kmax= 0;
-				float vmax = 0;
 
 				float* inp_val = in_store + xy_off*sizeV;
+
 				for (uint pin = 0; pin < sizeV; pin++)
 				{
 					int in_off = color*pix_in_stride*sizeV + pin*pix_in_stride + xy_off_in;
 					inp_val[pin] = input[in_off];
 				}
 
+				int kmax= 0;
+				float vmax = 0;
+
 				for (uint pout = 0; pout < sizeH; pout++)
 				{
-
 					float vsum = 0;
 					for (uint pin = 0; pin < sizeV; pin++)
 					{
 						vsum += inp_val[pin]*const_area[pout*sizeV + pin];
 					}
-
-					if(vmax <= vsum)
+					if(vsum > vmax)
 					{
 						vmax = vsum;
 						kmax = pout;
@@ -841,13 +841,13 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 					int out_off = color*pix_out_stride*sizeH + pout*pix_out_stride + xy_off_out;
 					float grad_next = actGrad[out_off];
 
-					float vsum = 0;
+					float output = 0;
 					for (uint pin = 0; pin < sizeV; pin++)
 					{
-						vsum +=  inp_val[pin]*const_area[pout*sizeV + pin];
+						output +=  inp_val[pin]*const_area[pout*sizeV + pin];
 					}
 
-					float output = fmaxf(output - SCALE_H*(vmax-output), 0);
+					output = fmaxf(output - SCALE_H*(vmax-output), 0);
 
 					if(output > 0)
 					{
@@ -867,7 +867,6 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 			}//color
 		}//ix
 	}//iy
-
 		
 	for (uint pout = 0; pout < sizeH; pout++)
 	for (uint pin = 0; pin < sizeV; pin++)
@@ -875,7 +874,6 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 
 		target[pout*sizeV+pin][bd_off_tag] = resh[pout*sizeV+pin];
 	}
-
 
 }
 

@@ -679,8 +679,7 @@ void debugVectFuncParamWeightGrad(int sizeV, float* filterArea,	int gridDimy, in
 							kmax = out_i;
 						}
 					}//out_i
-
-					
+				
 					float grad_next = actGrad[color*sizeH*numPixelsPerGroup*numCases +  
 					pout_t*numPixelsPerGroup*numCases + iy*numCases + ix];
 
