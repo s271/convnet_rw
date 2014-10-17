@@ -519,62 +519,7 @@ void emuMicroConvWeightGrad(int blockDimx, int blockDimy, int gridDimx, int grid
 	}//blocks
 
 }
-#define SCALE_H 0.
-void debugVectFuncLinApprox(int sizeV, float* filterArea, const float* input,
-								const float* actGrad, float* const target,
-								const uint numPixelsPerGroup, const uint numCases,
-								const uint strideInp, const uint strideTag, int numColors, int sizeH)
-{
-    for (int iy = 0; iy < numPixelsPerGroup; iy ++) {
-
-        for (uint ix = 0; ix < numCases; ix ++) {	
-
-			for (uint color = 0; color < numColors; color ++) {	
-			
-				float vmax = 0;
-				for (uint out_i = 0; out_i < sizeH; out_i++) {
-					
-					float output = 0;
-			
-					for (uint inp_i = 0; inp_i < sizeV; inp_i++)
-					{		
-						float param = filterArea[out_i*sizeV + inp_i];
-					    float val =
-							  input[color*sizeV*numPixelsPerGroup*strideInp + inp_i*numPixelsPerGroup*strideInp +  iy*strideInp + ix];
-	
-						output += param*val;
-					}
-
-					vmax = _max(vmax, output);
-				}//out_i
-			
-				for (uint out_i = 0; out_i < sizeH; out_i++) {
-
-					float grad_next = actGrad[color*sizeH*numPixelsPerGroup*numCases +  
-					out_i*numPixelsPerGroup*numCases + iy*numCases + ix];
-					
-					float output = 0;
-			
-					for (uint inp_i = 0; inp_i < sizeV; inp_i++)
-					{		
-						float param = filterArea[out_i*sizeV + inp_i];
-					    float val =
-							  input[color*sizeV*numPixelsPerGroup*strideInp + inp_i*numPixelsPerGroup*strideInp +  iy*strideInp + ix];
-	
-						output += param*val;
-					}
-
-					output = _max(output - SCALE_H*(vmax-output), 0);//suppression filter
-
-					target[color*sizeH*numPixelsPerGroup*strideInp + out_i*numPixelsPerGroup*strideInp +  iy*strideInp + ix]
-						= grad_next*output;
-				}//out_i
-			}
-        }
-    }
-}
-
-
+#define SCALE_H 1.
 
 void debugVectFuncAct(int sizeV, float* filterArea, const float* input, float* const target,
 								const uint numPixelsPerGroup, const uint numCases,
@@ -633,6 +578,60 @@ void debugVectFuncAct(int sizeV, float* filterArea, const float* input, float* c
     }
 }
 
+void debugVectFuncLinApprox(int sizeV, float* filterArea, const float* input,
+								const float* actGrad, float* const target,
+								const uint numPixelsPerGroup, const uint numCases,
+								const uint strideInp, const uint strideTag, int numColors, int sizeH)
+{
+    for (int iy = 0; iy < numPixelsPerGroup; iy ++) {
+
+        for (uint ix = 0; ix < numCases; ix ++) {	
+
+			for (uint color = 0; color < numColors; color ++) {	
+			
+				float vmax = 0;
+				for (uint out_i = 0; out_i < sizeH; out_i++) {
+					
+					float output = 0;
+			
+					for (uint inp_i = 0; inp_i < sizeV; inp_i++)
+					{		
+						float param = filterArea[out_i*sizeV + inp_i];
+					    float val =
+							  input[color*sizeV*numPixelsPerGroup*strideInp + inp_i*numPixelsPerGroup*strideInp +  iy*strideInp + ix];
+	
+						output += param*val;
+					}
+
+					vmax = _max(vmax, output);
+				}//out_i
+			
+				for (uint out_i = 0; out_i < sizeH; out_i++) {
+
+					float grad_next = actGrad[color*sizeH*numPixelsPerGroup*numCases +  
+					out_i*numPixelsPerGroup*numCases + iy*numCases + ix];
+					
+					float output = 0;
+			
+					for (uint inp_i = 0; inp_i < sizeV; inp_i++)
+					{		
+						float param = filterArea[out_i*sizeV + inp_i];
+					    float val =
+							  input[color*sizeV*numPixelsPerGroup*strideInp + inp_i*numPixelsPerGroup*strideInp +  iy*strideInp + ix];
+	
+						output += param*val;
+					}
+
+					output = _max(output - SCALE_H*(vmax-output), 0);//suppression filter
+
+					target[color*sizeH*numPixelsPerGroup*strideInp + out_i*numPixelsPerGroup*strideInp +  iy*strideInp + ix]
+						= grad_next*output;
+				}//out_i
+			}
+        }
+    }
+}
+
 void debugVectFuncParamWeightGrad(int sizeV, float* filterArea,	int gridDimy, int blockDimy, int gridDimx, int blockDimx,
 							  const float* actGrad, const float* input, float* const target_,
 											const uint numColors,
@@ -641,7 +640,7 @@ void debugVectFuncParamWeightGrad(int sizeV, float* filterArea,	int gridDimy, in
 {
 
 
-	int pout = 0;
+	int pout_t = 0;
 	int pin_t = 1;
 
 		for (uint iy = 0; iy < numPixelsPerGroup; iy ++) {
@@ -655,7 +654,7 @@ void debugVectFuncParamWeightGrad(int sizeV, float* filterArea,	int gridDimy, in
 					float inp_val[16];
 
 					for (uint inp_i = 0; inp_i < sizeV; inp_i++)
-					{		
+					{	
 						inp_val[inp_i] =
 							  input[color*sizeV*numPixelsPerGroup*strideInp + inp_i*numPixelsPerGroup*strideInp +  iy*strideInp + ix];
 					}
@@ -679,49 +678,44 @@ void debugVectFuncParamWeightGrad(int sizeV, float* filterArea,	int gridDimy, in
 							vmax = output;
 							kmax = out_i;
 						}
-
 					}//out_i
 
 					
+					float grad_next = actGrad[color*sizeH*numPixelsPerGroup*numCases +  
+					pout_t*numPixelsPerGroup*numCases + iy*numCases + ix];
+
+					float in_val[256];
+					float vsum = 0;
+					for (uint pin = 0; pin < sizeV; pin++)
 					{
-						float grad_next = actGrad[color*sizeH*numPixelsPerGroup*numCases +  
-						pout*numPixelsPerGroup*numCases + iy*numCases + ix];
+						
+						in_val[pin] = input[color*sizeV*numPixelsPerGroup*numCases +  
+										pin*numPixelsPerGroup*numCases + iy*numCases + ix];
 
-						float in_val[256];
-						float vsum = 0;
-						for (uint pin = 0; pin < sizeV; pin++)
-						{
-							
-							in_val[pin] = input[color*sizeV*numPixelsPerGroup*numCases +  
-											pin*numPixelsPerGroup*numCases + iy*numCases + ix];
-
-							vsum += in_val[pin]*filterArea[pout*sizeV + pin];
-						}
-
-						float output = _max(vsum - SCALE_H*(vmax-vsum), 0);
-
-						if(output > 0)
-						{
-								for (uint pin = 0; pin < sizeV; pin++)
-								{		
-									vres[pin] += grad_next*(1 + SCALE_H)*in_val[pin];								
-								}
-						}//if
+						vsum += in_val[pin]*filterArea[pout_t*sizeV + pin];
 					}
 
-					if(pin_t == kmax)
+					float output = _max(vsum - SCALE_H*(vmax-vsum), 0);
+
+					if(output > 0)
+					{
+							for (uint pin = 0; pin < sizeV; pin++)
+							{		
+								vres[pin] += grad_next*(1 + SCALE_H)*in_val[pin];								
+							}
+					}//if
+
+					if(pout_t == kmax)
 					{
 						for (uint out_i = 0; out_i < sizeH; out_i++) {
 							float grad_next = actGrad[color*sizeH*numPixelsPerGroup*numCases +  
-							pout*numPixelsPerGroup*numCases + iy*numCases + ix];
+								out_i*numPixelsPerGroup*numCases + iy*numCases + ix];
 				
 							float output = 0;
 							for (uint inp_i = 0; inp_i < sizeV; inp_i++)
 							{			
-									float val = input[color*sizeV*numPixelsPerGroup*numCases +  
-											inp_i*numPixelsPerGroup*numCases + iy*numCases + ix];
 									float param = filterArea[out_i*sizeV + inp_i];	
-									output += param*val;
+									output += param*in_val[inp_i];
 							}
 
 							output = _max(output - SCALE_H*(vmax-output), 0);
@@ -729,15 +723,13 @@ void debugVectFuncParamWeightGrad(int sizeV, float* filterArea,	int gridDimy, in
 							if(output > 0)
 								for (uint inp_i = 0; inp_i < sizeV; inp_i++)
 								{			
-										float val = input[color*sizeV*numPixelsPerGroup*numCases +  
-												inp_i*numPixelsPerGroup*numCases + iy*numCases + ix];
-										vres[inp_i] -= grad_next*SCALE_H*val;								
+										vres[inp_i] -= grad_next*SCALE_H*in_val[inp_i];								
 								}
 						}//out_i
 					}
 				}//color
 
-  				target_[iy*strideTag + ix] = vres[pin_t];
+  				target_[iy*strideTag + ix] = vres[pin_t + sizeV*pout_t];
 
 			}//ix
 

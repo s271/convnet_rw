@@ -847,17 +847,16 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 						vsum +=  inp_val[pin]*const_area[pout*sizeV + pin];
 					}
 
-					if(vsum > 0)
-					{
-						//output = fmaxf(output - SCALE_H*(vmax-output), 0);
+					float output = fmaxf(output - SCALE_H*(vmax-output), 0);
 
+					if(output > 0)
+					{
 						for (uint pin = 0; pin < sizeV; pin++)
 						{
 							vres[pin] += grad_next*(1+SCALE_H)*inp_val[pin];
 							vres_max[pin] += - SCALE_H*grad_next*inp_val[pin];
 						}
 					}//vsum
-
 				}//pout
 
 				for (uint pin = 0; pin < sizeV; pin++)
