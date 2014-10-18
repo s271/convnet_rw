@@ -1597,11 +1597,6 @@ void computeVectFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& param
     dim3 blocks(std::min(NUM_BLOCKS_MAX, (int)DIVUP(inp_width, threads.x)),
                 std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)));
 
-	for(int i = 0; i < param.size()/2; i++)
-	{
-		printf("param %f %f \n",  param[2*i], param[2*i]);
-	}
-
 //	float sumi = input.sum();
 //	printf("sumi %f \n",  sumi);
 //	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i numColors %i \n",blocks.x, blocks.y, threads.x, threads.y, numColors);
@@ -1668,7 +1663,6 @@ void computeVectFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target,
         target.resize(inp_height, inp_width);
     }
 
-
 	int out_width = inp_width;
 	int out_height = (inp_height*sizeH)/sizeV;
 
@@ -1689,32 +1683,32 @@ void computeVectFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target,
     dim3 blocks(std::min(NUM_BLOCKS_MAX, (int)DIVUP(inp_width, threads.x)),
                 std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)));
 
-	printf("kVectFuncGrad start ************************\n");
-	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i \n",
-		blocks.x, blocks.y, threads.x, threads.y);
-	printf("numPixelsPerGroup %i numCases %i numColors %i out_width %i out_height %i\n",
-		numPixelsPerGroup, numCases, numColors, out_width, out_height);
+	//printf("kVectFuncGrad start ************************\n");
+	//printf("blocks.x %i blocks.y %i threads.x %i threads.y %i \n",
+	//	blocks.x, blocks.y, threads.x, threads.y);
+	//printf("numPixelsPerGroup %i numCases %i numColors %i out_width %i out_height %i\n",
+	//	numPixelsPerGroup, numCases, numColors, out_width, out_height);
 
-	singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
-	singletonTempMem.allocFloatElement(inp_height*inp_width);
-	singletonTempMem.allocFloatElement(actGrad.getNumCols()*actGrad.getNumRows());
-	singletonTempMem.allocFloatElement(inp_height*inp_width);
-	float* tempHostInput = singletonTempMem.getPtr(0);
-	float* tempHostTarget = singletonTempMem.getPtr(1);
-	float* tempHostActGrad = singletonTempMem.getPtr(2);
-	float* tempHostTarget1 = singletonTempMem.getPtr(3);
-	cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
-	cudaMemcpy(tempHostActGrad, actGrad.getDevData(), actGrad.getNumCols()*actGrad.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
-	cudaDeviceSynchronize();
+	//singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
+	//singletonTempMem.allocFloatElement(inp_height*inp_width);
+	//singletonTempMem.allocFloatElement(actGrad.getNumCols()*actGrad.getNumRows());
+	//singletonTempMem.allocFloatElement(inp_height*inp_width);
+	//float* tempHostInput = singletonTempMem.getPtr(0);
+	//float* tempHostTarget = singletonTempMem.getPtr(1);
+	//float* tempHostActGrad = singletonTempMem.getPtr(2);
+	//float* tempHostTarget1 = singletonTempMem.getPtr(3);
+	//cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
+	//cudaMemcpy(tempHostActGrad, actGrad.getDevData(), actGrad.getNumCols()*actGrad.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
+	//cudaDeviceSynchronize();
 
-	debugVectFuncGrad(sizeV, temp, tempHostActGrad,
-				tempHostInput, tempHostTarget, tempHostTarget1, numPixelsPerGroup, numCases,
-				input.getStride(), actGrad.getStride(), numColors, sizeH);
+	//debugVectFuncGrad(sizeV, temp, tempHostActGrad,
+	//			tempHostInput, tempHostTarget, tempHostTarget1, numPixelsPerGroup, numCases,
+	//			input.getStride(), actGrad.getStride(), numColors, sizeH);
 
-	double sum_host = Sum(tempHostTarget, inp_height*inp_width);
-	double sum_host1 = Sum(tempHostTarget1, inp_height*inp_width);
-	printf(" debugVectFuncAct sum %f sum1 %f \n", sum_host, sum_host1);
-	singletonTempMem.reset();
+	//double sum_host = Sum(tempHostTarget, inp_height*inp_width);
+	//double sum_host1 = Sum(tempHostTarget1, inp_height*inp_width);
+	//printf(" debugVectFuncAct sum %f sum1 %f \n", sum_host, sum_host1);
+	//singletonTempMem.reset();
 
 #define ELT_GRAD(SIZE_ARR) \
 		if(sizeV == SIZE_ARR){\
@@ -1732,8 +1726,8 @@ void computeVectFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target,
 		ELT_GRAD(16)
 #undef ELT_GRAD
 
-	float sumt = target.sum();
-	printf("kVectFuncGrad sum_tag %f \n", sumt);
+	//float sumt = target.sum();
+	//printf("kVectFuncGrad sum_tag %f \n", sumt);
 
 
 	cutilCheckMsg("kVectFuncGrad: Kernel execution failed");

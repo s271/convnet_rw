@@ -817,9 +817,6 @@ VectFuncLayer::VectFuncLayer(ConvNet* convNet, PyObject* paramsDict): Layer(conv
 	for (int i =0; i < NSTORE; i++)
 	for (int j =0; j < _param.size(); j++)
 		_grad_store[i].push_back(0);
-	//printf(" _param init  %f %f %f \n", _param[2] , _param[_sizeIn + 0] , _param[_sizeIn + 1]);
-	//printf(" size_in %i size_out %i  updates %i \n",_sizeIn, _sizeOut, _updates);
-
 
 	for (int j =0; j < _param.size(); j++)
 		_tempMatrixArray.push_back(NVMatrix());
@@ -833,6 +830,9 @@ VectFuncLayer::~VectFuncLayer()
 {
 	cudaFree(_arrayPtr);
 }
+
+//debug
+extern int minibatch;
 
 void VectFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType)
 {
@@ -895,11 +895,17 @@ void VectFuncLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType)
 			grad = grad*sqrt(NSTORE)/sqrt(sum_grad);
 
 		_param_inc[kp] = _mom*_param_inc[kp] + _epsP*grad - _wc*_param[kp];
-//		_param[kp] += _param_inc[kp];
+		_param[kp] += _param_inc[kp];
 
 
 	}
-//renormalize here possibly
+
+	//debug
+	if(minibatch == 0)
+		{
+			printf("vectf %f %f  %f %f  %f %f  %f %f \n",  _param[0], _param[1], _param[2], _param[3], _param[4], _param[5], _param[6], _param[7]);
+			printf("      %f %f  %f %f  %f %f  %f %f \n",  _param[8], _param[9], _param[10], _param[11], _param[12], _param[13], _param[14], _param[15]);
+		}
 
 //	printf(" VectFuncLayer bpropWeights end\n");
 }
@@ -991,8 +997,7 @@ void MicroConvLayer::copyToCPU()
 		PyList_SetItem(hParamListInc, i,  PyFloat_FromDouble(_param_inc[i]));
 	}
 };
-//debug
-extern int minibatch;
+
 void MicroConvLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
 	//printf(" MicroConvLayer fpropActs minibatch %i \n", minibatch);
 
