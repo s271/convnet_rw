@@ -724,38 +724,53 @@ __global__ void kVectFuncGrad(const float* actGrad, const float* input, float* c
 	const int inStep = strideInp*numPixelsPerGroup;
 	const int outStep = strideOut*numPixelsPerGroup;
 
+	const int pix_out_stride = numPixelsPerGroup*strideOut;
+	const int pix_in_stride = numPixelsPerGroup*strideInp;
+
+	const int btx = blockDim.x*blockIdx.x + threadIdx.x;
+	const int bty = blockDim.y*blockIdx.y + threadIdx.y;
+
+	const int bd_off_in =  bty*strideInp + btx;
+	const int bd_off_out = bty*strideOut + btx;
+
 //with no N_SUM ix, iy == 0 almost always
     for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDim.y*blockDim.y) {
         for (uint ix = 0; ix < numCases; ix += gridDim.x*blockDim.x) {	
+
+			int xy_off_in = iy*strideInp +	ix + bd_off_in;
+			int xy_off_out = iy*strideOut +	ix + bd_off_out;
+
 			for (uint color = 0; color < numColors; color ++) {	//optimize away
 
-				Offset out_offset;
-				out_offset 
-				<< Index(color) << sizeH << numPixelsPerGroup << Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
-				<< strideOut
-				<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+				//Offset out_offset;
+				//out_offset 
+				//<< Index(color) << sizeH << numPixelsPerGroup << Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
+				//<< strideOut
+				//<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
 
-				Offset v_offset;
-				v_offset 
-				<< Index(color) << sizeV << numPixelsPerGroup << Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
-				<< strideInp
-				<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+				//Offset v_offset;
+				//v_offset 
+				//<< Index(color) << sizeV << numPixelsPerGroup << Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
+				//<< strideInp
+				//<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
 
 				float vres[sizeV];
 				memset(vres, 0, sizeof(vres));
 
 				for (uint out_i = 0; out_i < sizeH; out_i++)
 				{
+					int out_off = color*pix_out_stride*sizeH + out_i*pix_out_stride + xy_off_out;
+
 					float vsum = 0;
 					for (uint inp_i = 0; inp_i < sizeV; inp_i++) {	
-						int inp_offset = v_offset._offset + inp_i*inStep;
+					int in_off = color*pix_in_stride*sizeV + inp_i*pix_in_stride + xy_off_in;
 
-						vsum += input[inp_offset]*const_area[out_i*sizeV + inp_i];
+						vsum += input[in_off]*const_area[out_i*sizeV + inp_i];
 					}
 
 					if(vsum > 0)
 					{
-						float grad_next = actGrad[out_offset._offset + outStep*out_i];
+						float grad_next = actGrad[out_off];
 
 						for (uint inp_i = 0; inp_i < sizeV; inp_i++)
 							vres[inp_i] += grad_next*const_area[out_i*sizeV + inp_i];
@@ -764,8 +779,8 @@ __global__ void kVectFuncGrad(const float* actGrad, const float* input, float* c
 
 				for (uint inp_i = 0; inp_i < sizeV; inp_i++)
 				{
-					int inp_offset = v_offset._offset + inp_i*inStep;
-					target[inp_offset] = vres[inp_i];
+					int in_off = color*pix_in_stride*sizeV + inp_i*pix_in_stride + xy_off_in;
+					target[in_off] = vres[inp_i];
 				}
 
 			}//color
@@ -806,7 +821,8 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 
 		for (uint color = 0; color < numColors; color ++) {	
 
-				float* inp_val = in_store + xy_off*sizeV;
+			float* inp_val = in_store + xy_off*sizeV;
+			//float inp_val[sizeV];
 
 				for (uint pin = 0; pin < sizeV; pin++)
 				{
@@ -820,6 +836,7 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 				for (uint pout = 0; pout < sizeH; pout++)
 				{
 					float vsum = 0;
+#pragma unroll
 					for (uint pin = 0; pin < sizeV; pin++)
 					{
 						vsum += inp_val[pin]*const_area[pout*sizeV + pin];
@@ -842,6 +859,7 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 					float grad_next = actGrad[out_off];
 
 					float output = 0;
+#pragma unroll
 					for (uint pin = 0; pin < sizeV; pin++)
 					{
 						output +=  inp_val[pin]*const_area[pout*sizeV + pin];
@@ -858,7 +876,7 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 						}
 					}//vsum
 				}//pout
-
+#pragma unroll
 				for (uint pin = 0; pin < sizeV; pin++)
 				{
 					resh[kmax*sizeV + pin] += vres_max[pin];
@@ -869,6 +887,7 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 	}//iy
 		
 	for (uint pout = 0; pout < sizeH; pout++)
+#pragma unroll
 	for (uint pin = 0; pin < sizeV; pin++)
 	{
 
@@ -1576,34 +1595,34 @@ void computeVectFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& param
 		printf("param %f %f \n",  param[2*i], param[2*i]);
 	}
 
-	float sumi = input.sum();
-	printf("sumi %f \n",  sumi);
-	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i numColors %i \n",blocks.x, blocks.y, threads.x, threads.y, numColors);
-	printf("inp_height %i numPixelsPerGroup %i out_width %i out_height %i sizeV %i \n",inp_height, numPixelsPerGroup,out_width,out_height,sizeV);
-	printf("sizeV %i sizeH %i strides %i %i \n", sizeV, sizeH, input.getStride(), target.getStride());
-//debug
-	cudaMemset(target.getDevData(), 0, out_height*out_width*sizeof(float));
-	
-	singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
-	singletonTempMem.allocFloatElement(out_height*out_width);
-	float* tempHostInput = singletonTempMem.getPtr(0);
-	float* tempHostTarget = singletonTempMem.getPtr(1);
-	cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
-	cudaDeviceSynchronize();
-
-	double sum_inp = Sum(tempHostInput, input.getNumCols()*input.getNumRows());
-	printf("sum_inp %f \n",  sum_inp);
-
-	double sum_host =0;
-	memset(tempHostTarget, 0, out_height*out_width*sizeof(float));
-	debugVectFuncAct(sizeV, temp, tempHostInput, tempHostTarget,
-								numPixelsPerGroup, numCases, input.getStride(), target.getStride(), numColors, sizeH);
-
-	sum_host = Sum(tempHostTarget, out_height*out_width);
-
-	printf(" debugVectFuncAct sum %f \n", sum_host);
-
-	singletonTempMem.reset();
+//	float sumi = input.sum();
+//	printf("sumi %f \n",  sumi);
+//	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i numColors %i \n",blocks.x, blocks.y, threads.x, threads.y, numColors);
+//	printf("inp_height %i numPixelsPerGroup %i out_width %i out_height %i sizeV %i \n",inp_height, numPixelsPerGroup,out_width,out_height,sizeV);
+//	printf("sizeV %i sizeH %i strides %i %i \n", sizeV, sizeH, input.getStride(), target.getStride());
+////debug
+//	cudaMemset(target.getDevData(), 0, out_height*out_width*sizeof(float));
+//	
+//	singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
+//	singletonTempMem.allocFloatElement(out_height*out_width);
+//	float* tempHostInput = singletonTempMem.getPtr(0);
+//	float* tempHostTarget = singletonTempMem.getPtr(1);
+//	cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
+//	cudaDeviceSynchronize();
+//
+//	double sum_inp = Sum(tempHostInput, input.getNumCols()*input.getNumRows());
+//	printf("sum_inp %f \n",  sum_inp);
+//
+//	double sum_host =0;
+//	memset(tempHostTarget, 0, out_height*out_width*sizeof(float));
+//	debugVectFuncAct(sizeV, temp, tempHostInput, tempHostTarget,
+//								numPixelsPerGroup, numCases, input.getStride(), target.getStride(), numColors, sizeH);
+//
+//	sum_host = Sum(tempHostTarget, out_height*out_width);
+//
+//	printf(" debugVectFuncAct sum %f \n", sum_host);
+//
+//	singletonTempMem.reset();
 
 #define ELT_ACT(SIZE_ARR) \
 	if(sizeV == SIZE_ARR){\
@@ -1620,9 +1639,8 @@ void computeVectFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& param
 	ELT_ACT(16)
 #undef ELT_ACT
 
-	float sumt = target.sum();
-
-	printf("kVectFuncAct sumt %f \n",  sumt);
+//	float sumt = target.sum();
+//	printf("kVectFuncAct sumt %f \n",  sumt);
 
 	//printf("kVectFuncAct end \n");
 	cutilCheckMsg("kVectFuncAct: Kernel execution failed");
@@ -1730,7 +1748,6 @@ void computeVectFuncWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 
 	int numColors = channels/sizeV;
 
-printf("kVectFuncParamWeightGrad start ************************\n");
 
 
 #define N_SUM 1
@@ -1744,15 +1761,6 @@ printf("kVectFuncParamWeightGrad start ************************\n");
     int tag_width = blocks.x*threads.x; //could be reduced
     int tag_height = blocks.y*threads.y;//could be reduced
 	int tag_size = tag_width*tag_height;
-
-
-	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i shared_size %i \n",
-		blocks.x, blocks.y, threads.x, threads.y, shared_size);
-	printf("numPixelsPerGroup %i numCases %i numColors %i out_width %i out_height %i\n",
-		numPixelsPerGroup, numCases, numColors, out_width, out_height);
-
-	//float sumi = input.sum();
-	//printf("sumi %f \n",  sumi);
 
 	float temp[CONST_AREA_SIZE];
 	assert(param.size() <= CONST_AREA_SIZE);
@@ -1772,54 +1780,63 @@ printf("kVectFuncParamWeightGrad start ************************\n");
 
 	cudaMemcpy(arrayPtr, tempMatrixPtr, sizeof(float*)*tempMatrix.size(), cudaMemcpyHostToDevice);
 
-	for(int i =0; i < tempMatrix.size(); i++)
-	{
-		cudaMemset(tempMatrix[i].getDevData(), 0, tag_size*sizeof(float));
-	}
+	//for(int i =0; i < tempMatrix.size(); i++)
+	//{
+	//	cudaMemset(tempMatrix[i].getDevData(), 0, tag_size*sizeof(float));
+	//}
+//----------
+	//printf("kVectFuncParamWeightGrad start ************************\n");
 
-	printf( "tempMatrix.size() %i tag_width %i tag_height %i actGrad %i %i tempMatrix[0].getStride() %i \n",
-			tempMatrix.size(), tag_width, tag_height, actGrad.getNumCols(), actGrad.getNumRows(), tempMatrix[0].getStride());
+	//printf("blocks.x %i blocks.y %i threads.x %i threads.y %i shared_size %i \n",
+	//	blocks.x, blocks.y, threads.x, threads.y, shared_size);
+	//printf("numPixelsPerGroup %i numCases %i numColors %i out_width %i out_height %i\n",
+	//	numPixelsPerGroup, numCases, numColors, out_width, out_height);
 
-	
-	singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
-	singletonTempMem.allocFloatElement(max(tag_height*tag_width, out_height*out_width));
-	singletonTempMem.allocFloatElement(actGrad.getNumCols()*actGrad.getNumRows());
-	float* tempHostInput = singletonTempMem.getPtr(0);
-	float* tempHostTarget = singletonTempMem.getPtr(1);
-	float* tempHostActGrad = singletonTempMem.getPtr(2);
-	cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
-	cudaMemcpy(tempHostActGrad, actGrad.getDevData(), actGrad.getNumCols()*actGrad.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
-	cudaDeviceSynchronize();
+	////float sumi = input.sum();
+	////printf("sumi %f \n",  sumi);
 
-
-	debugVectFuncParamWeightGrad(sizeV,  temp, blocks.y, threads.y, blocks.x, threads.x, 
-				tempHostActGrad,  tempHostInput, tempHostTarget, numColors, tag_size, numPixelsPerGroup, numCases,
-				input.getStride(), actGrad.getStride(), tempMatrix[0].getStride(), sizeH);
-
-
-	double sum_host = Sum(tempHostTarget, tag_height*tag_width);
-		double sum_act = Sum(tempHostActGrad, actGrad.getNumCols()*actGrad.getNumRows());
-	singletonTempMem.reset();
-
-	float suma = actGrad.sum();
-	printf("debugVectFuncParamWeightGrad******* sum_host %f sum_act %f suma %f\n", sum_host, sum_act, suma);
+	//printf( "tempMatrix.size() %i tag_width %i tag_height %i actGrad %i %i tempMatrix[0].getStride() %i \n",
+	//		tempMatrix.size(), tag_width, tag_height, actGrad.getNumCols(), actGrad.getNumRows(), tempMatrix[0].getStride());
+	//
+	//singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
+	//singletonTempMem.allocFloatElement(max(tag_height*tag_width, out_height*out_width));
+	//singletonTempMem.allocFloatElement(actGrad.getNumCols()*actGrad.getNumRows());
+	//float* tempHostInput = singletonTempMem.getPtr(0);
+	//float* tempHostTarget = singletonTempMem.getPtr(1);
+	//float* tempHostActGrad = singletonTempMem.getPtr(2);
+	//cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
+	//cudaMemcpy(tempHostActGrad, actGrad.getDevData(), actGrad.getNumCols()*actGrad.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
+	//cudaDeviceSynchronize();
 
 
-	debugVectFuncLinApprox(sizeV, temp, tempHostInput,
-								tempHostActGrad, tempHostTarget,
-								numPixelsPerGroup, numCases,
-								input.getStride(), tempMatrix[0].getStride(), numColors, sizeH);
-	float delta = 1e-4;
-	float sumLA0 =  Sum(tempHostTarget, out_height*out_width);
-	temp[1] += delta;
-	debugVectFuncLinApprox(sizeV, temp, tempHostInput,
-								tempHostActGrad, tempHostTarget,
-								numPixelsPerGroup, numCases,
-								input.getStride(), tempMatrix[0].getStride(), numColors, sizeH);
+	//debugVectFuncParamWeightGrad(sizeV,  temp, blocks.y, threads.y, blocks.x, threads.x, 
+	//			tempHostActGrad,  tempHostInput, tempHostTarget, numColors, tag_size, numPixelsPerGroup, numCases,
+	//			input.getStride(), actGrad.getStride(), tempMatrix[0].getStride(), sizeH);
 
-	float sumLA1 =  Sum(tempHostTarget, out_height*out_width);
 
-	printf("debugVectFunc * s0 %f s1 %f deriv %f\n", sumLA0, sumLA1, (sumLA1-sumLA0)/delta);
+	//double sum_host = Sum(tempHostTarget, tag_height*tag_width);
+	//	double sum_act = Sum(tempHostActGrad, actGrad.getNumCols()*actGrad.getNumRows());
+	//singletonTempMem.reset();
+
+	//float suma = actGrad.sum();
+	//printf("debugVectFuncParamWeightGrad******* sum_host %f sum_act %f suma %f\n", sum_host, sum_act, suma);
+
+
+	//debugVectFuncLinApprox(sizeV, temp, tempHostInput,
+	//							tempHostActGrad, tempHostTarget,
+	//							numPixelsPerGroup, numCases,
+	//							input.getStride(), tempMatrix[0].getStride(), numColors, sizeH);
+	//float delta = 1e-4;
+	//float sumLA0 =  Sum(tempHostTarget, out_height*out_width);
+	//temp[1] += delta;
+	//debugVectFuncLinApprox(sizeV, temp, tempHostInput,
+	//							tempHostActGrad, tempHostTarget,
+	//							numPixelsPerGroup, numCases,
+	//							input.getStride(), tempMatrix[0].getStride(), numColors, sizeH);
+
+	//float sumLA1 =  Sum(tempHostTarget, out_height*out_width);
+
+	//printf("debugVectFunc * s0 %f s1 %f deriv %f\n", sumLA0, sumLA1, (sumLA1-sumLA0)/delta);
 
 //----------
 
