@@ -1691,19 +1691,22 @@ void computeVectFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target,
 	singletonTempMem.allocFloatElement(input.getNumCols()*input.getNumRows());
 	singletonTempMem.allocFloatElement(inp_height*inp_width);
 	singletonTempMem.allocFloatElement(actGrad.getNumCols()*actGrad.getNumRows());
+	singletonTempMem.allocFloatElement(inp_height*inp_width);
 	float* tempHostInput = singletonTempMem.getPtr(0);
 	float* tempHostTarget = singletonTempMem.getPtr(1);
 	float* tempHostActGrad = singletonTempMem.getPtr(2);
+	float* tempHostTarget1 = singletonTempMem.getPtr(1);
 	cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
 	cudaMemcpy(tempHostActGrad, actGrad.getDevData(), actGrad.getNumCols()*actGrad.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
 	cudaDeviceSynchronize();
 
 	debugVectFuncGrad(sizeV, temp, tempHostActGrad,
-				tempHostInput, tempHostTarget, numPixelsPerGroup, numCases,
+				tempHostInput, tempHostTarget, tempHostTarget1, numPixelsPerGroup, numCases,
 				input.getStride(), actGrad.getStride(), numColors, sizeH);
 
 	double sum_host = Sum(tempHostTarget, inp_height*inp_width);
-	printf(" debugVectFuncAct sum %f \n", sum_host);
+	double sum_host1 = Sum(tempHostTarget1, inp_height*inp_width);
+	printf(" debugVectFuncAct sum %f sum1 %f \n", sum_host, sum_host1);
 	singletonTempMem.reset();
 
 #define ELT_GRAD(SIZE_ARR) \
