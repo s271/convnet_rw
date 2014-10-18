@@ -581,7 +581,7 @@ void debugVectFuncAct(int sizeV, float* filterArea, const float* input, float* c
 void debugVectFuncLinApprox(int sizeV, float* filterArea, const float* input,
 								const float* actGrad, float* const target,
 								const uint numPixelsPerGroup, const uint numCases,
-								const uint strideInp, const uint strideTag_, int numColors, int sizeH)
+								const uint strideInp, const uint strideTag, int numColors, int sizeH)
 {
     for (int iy = 0; iy < numPixelsPerGroup; iy ++) {
 
@@ -627,47 +627,9 @@ void debugVectFuncLinApprox(int sizeV, float* filterArea, const float* input,
 					target[color*sizeH*numPixelsPerGroup*strideInp + out_i*numPixelsPerGroup*strideInp +  iy*strideInp + ix]
 						= grad_next*output;
 				}//out_i
-			}//color
-        }//ix
-    }//iy
-}
-
-float VectFuncLVal(int out_v, int ix, int iy, int color, int sizeV, float* filterArea, float* finput,
-								float factGrad, 
-								const uint numPixelsPerGroup, const uint numCases,
-								const uint strideInp, const uint strideTag_, int numColors, int sizeH)
-{
-
-	float vmax = 0;
-	for (uint out_i = 0; out_i < sizeH; out_i++) {
-		
-		float output = 0;
-
-		for (uint inp_i = 0; inp_i < sizeV; inp_i++)
-		{		
-			float param = filterArea[out_i*sizeV + inp_i];
-		    float val = finput[inp_i];
-
-			output += param*val;
-		}
-
-		vmax = _max(vmax, output);
-	}//out_i
-
-	float grad_next = factGrad;
-	
-	float output = 0;
-
-	for (uint inp_i = 0; inp_i < sizeV; inp_i++)
-	{		
-		float param = filterArea[out_v*sizeV + inp_i];
-	    float val = finput[inp_i];;
-		output += param*val;
-	}
-
-	output = _max(output - SCALE_H*(vmax-output), 0);
-
-	return grad_next*output;
+			}
+        }
+    }
 }
 
 void debugVectFuncParamWeightGrad(int sizeV, float* filterArea,	int gridDimy, int blockDimy, int gridDimx, int blockDimx,
@@ -776,8 +738,7 @@ void debugVectFuncParamWeightGrad(int sizeV, float* filterArea,	int gridDimy, in
 
 }
 
-void debugVectFuncGrad(int sizeV, float* filterArea, const float* actGrad, const float* input,
-								float* const target, float* const target1,
+void debugVectFuncGrad(int sizeV, float* filterArea, const float* actGrad, const float* input, float* const target, float* const target1,
 								const uint numPixelsPerGroup, const uint numCases,
 								const uint strideInp, const uint strideOut,
 								int numColors, int sizeH) {
@@ -791,103 +752,44 @@ void debugVectFuncGrad(int sizeV, float* filterArea, const float* actGrad, const
 			for (uint color = 0; color < numColors; color ++) {	
 
 
-				int out_off = color*sizeH*outStep + iy*strideOut +ix;
-				int v_off = color*sizeV*inStep + iy*strideInp +ix;
+				int out_off = color*sizeH*numPixelsPerGroup*strideOut + iy*strideOut +ix;
+				int v_off = color*sizeV*numPixelsPerGroup*strideOut + iy*strideOut +ix;
 
 				float vres[256];
 				memset(vres, 0, sizeof(vres));
-				float vmax = 0;
-				int kmax = 0;
-				float vres1[256];
-				memset(vres1, 0, sizeof(vres));
+
 				for (uint out_i = 0; out_i < sizeH; out_i++)
 				{
 					float vsum = 0;
 					for (uint inp_i = 0; inp_i < sizeV; inp_i++) {	
 						int inp_offset = v_off + inp_i*inStep;
 
+							//v_offset._offset + inp_i*inStep;
+
 						vsum += input[inp_offset]*filterArea[out_i*sizeV + inp_i];
 					}
 
-					if(vsum > vmax)
+					if(vsum > 0)
 					{
-						vmax = vsum;
-						kmax = out_i;
-					}
-				}
-
-				for (uint out_i = 0; out_i < sizeH; out_i++)
-				{
-					float finput[8];
-					float output = 0;
-					for (uint inp_i = 0; inp_i < sizeV; inp_i++) {	
-						int inp_offset = v_off + inp_i*inStep;
-
-						output += input[inp_offset]*filterArea[out_i*sizeV + inp_i];
-
-						finput[inp_i] = input[inp_offset];
-					}
-
-					output = _max(output - SCALE_H*(vmax-output), 0);
-					float grad_next = actGrad[out_off + outStep*out_i];
-
-					if(output > 0)
-					{
-						
+						float grad_next = actGrad[out_off + outStep*out_i];
+							//actGrad[out_offset._offset + outStep*out_i];
 
 						for (uint inp_i = 0; inp_i < sizeV; inp_i++)
-							vres[inp_i] += grad_next*((1+SCALE_H)*filterArea[out_i*sizeV + inp_i] - SCALE_H*filterArea[kmax*sizeV + inp_i]);
+							vres[inp_i] += grad_next*filterArea[out_i*sizeV + inp_i];
 					}
-
-					float d0, d1;
-					{
-						float v0 = VectFuncLVal(out_i, ix, iy, color, sizeV, filterArea, finput,
-									grad_next, 
-									numPixelsPerGroup, numCases,
-									strideInp, strideInp, numColors, sizeH);
-						float finput1[8];
-						memcpy(finput1, finput, sizeof(finput1));
-						float delta = finput[0]*1e-3;
-						finput1[0] += delta;
-						float v1 = VectFuncLVal(out_i, ix, iy, color, sizeV, filterArea, finput1,
-									grad_next, 
-									numPixelsPerGroup, numCases,
-									strideInp, strideInp, numColors, sizeH);
-						d0 = (v1-v0)/delta;
-					}
-					{						
-						float v0 = VectFuncLVal(out_i, ix, iy, color, sizeV, filterArea, finput,
-									grad_next, 
-									numPixelsPerGroup, numCases,
-									strideInp, strideInp, numColors, sizeH);
-						float finput1[8];
-						memcpy(finput1, finput, sizeof(finput1));
-
-						float delta = finput[1]*1e-3;
-						finput1[1] += delta;
-						float v1 = VectFuncLVal(out_i, ix, iy, color, sizeV, filterArea, finput1,
-									grad_next, 
-									numPixelsPerGroup, numCases,
-									strideInp, strideInp, numColors, sizeH);
-						d1 = (v1-v0)/delta;
-					}
-					vres1[0] += d0;
-					vres1[1] += d1;
-
-				}//out_i
+				}
 
 				for (uint inp_i = 0; inp_i < sizeV; inp_i++)
 				{
 					int inp_offset = v_off + inp_i*inStep;
+						//v_offset._offset + inp_i*inStep;
 					target[inp_offset] = vres[inp_i];
-					target1[inp_offset] = vres1[inp_i];
 				}
 
 			}//color
 		}//ix
 	}//iy
 }
-
 
 
 

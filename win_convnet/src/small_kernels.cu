@@ -724,9 +724,6 @@ __global__ void kVectFuncGrad(const float* actGrad, const float* input, float* c
 	const int inStep = strideInp*numPixelsPerGroup;
 	const int outStep = strideOut*numPixelsPerGroup;
 
-	const int pix_out_stride = numPixelsPerGroup*strideOut;
-	const int pix_in_stride = numPixelsPerGroup*strideInp;
-
 	const int btx = blockDim.x*blockIdx.x + threadIdx.x;
 	const int bty = blockDim.y*blockIdx.y + threadIdx.y;
 
@@ -740,22 +737,10 @@ __global__ void kVectFuncGrad(const float* actGrad, const float* input, float* c
 			int xy_off_in = iy*strideInp +	ix + bd_off_in;
 			int xy_off_out = iy*strideOut +	ix + bd_off_out;
 
-
 			for (uint color = 0; color < numColors; color ++) {	//optimize away
 
-				//Offset out_offset;
-				//out_offset 
-				//<< Index(color) << sizeH << numPixelsPerGroup << Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
-				//<< strideOut
-				//<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
-
-				//Offset v_offset;
-				//v_offset 
-				//<< Index(color) << sizeV << numPixelsPerGroup << Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
-				//<< strideInp
-				//<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
-				int v_off = color*pix_in_stride*sizeV + xy_off_in;
-				int out_off = color*pix_out_stride*sizeH + xy_off_out;
+				int v_off = color*inStep*sizeV + xy_off_in;
+				int out_off = color*outStep*sizeH + xy_off_out;
 
 				float vmax = 0;
 				int kmax = 0;
@@ -775,7 +760,6 @@ __global__ void kVectFuncGrad(const float* actGrad, const float* input, float* c
 					}
 				}
 
-
 				float vres[sizeV];
 				memset(vres, 0, sizeof(vres));
 
@@ -792,17 +776,17 @@ __global__ void kVectFuncGrad(const float* actGrad, const float* input, float* c
 
 					if(output > 0)
 					{
-						int out_offset = out_i*pix_out_stride + out_off;
+						int out_offset = out_i*outStep + out_off;
 						float grad_next = actGrad[out_offset];
 
 						for (uint inp_i = 0; inp_i < sizeV; inp_i++)
-							vres[inp_i] += grad_next*((1+SCALE_H)*const_area[out_i*sizeV + inp_i] - const_area[kmax*sizeV + inp_i]);
+							vres[inp_i] += grad_next*((1+SCALE_H)*const_area[out_i*sizeV + inp_i] - SCALE_H*const_area[kmax*sizeV + inp_i]);
 					}
 				}
 
 				for (uint inp_i = 0; inp_i < sizeV; inp_i++)
 				{
-					int in_off =  inp_i*pix_in_stride + v_off;
+					int in_off =  inp_i*inStep + v_off;
 					target[in_off] = vres[inp_i];
 				}
 
@@ -844,7 +828,7 @@ __global__ void kVectFuncParamWeightGrad(	const float* actGrad, const float* inp
 
 		for (uint color = 0; color < numColors; color ++) {	
 
-			float* inp_val = in_store + xy_off*sizeV;
+				float* inp_val = in_store + xy_off*sizeV;
 			//float inp_val[sizeV];
 
 				for (uint pin = 0; pin < sizeV; pin++)
@@ -1718,7 +1702,7 @@ void computeVectFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target,
 	float* tempHostInput = singletonTempMem.getPtr(0);
 	float* tempHostTarget = singletonTempMem.getPtr(1);
 	float* tempHostActGrad = singletonTempMem.getPtr(2);
-	float* tempHostTarget1 = singletonTempMem.getPtr(1);
+	float* tempHostTarget1 = singletonTempMem.getPtr(3);
 	cudaMemcpy(tempHostInput, input.getDevData(), input.getNumCols()*input.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
 	cudaMemcpy(tempHostActGrad, actGrad.getDevData(), actGrad.getNumCols()*actGrad.getNumRows()*sizeof(float), cudaMemcpyDeviceToHost);
 	cudaDeviceSynchronize();
