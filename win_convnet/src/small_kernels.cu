@@ -740,6 +740,7 @@ __global__ void kVectFuncGrad(const float* actGrad, const float* input, float* c
 			int xy_off_in = iy*strideInp +	ix + bd_off_in;
 			int xy_off_out = iy*strideOut +	ix + bd_off_out;
 
+
 			for (uint color = 0; color < numColors; color ++) {	//optimize away
 
 				//Offset out_offset;
@@ -753,33 +754,55 @@ __global__ void kVectFuncGrad(const float* actGrad, const float* input, float* c
 				//<< Index(color) << sizeV << numPixelsPerGroup << Index(iy) << Index(blockDim.y, blockIdx.y) << Index(threadIdx.y)
 				//<< strideInp
 				//<< Index(ix ) << Index(blockDim.x, blockIdx.x) << Index(threadIdx.x);
+				int v_off = color*pix_in_stride*sizeV + xy_off_in;
+				int out_off = color*pix_out_stride*sizeH + xy_off_out;
+
+				float vmax = 0;
+				int kmax = 0;
+				for (uint out_i = 0; out_i < sizeH; out_i++)
+				{
+					float vsum = 0;
+					for (uint inp_i = 0; inp_i < sizeV; inp_i++) {	
+						int inp_offset = v_off + inp_i*inStep;
+
+						vsum += input[inp_offset]*const_area[out_i*sizeV + inp_i];
+					}
+
+					if(vsum > vmax)
+					{
+						vmax = vsum;
+						kmax = out_i;
+					}
+				}
+
 
 				float vres[sizeV];
 				memset(vres, 0, sizeof(vres));
 
 				for (uint out_i = 0; out_i < sizeH; out_i++)
 				{
-					int out_off = color*pix_out_stride*sizeH + out_i*pix_out_stride + xy_off_out;
 
-					float vsum = 0;
+					float output = 0;
 					for (uint inp_i = 0; inp_i < sizeV; inp_i++) {	
-					int in_off = color*pix_in_stride*sizeV + inp_i*pix_in_stride + xy_off_in;
-
-						vsum += input[in_off]*const_area[out_i*sizeV + inp_i];
+						int inp_offset = v_off + inp_i*inStep;
+						output += input[inp_offset]*const_area[out_i*sizeV + inp_i];
 					}
 
-					if(vsum > 0)
+					output = fmaxf(output - SCALE_H*(vmax-output), 0);
+
+					if(output > 0)
 					{
-						float grad_next = actGrad[out_off];
+						int out_offset = out_i*pix_out_stride + out_off;
+						float grad_next = actGrad[out_offset];
 
 						for (uint inp_i = 0; inp_i < sizeV; inp_i++)
-							vres[inp_i] += grad_next*const_area[out_i*sizeV + inp_i];
+							vres[inp_i] += grad_next*((1+SCALE_H)*const_area[out_i*sizeV + inp_i] - const_area[kmax*sizeV + inp_i]);
 					}
 				}
 
 				for (uint inp_i = 0; inp_i < sizeV; inp_i++)
 				{
-					int in_off = color*pix_in_stride*sizeV + inp_i*pix_in_stride + xy_off_in;
+					int in_off =  inp_i*pix_in_stride + v_off;
 					target[in_off] = vres[inp_i];
 				}
 
@@ -1860,8 +1883,8 @@ void computeVectFuncWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 		ELT_GRAD(16)
 #undef ELT_GRAD
 
-	float sumt = tempMatrix[1].sum();
-	printf("kVectFuncParamWeightGrad sum_tag %f \n", sumt);
+	//float sumt = tempMatrix[1].sum();
+	//printf("kVectFuncParamWeightGrad sum_tag %f \n", sumt);
 
 		cutilCheckMsg("kVectFuncParamWeightGrad: Kernel execution failed");
 }

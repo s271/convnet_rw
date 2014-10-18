@@ -812,6 +812,7 @@ void debugVectFuncGrad(int sizeV, float* filterArea, const float* actGrad, const
 					if(vsum > vmax)
 					{
 						vmax = vsum;
+						kmax = out_i;
 					}
 				}
 
@@ -873,7 +874,7 @@ void debugVectFuncGrad(int sizeV, float* filterArea, const float* actGrad, const
 					vres1[0] += d0;
 					vres1[1] += d1;
 
-				}
+				}//out_i
 
 				for (uint inp_i = 0; inp_i < sizeV; inp_i++)
 				{
