@@ -392,7 +392,7 @@ __global__ void kMAvgAct(const float* input, float* const target,
 								const uint numCases, const uint channels, const uint casePerThread,
 								const uint sharedY, const uint modulesPerBlockX, const uint modulesPerBlockY, 
 								const uint imgSizeX, const uint imgSizeY,
-								const uint imgPixels)
+								const uint imgPixels, const float scale)
 {
 	extern __shared__ float sdata[];
 //order x>y>z, *not* y>x
@@ -454,7 +454,7 @@ __global__ void kMAvgAct(const float* input, float* const target,
 
 							sum += sd;
 						}									
-						target[channelOffset  + ix*widthyz + iy*widthz + z] = sum;
+						target[channelOffset  + ix*widthyz + iy*widthz + z] = scale*sum;
 
 			}//if
 		}//channel
@@ -466,7 +466,7 @@ __global__ void kMAvgGrad(const float* actGrad, float* const target,
 								const uint numCases, const uint channels, const uint casePerThread,
 								const uint sharedY, const uint modulesPerBlockX, const uint modulesPerBlockY,  
 								const uint imgSizeX, const uint imgSizeY,
-								const uint imgPixels)
+								const uint imgPixels, const float scale)
 {
 	extern __shared__ float sdata[];
 //order x>y>z, *not* y>x
@@ -528,7 +528,7 @@ __global__ void kMAvgGrad(const float* actGrad, float* const target,
 
 					sum += sd;
 				}									
-				target[channelOffset  + ix*widthyz + iy*widthz + z] = sum;
+				target[channelOffset  + ix*widthyz + iy*widthz + z] = scale*sum;
 
 			}//if
 		}//channel
@@ -1384,6 +1384,7 @@ void computeMAvgAct(NVMatrix& input, NVMatrix& target, int sizeModuleSide, int c
 
 	int lobe = sizeModuleSide/2;
 
+	float scale = 1./(sizeModuleSide*sizeModuleSide);
 
 	int sharedX = lobe*2 + img_threads_x;
 	int sharedY = lobe*2 + img_threads_y;
@@ -1437,7 +1438,7 @@ void computeMAvgAct(NVMatrix& input, NVMatrix& target, int sizeModuleSide, int c
 										numCases, channels, casePerThread,
 										sharedY, img_threads_x,  img_threads_y,
 										imgSizeX, imgSizeY,
-										imgPixels);
+										imgPixels, scale);
 
 //debug
 	//printf("kMicroConvAct4Channel end \n");
@@ -1476,6 +1477,8 @@ void computeMAvgGrad(NVMatrix& actGrad,  NVMatrix& target, int sizeModuleSide, i
 
 	int lobe = sizeModuleSide/2;
 
+	float scale = 1./(sizeModuleSide*sizeModuleSide);
+
 
 	int sharedX = lobe*2 + img_threads_x;
 	int sharedY = lobe*2 + img_threads_y;
@@ -1497,7 +1500,7 @@ void computeMAvgGrad(NVMatrix& actGrad,  NVMatrix& target, int sizeModuleSide, i
 										numCases, channels, casePerThread,
 										sharedY, img_threads_x,  img_threads_y,
 										imgSizeX, imgSizeY,
-										imgPixels);
+										imgPixels, scale);
 
 		cutilCheckMsg("computeMAvgGrad: Kernel execution failed");
 
