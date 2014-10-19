@@ -230,6 +230,17 @@ public:
     EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict);
 };
 
+class MAvgPoolLayer : public Layer {
+protected:
+    int _channels, _size;
+    int _imgSize;
+	int _imgPixels;
+public:
+    MAvgPoolLayer(ConvNet* convNet, PyObject* paramsDict);    
+    void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
+    void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
+}; 
+
 class VectFuncLayer : public Layer {
 protected:
 	vector<double> _param;

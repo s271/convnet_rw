@@ -724,7 +724,32 @@ class VectFuncParser(LayerWithInputParser):
         dic['meta_param_inc'] = meta_param_inc 
         
         print "Initialized vect func layer '%s', producing %d outputs" % (name, dic['outputs'])
-        return dic        
+        return dic     
+        
+class MAvgParser(LayerWithInputParser):        
+    def __init__(self):
+        LayerWithInputParser.__init__(self)
+    def add_params(self, mcp):
+        LayerWithInputParser.add_params(self, mcp)
+        dic, name = self.dic, self.dic['name']
+    def parse(self, name, mcp, prev_layers, model):
+
+        dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
+        if len(set(dic['numInputs'])) != 1:
+            raise LayerParsingError("Layer '%s': all inputs must have the same dimensionality. Got dimensionalities: %s" % (name, ", ".join(str(s) for s in dic['numInputs'])))
+         
+        dic['channels'] = mcp.safe_get_int(name, 'channels')
+        dic['size'] = mcp.safe_get_int(name, 'size')
+        dic['imgPixels'] = dic['numInputs'][0] / dic['channels']
+        dic['imgSize'] = int(n.sqrt(dic['imgPixels']))
+        
+        dic['usesActs'] = False
+        dic['usesInputs'] = False 
+        
+        dic['outputs'] = dic['imgPixels'] * dic['channels']        
+               
+        print "Initialized MAvgParser layer '%s', producing %d outputs" % (name, dic['outputs'])
+        return dic         
         
 class MicroConvParser(LayerWithInputParser):        
     def __init__(self):
@@ -1346,6 +1371,7 @@ layer_parsers = {'data': lambda : DataLayerParser(),
                  'l2svm': lambda : L2SVMLayerParser(),
                  'eltsum': lambda : EltwiseSumLayerParser(),
                  'mconv': lambda : MicroConvParser(),
+                 'mavg': lambda : MAvgParser(),
                  'eltmax': lambda : EltwiseMaxLayerParser(),
                  'eltfunc': lambda : EltwiseFuncParser(),
                  'vfunc': lambda : VectFuncParser(),

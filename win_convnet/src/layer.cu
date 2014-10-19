@@ -787,6 +787,34 @@ void EltwiseMaxLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passTy
 void EltwiseMaxLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
     computeEltwiseMaxGrad(v, *_inputs[inpIdx], getActs(), _prev[inpIdx]->getActsGrad(), scaleTargets != 0);
 }
+
+
+/* 
+ * =====================
+ * MAvgPoolLayer
+ * =====================
+ */
+MAvgPoolLayer::MAvgPoolLayer(ConvNet* convNet, PyObject* paramsDict) :Layer(convNet, paramsDict, false) {
+
+    _channels = pyDictGetInt(paramsDict, "channels");
+    _size = pyDictGetInt(paramsDict, "size");
+    _imgSize = pyDictGetInt(paramsDict, "imgSize");
+	_imgPixels = pyDictGetInt(paramsDict, "imgPixels");
+}
+
+void MAvgPoolLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
+
+		computeMAvgAct(*_inputs[inpIdx],  getActs(),  _size, _channels, _imgSize, _imgPixels);
+
+}
+
+void MAvgPoolLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
+
+	computeMAvgGrad(v, _prev[inpIdx]->getActsGrad(),
+							 _size, _channels,
+							_imgSize, _imgPixels);
+}
+
 /* 
  * =======================
  * VectFuncLayer

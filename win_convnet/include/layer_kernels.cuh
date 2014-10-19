@@ -87,5 +87,12 @@ void computeVectFuncWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 								vector<NVMatrix>& tempMatrix,
 								void* arrayPtr,
 								vector<double>& param,  int sizeV, int sizeH, int channels);
+
+void computeMAvgAct(NVMatrix& input, NVMatrix& target, int sizeModuleSide, int channels,
+						 int imgSize, int imgPixels);
+
+void computeMAvgGrad(NVMatrix& actGrad,  NVMatrix& target, int sizeModuleSide, int channels,
+						 int imgSize, int imgPixels);
+
 #endif	/* LAYER_KERNELS_CUH */
 
