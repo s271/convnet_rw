@@ -94,7 +94,7 @@ __global__ void kL2SVMCost(float* acts, float* labels, float* maxActs, float* ac
             }
             correctPreds[tx] = 1.0f / float(numMax);
         }
-
+/*
 		float sum_svm = 0;
 		for(int i = 0; i < numOut; i++)
 		{
@@ -108,6 +108,18 @@ __global__ void kL2SVMCost(float* acts, float* labels, float* maxActs, float* ac
 		}
 
         acts_out[tx] = sum_svm;
+    }
+*/
+		float cost_val = 0;
+
+        if (svm_label_value != max_svm) {
+			cost_val = fmaxf(1+max_svm, 0);
+
+        } else {
+			cost_val = fmaxf(1-max_svm, 0);
+        }
+
+        acts_out[tx] = .5*cost_val*cost_val + L1_SVM_C*cost_val;//not correct value, just estimation, should be a sum really
     }
 }
 

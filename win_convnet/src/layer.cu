@@ -928,6 +928,14 @@ void VectFuncLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType)
 
 	}
 
+	double sumScale = 5;
+	double l1sum = 0;
+	for(int i =0; i < _param.size(); i++)
+		l1sum += fabs(_param[i]);
+
+	for(int i =0; i < _param.size(); i++)
+		_param[i] *= sumScale/l1sum;
+
 	//debug
 	if(minibatch == 0)
 		{
