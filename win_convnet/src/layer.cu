@@ -1154,7 +1154,12 @@ EltwiseFuncLayer::EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict) : Lay
 	for (int i =0; i < NSTORE; i++)
 	for (int j =0; j < _param.size(); j++)
 		_grad_store[i].push_back(0);
-	//printf(" _param init  %f %f %f \n", _param[2] , _param[_sizeIn + 0] , _param[_sizeIn + 1]);
+
+//printf("init EltwiseFuncLayer\n");
+//	for (int k = 0; k < _param.size(); k++)
+//		printf("%f ", _param[k]);
+//	printf("\n");
+
 	//printf(" size_in %i size_out %i  updates %i \n",_sizeIn, _sizeOut, _updates);
 
 	for (int j =0; j < _param.size(); j++)
@@ -1219,8 +1224,15 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 		if(sum_grad > 0)
 			grad = grad*sqrt(NSTORE)/sqrt(sum_grad);
-
-		_param_inc[kp] = _mom*_param_inc[kp] + _epsP*grad - _wc*_param[kp];
+		
+		double eps = _epsP;
+		double wc = _wc;
+		if(kp >= paramSize/3)
+		{
+			eps *= 1e-2;
+			wc *= 1e-2;
+		}
+		_param_inc[kp] = _mom*_param_inc[kp] + eps*grad - wc*_param[kp];
 		_param[kp] += _param_inc[kp];
 
 	}

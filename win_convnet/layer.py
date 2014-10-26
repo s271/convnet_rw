@@ -657,16 +657,16 @@ class EltwiseFuncParser(LayerWithInputParser):
         dic['updates'] = mcp.safe_get_int(name, 'updates', default=2*dic['size_in'])         
     
     
-        meta_param = [0]*size_param     
+        meta_param = [0.]*size_param     
         
         szout = dic['size_out']
         szin = dic['size_in']
         for j in range(szout):   
-            meta_param[j*3*szin + (2+szout)%szin]=1.
-            meta_param[j*3*szin + szin + (0+szout)%szin]=1. 
-            meta_param[j*3*szin + szin + (1+szout)%szin]=1.            
+            meta_param[j*3*szin + (2+j)%szin]=1.
+            meta_param[j*3*szin + szin + (0+j)%szin]=1. 
+            meta_param[j*3*szin + szin + (1+j)%szin]=1.            
         
-        meta_param_inc = [0]*size_param
+        meta_param_inc = [0.]*size_param
 
         dic['meta_param'] = meta_param    
         dic['meta_param_inc'] = meta_param_inc 
