@@ -663,8 +663,8 @@ class EltwiseFuncParser(LayerWithInputParser):
         szin = dic['size_in']
         for j in range(szout):   
             meta_param[j*3*szin + (2+szout)%szin]=1.
-            meta_param[j*3*szin + sin + (0+szout)%szin]=1. 
-            meta_param[j*3*szin + sin + (1+szout)%szin]=1.            
+            meta_param[j*3*szin + szin + (0+szout)%szin]=1. 
+            meta_param[j*3*szin + szin + (1+szout)%szin]=1.            
         
         meta_param_inc = [0]*size_param
 
