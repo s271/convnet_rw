@@ -1196,8 +1196,8 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 
 	computeEltwiseFuncParamWeightGrad(v, *_inputs[inpIdx],
-								 _arrayPtr, _tempMatrixArray,
-								  _sizeIn, _sizeOut);
+								 _arrayPtr, _tempMatrixArray, _param,
+								 _sizeIn, _sizeOut);
 
 	int paramSize = _param.size();
 

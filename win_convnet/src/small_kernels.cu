@@ -311,7 +311,7 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 					float in_val = input[offset + pin*groupStride];
 					float val_m = fmax(in_val + const_area[pout*sizeIn*3 + 2*sizeIn + pin], 0);
 					sum[pout] += grad_next[pout]*in_val;
-					sum_m[pout] += grad_next[pout]*val_m;
+					sum_m[pout] += grad_next[pout]*(val_m > 0)*in_val;
 					sum_b[pout] += grad_next[pout]*(val_m > 0);
 				}
 			}
@@ -1283,7 +1283,8 @@ void computeEltwiseFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target
 
 void computeEltwiseFuncParamWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 								 void* arrayPtr, vector<NVMatrix>& tempMatrix,
-								  int size_in, int size_out)
+								 vector<double>& param,
+								 int size_in, int size_out)
 {
 
 	assert(size_out <= 8);// || size_out == 12 || size_out == 16);
@@ -1293,6 +1294,12 @@ void computeEltwiseFuncParamWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 
 	assert(input.getStride() == actGrad.getStride());
 
+	float temp[CONST_AREA_SIZE];
+	assert(param.size() <= CONST_AREA_SIZE);
+	memset(temp, 0, sizeof(temp));
+	for(int i = 0; i < param.size(); i++)
+		temp[i] = (float)param[i];
+	cudaMemcpyToSymbol(const_area, temp, sizeof(float)*CONST_AREA_SIZE, 0, cudaMemcpyHostToDevice);
 
 	int numPixelsPerGroup = inp_height/size_in;
 //	printf("inp_height %i numPixelsPerGroup %i \n", inp_height, numPixelsPerGroup);

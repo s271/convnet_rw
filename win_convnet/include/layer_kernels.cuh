@@ -65,7 +65,7 @@ void computeEltwiseFuncParamGradSingle(NVMatrix& actGrad, NVMatrix& input,
 								 int pin, int pout, int size_in, int size_out);
 
 void computeEltwiseFuncParamWeightGrad(NVMatrix& actGrad, NVMatrix& input,
-								 void* arrayPtr, vector<NVMatrix>& tempMatrix,
+								 void* arrayPtr, vector<NVMatrix>& tempMatrix, vector<double>& param,
 								 int size_in, int size_out);
 
 void computeEltwiseFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target,
