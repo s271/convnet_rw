@@ -1227,11 +1227,13 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 		
 		double eps = _epsP;
 		double wc = _wc;
+#if ELWISE_FUNC_SEC == 3
 		if(kp >= paramSize/3)
 		{
-			eps *= 1e-2;
+			eps *= 1e-3;
 			wc *= 1e-2;
 		}
+#endif
 		_param_inc[kp] = _mom*_param_inc[kp] + eps*grad - wc*_param[kp];
 		_param[kp] += _param_inc[kp];
 

@@ -50,6 +50,7 @@ __device__ __constant__ float const_area[CONST_AREA_SIZE];
 //-------------------------------------------------------------
 //EltwiseFunc
 //-------------------------------------------------------------
+
 template <int sizeArr>
 __global__ void kEltwiseFuncAct(const float* input, float* const target,
 								const uint imgInPixels, const uint numCases,
@@ -81,7 +82,7 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 			}
 #pragma unroll		
 			for (uint out_i = 0; out_i < sizeOut; out_i++) {
-				int out_par = out_i*sizeIn*3;
+				int out_par = out_i*sizeIn*ELWISE_FUNC_SEC;
 
 				float output = 0;
 #pragma unroll			
@@ -89,7 +90,11 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 				{		
 					float param = const_area[out_par + inp_i];
 					float paramM = const_area[out_par + sizeIn + inp_i];
+#if ELWISE_FUNC_SEC == 3
 					float paramB = const_area[out_par + 2*sizeIn + inp_i];
+#else
+#define paramB 0
+#endif
 					float val = inpVal[inp_i];
 					output += param*val + paramM*fmax(val+paramB, 0);
 				}// inp_i
@@ -202,9 +207,12 @@ __global__ void kEltwiseFuncGrad(const float* actGrad, const float* input, float
 				
 				for (uint out_i = 0; out_i < sizeOut; out_i++)	
 				{
-					int out_par = out_i*sizeIn*3;
+					int out_par = out_i*sizeIn*ELWISE_FUNC_SEC;
+#if ELWISE_FUNC_SEC == 3
 					float vsign = (val + const_area[out_par  + 2*sizeIn + inp_i] > 0);
-					 
+#else
+					float vsign = (val > 0);
+#endif
 					sum_grad += grad_next[out_i]*(vsign*const_area[out_par + sizeIn + inp_i] + const_area[out_par + inp_i]);
 				}
 
@@ -294,10 +302,12 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 	{
 		float sum[sizeOut];
 		float sum_m[sizeOut];
-		float sum_b[sizeOut];
 		memset(sum, 0, sizeof(sum));
 		memset(sum_m, 0, sizeof(sum_m));
+#if ELWISE_FUNC_SEC == 3
+		float sum_b[sizeOut];
 		memset(sum_b, 0, sizeof(sum_b));
+#endif
 		for (uint y = idxY; y < numPixelsPerGroup; y += gridDim.y * B_Y) {
 			for (uint x = idxX; x < numCases; x += gridDim.x * B_X) {
 				int offset = y * stride + x;
@@ -309,23 +319,32 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 				for(int pout = 0; pout < sizeOut; pout++)
 				{
 					float in_val = input[offset + pin*groupStride];
-					float val_m = fmax(in_val + const_area[pout*sizeIn*3 + 2*sizeIn + pin], 0);
+#if ELWISE_FUNC_SEC == 3
+					float val_m = fmax(in_val + const_area[pout*sizeIn*ELWISE_FUNC_SEC + 2*sizeIn + pin], 0);
+#else
+					float val_m = fmax(in_val, 0);
+#endif
 					sum[pout] += grad_next[pout]*in_val;
 					sum_m[pout] += grad_next[pout]*(val_m > 0)*in_val;
+#if ELWISE_FUNC_SEC == 3
 					sum_b[pout] += grad_next[pout]*(val_m > 0);
+#endif
 				}
 			}
 		}
 
 		for(int pout = 0; pout < sizeOut; pout++)
 		{
-			target[pout*sizeIn*3 + pin][tagOffset] = sum[pout];
-			target[pout*sizeIn*3 + sizeIn + pin][tagOffset] = sum_m[pout];
-			target[pout*sizeIn*3 + 2*sizeIn + pin][tagOffset] = sum_b[pout];
+			target[pout*sizeIn*ELWISE_FUNC_SEC + pin][tagOffset] = sum[pout];
+			target[pout*sizeIn*ELWISE_FUNC_SEC + sizeIn + pin][tagOffset] = sum_m[pout];
+#if ELWISE_FUNC_SEC == 3
+			target[pout*sizeIn*ELWISE_FUNC_SEC + 2*sizeIn + pin][tagOffset] = sum_b[pout];
+#endif
 		}
 	}
 }
 
+//for  ELWISE_FUNC_SEC == 2
 __global__ void kEltwiseFuncParamGradSingle(float* actGrad, float* input, float* target, float* target_m,
 								const uint pin, const uint pout, const uint imgInPixels, const uint numCases,
 								const uint strideInp, const uint strideOut, const uint strideTag,
@@ -1133,7 +1152,6 @@ void computeEltwiseMaxGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& output,
 //-------------------------------------------------------------
 //API EltwiseFunc
 //-------------------------------------------------------------
-
 
 
 void computeEltwiseFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& param, int size_in, int size_out)
