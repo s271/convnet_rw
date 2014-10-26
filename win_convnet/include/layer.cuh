@@ -217,6 +217,10 @@ protected:
 	float _epsP, _wc, _mom;
 	int _sizeIn, _sizeOut, _updates;
 
+	void* _arrayPtr;
+	vector<NVMatrix> _tempMatrixArray;
+
+
 	AggStorage _aggStorage;
 	NVMatrix _temp, _temp_m;
 
@@ -228,6 +232,7 @@ protected:
     void copyToCPU();
 public:
     EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict);
+	~EltwiseFuncLayer();
 };
 
 class MAvgPoolLayer : public Layer {

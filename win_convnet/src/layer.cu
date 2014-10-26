@@ -1157,6 +1157,18 @@ EltwiseFuncLayer::EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict) : Lay
 	//printf(" _param init  %f %f %f \n", _param[2] , _param[_sizeIn + 0] , _param[_sizeIn + 1]);
 	//printf(" size_in %i size_out %i  updates %i \n",_sizeIn, _sizeOut, _updates);
 
+	for (int j =0; j < _param.size(); j++)
+		_tempMatrixArray.push_back(NVMatrix());
+
+	int size_arr = (_param.size()+8)/8;
+	size_arr *= 8;
+	cudaMalloc(&_arrayPtr, sizeof(float*)*size_arr);
+
+}
+
+EltwiseFuncLayer::~EltwiseFuncLayer()
+{
+	cudaFree(_arrayPtr);
 }
 
 void EltwiseFuncLayer::copyToCPU()
@@ -1182,6 +1194,66 @@ extern int gepoch;
 
 void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
+
+	computeEltwiseFuncParamWeightGrad(v, *_inputs[inpIdx],
+								 _arrayPtr, _tempMatrixArray,
+								  _sizeIn, _sizeOut);
+
+	int paramSize = _param.size();
+
+
+	_tempMatrixArray[0].ResizeAggStorage(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+
+	for(int kp = 0; kp < paramSize; kp++)
+	{
+		double grad = _tempMatrixArray[kp].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+
+		double sum_grad = 0;
+		for(int k = 0; k < NSTORE; k++)
+		{
+			sum_grad += _grad_store[k][kp]*_grad_store[k][kp];
+		}
+
+		_grad_store[_nstore_count[kp]][kp] = grad;
+		_nstore_count[kp] = (_nstore_count[kp]+1)%NSTORE;
+
+		if(sum_grad > 0)
+			grad = grad*sqrt(NSTORE)/sqrt(sum_grad);
+
+		_param_inc[kp] = _mom*_param_inc[kp] + _epsP*grad - _wc*_param[kp];
+		_param[kp] += _param_inc[kp];
+
+	}
+
+	double sumScale = 3;
+	double l1sum = 0;
+	for(int i =0; i < _param.size(); i++)
+		l1sum += fabs(_param[i]);
+
+	for(int i =0; i < _param.size(); i++)
+		_param[i] *= sumScale/l1sum;
+
+	if(minibatch == 0)
+	{
+		int numl = (_param.size()+9)/9;
+		printf("**EltwiseFunc params *** \n");
+		for (int nk = 0; nk < numl; nk++)
+		{
+			for (int k = 0; k < 9; k++)
+				if(k + nk*9 < _param.size())
+				printf("%f ", _param[k + nk*9]);
+			printf("\n");
+		}
+	}
+
+
+	computeEltwiseFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(), _param, _sizeIn, _sizeOut);
+
+
+//void computeEltwiseFuncParamWeightGrad(NVMatrix& actGrad, NVMatrix& input,
+//								 void* arrayPtr, vector<NVMatrix>& tempMatrix,
+//								 int pin, int pout, int size_in, int size_out)
+/*
 	static int pin_prev = 0;
 	static int pout_prev = 0;
 
@@ -1267,7 +1339,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 
 	computeEltwiseFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(), _param, _sizeIn, _sizeOut);
-
+*/
 //		printf("EltwiseFuncLayer bpropActs end\n");
 }
 
