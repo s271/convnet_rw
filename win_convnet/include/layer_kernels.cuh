@@ -75,6 +75,11 @@ void computeEltwiseFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target
 
 void computeEltwiseFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& param, int size_in, int size_out);
 
+void testGroupsEltwiseFunc(NVMatrix& actGrad, NVMatrix& input,
+								 void* arrayPtr, vector<NVMatrix>& tempMatrix,
+								 vector<double>& param,
+								 int size_in, int size_out);
+
 void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& param, int sizeX, int channels,
 						 int imgSize, int imgPixels, int numFilters);
 void computeMicroConvActGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target,

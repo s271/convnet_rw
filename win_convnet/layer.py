@@ -652,9 +652,10 @@ class EltwiseFuncParser(LayerWithInputParser):
         dic['size_out'] = mcp.safe_get_int(name, 'size_out') 
         dic['outputs'] = dic['numInputs'][0]*dic['size_out']/dic['size_in']
 
+        param_sec = 2
         
-        size_param = 3*dic['size_in']*dic['size_out']
-        dic['updates'] = mcp.safe_get_int(name, 'updates', default=2*dic['size_in'])         
+        size_param = param_sec*dic['size_in']*dic['size_out']
+        dic['updates'] = mcp.safe_get_int(name, 'updates', default=param_sec*dic['size_in'])         
     
     
         meta_param = [0.]*size_param     
@@ -662,10 +663,16 @@ class EltwiseFuncParser(LayerWithInputParser):
         szout = dic['size_out']
         szin = dic['size_in']
         for j in range(szout):   
-            meta_param[j*3*szin + (2+j)%szin]=1.
-            meta_param[j*3*szin + szin + (0+j)%szin]=1. 
-            meta_param[j*3*szin + szin + (1+j)%szin]=1.            
-        
+            
+            meta_param[j*param_sec*szin + (2+j)%szin]=1.
+            meta_param[j*param_sec*szin + szin + (0+j)%szin]=1. 
+            meta_param[j*param_sec*szin + szin + (1+j)%szin]=1.            
+            '''
+            for i in range(szin):   
+                meta_param[j*param_sec*szin + i]= (((i+j)%szin)+1)*1./szin
+                meta_param[j*param_sec*szin + szin + i]=(((i+j+1)%szin)+1)*1./szin 
+            '''
+            
         meta_param_inc = [0.]*size_param
 
         dic['meta_param'] = meta_param    

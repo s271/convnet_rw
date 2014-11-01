@@ -1209,9 +1209,12 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 	_tempMatrixArray[0].ResizeAggStorage(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 
+
 	for(int kp = 0; kp < paramSize; kp++)
 	{
 		double grad = _tempMatrixArray[kp].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+
+//should make orthognal projection to equal vector(sizeIn)
 
 		double sum_grad = 0;
 		for(int k = 0; k < NSTORE; k++)
@@ -1238,8 +1241,26 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 		_param[kp] += _param_inc[kp];
 
 	}
+	
+	int vlen = _sizeIn*2;
+	int dimv = paramSize/vlen;
+//project on subspace
+	if(dimv > 1)
+		for(int kinp = 0; kinp <vlen; kinp++)
+		{
+			float avg = 0;
+			for(int inp_seg = 0; inp_seg < dimv; inp_seg++)
+			{
+				avg += _param[inp_seg*vlen + kinp];
+			}
+			avg /= dimv;
 
-	double sumScale = 3;
+			for(int inp_seg = 0; inp_seg <dimv; inp_seg++)
+				_param[inp_seg*vlen + kinp] -= avg;
+		}
+
+//normalize
+	double sumScale = _sizeIn*_sizeOut;;
 	double l1sum = 0;
 	for(int i =0; i < _param.size(); i++)
 		l1sum += fabs(_param[i]);
@@ -1260,6 +1281,19 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 		}
 	}
 
+//test
+//	if(minibatch == 0)
+//	{
+//
+//		testGroupsEltwiseFunc(v, *_inputs[inpIdx],
+//								 _arrayPtr, _tempMatrixArray, _param,
+//								 _sizeIn, _sizeOut);
+//		double gr0 = _tempMatrixArray[0].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+//		double diff1 = _tempMatrixArray[1].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+//		double diff2 = _tempMatrixArray[2].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+//		printf("***EltwiseFunc group test gr0 %f diff1_rel %f diff2_rel %f \n", gr0, diff1/gr0, diff2/gr0);
+////end test
+//	}
 
 	computeEltwiseFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(), _param, _sizeIn, _sizeOut);
 
