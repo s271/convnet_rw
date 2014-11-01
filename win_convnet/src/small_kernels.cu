@@ -76,7 +76,7 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 
 				for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {
 					int ki = sizeIn*out_i + inp_i;
-					int voff = ki*numPixelsPerGroup*strideInp + (iy + idxX)*strideInp + ix + idxX;
+					int voff = ki*numPixelsPerGroup*strideInp + (iy + idxY)*strideInp + ix + idxX;
 					float val = input[voff];
 		
 					float param = const_area[out_par + inp_i];
@@ -89,7 +89,7 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 					output += param*val + paramM*fmax(val+paramB, 0);
 				}// inp_i
 
-				int toff = out_i*numPixelsPerGroup*strideTag + + (iy + idxX)*strideTag + ix + idxX;
+				int toff = out_i*numPixelsPerGroup*strideTag + + (iy + idxY)*strideTag + ix + idxX;
 				target[toff] = output;
 			}//out_i
         }
@@ -98,65 +98,6 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 }
 
 
-
-//template <int B_X, int B_Y, int sizeArr>
-//__global__ void kEltwiseFuncAct_t(const float* input, float* const target,
-//								const uint imgInPixels, const uint numCases,
-//								const uint strideInp, const uint strideTag,
-//								const uint sizeIn, const uint sizeOut) {
-//
-//	const int numPixelsPerGroup = imgInPixels/sizeIn;	
-//
-////    dim3 blocks(std::min(NUM_BLOCKS_MAX, DIVUP(out_width, ELTWISE_THREADS_X)),
-////                std::min(NUM_BLOCKS_MAX, DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)));
-//
-//// ix, iy == 0 almost always
-//
-////go over output group
-//    const uint idxX = blockIdx.x * B_X + threadIdx.x;
-//
-////go over cases
-//    const uint idxY = blockIdx.y * B_Y + threadIdx.y;
-//
-//	//gridDim.y is DIVUP(numPixelsPerGroup, ELTWISE_THREADS_Y)
-//    //for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDim.y * B_Y)
-//	{
-//
-//        //for (uint ix = 0; ix < numCases; ix += gridDim.x * B_X)
-//		{	
-//
-//		float inpVal[sizeArr];//use shared instead?
-//
-//			uint x = idxX;// + ix;
-//			uint yg = idxY;// + iy;
-//
-//			for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {	
-//				int yt = yg + inp_i*numPixelsPerGroup;
-//				float val = input[yt * strideInp + x];
-//				inpVal[inp_i] = val;
-//			}		
-//	
-//			for (uint out_i = 0; out_i < sizeOut; out_i++) {
-//				int out_par = out_i*sizeIn*2;
-//
-//				float output = 0;
-//			
-//				for (uint inp_i = 0; inp_i < sizeIn; inp_i++)
-//				{		
-//					float param = const_area[out_par + inp_i];
-//					float paramM = const_area[out_par + sizeIn + inp_i];
-//					float val = inpVal[inp_i];
-//					output += param*val + paramM*fmax(val, 0);
-//				}// inp_i
-//
-//				int yo = yg;//+ out_i*numPixelsPerGroup;
-//				int offseTag = yo * strideTag + x;
-//				target[offseTag] = output;
-//			}//out_i
-//
-//        }
-//    }
-//}
 
 template <int sizeArr>
 __global__ void kEltwiseFuncGrad(const float* actGrad, const float* input, float* const target,
@@ -179,7 +120,7 @@ __global__ void kEltwiseFuncGrad(const float* actGrad, const float* input, float
 
 			float grad_next[sizeArr];
 
-			int off = (iy + idxX)*strideInp + ix + idxX;
+			int off = (iy + idxY)*strideInp + ix + idxX;
 
 			float sum_grad = 0;
 			for (uint out_i = 0; out_i < sizeOut; out_i++)
@@ -207,67 +148,6 @@ __global__ void kEltwiseFuncGrad(const float* actGrad, const float* input, float
 
 }
 
-//template <int B_X, int B_Y, int sizeArr>
-//__global__ void kEltwiseFuncGrad_t(const float* actGrad, const float* input, float* const target,
-//								const uint imgInPixels, const uint numCases,
-//								const uint strideInp, const uint strideOut,
-//								const uint sizeIn, const uint sizeOut) {
-//
-////go over output group
-//    const uint idxX = blockIdx.x * B_X + threadIdx.x;
-////go over cases
-//    const uint idxY = blockIdx.y * B_Y + threadIdx.y;
-//
-//	const int numPixelsPerGroup = imgInPixels/sizeIn;
-////	const int inStep = strideInp*numPixelsPerGroup;
-////	const int outStep = strideOut*numPixelsPerGroup;
-//
-//	//gridDim.y is DIVUP(numOutPixelsPerGroup, ELTWISE_THREADS_Y)
-//    for (uint iy = idxY; iy < numPixelsPerGroup; iy += gridDim.y * B_Y) {
-//
-//        for (uint ix = idxX; ix < numCases; ix += gridDim.x * B_X) {
-//
-//			float grad_next[sizeArr];
-//
-//			for (uint out_i = 0; out_i < sizeOut; out_i++)
-//				grad_next[out_i] = actGrad[(iy + out_i*numPixelsPerGroup)*strideOut + ix];
-//
-//			for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {	
-//				int yt = iy + inp_i*numPixelsPerGroup;
-//				int offset = yt * strideInp + ix;
-//				float val = input[offset];
-//				float vsign = (val > 0);
-//				float sum_grad = 0;
-//				
-//				for (uint out_i = 0; out_i < sizeOut; out_i++)	
-//					sum_grad += grad_next[out_i]*(vsign*const_area[out_i*sizeIn*2 + sizeIn + inp_i]
-//						+ const_area[out_i*sizeIn*2 + inp_i]); //optimize away later
-//
-//				target[offset] = sum_grad;
-//
-//			}	
-//
-//			//int offset = y * stride + x;
-//
-//			//float in0 = input0[offset];
-//			//float in1 = input1[offset];
-//			//float in2 = input2[offset];
-//			//float grad_next = actGrad[offset];
-//
-//			//float val0 = param0 + param3*(in0 > 0);
-//			//float val1 = param1 + param4*(in1 > 0);
-//			//float val2 = param2 + param5*(in2 > 0);
-//
-//			//target0[offset] = val0*grad_next;
-//			//target1[offset] = val1*grad_next;
-//			//target2[offset] = val2*grad_next;
-//
-//   //         //float val = param0*in0 + param1*in1 + param2*in2 + param3*fm0 + param4*fm1 + param5*fm2;
-//
-//		}
-//   }
-//
-//}
 
 template <int B_X, int B_Y, int sizeOut>
 __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float** target,
@@ -420,39 +300,7 @@ __global__ void kEltwiseFuncParamGradSingle(float* actGrad, float* input, float*
 }
 
 
-template <int B_X, int B_Y>
-__global__ void kEltwiseFuncParamGradSingle_t(float* actGrad, float* input, float* target, float* target_m,
-								const uint pin, const uint pout, const uint imgInPixels, const uint numCases,
-								const uint strideInp, const uint strideOut, const uint strideTag,
-								const uint sizeIn, const uint sizeOut)
-{
-	const int numPixelsPerGroup = imgInPixels/sizeIn;	
-    const uint idxX = blockIdx.x * B_X + threadIdx.x;
-    const uint idxY = blockIdx.y * B_Y + threadIdx.y;
 
-	float sum = 0;
-	float sum_m = 0;
-
-#pragma unroll
-    for (uint y = idxY; y < numPixelsPerGroup; y += gridDim.y * B_Y) {
-#pragma unroll
-        for (uint x = idxX; x < numCases; x += gridDim.x * B_X) {
-			int offset = y * strideInp + x;
-			float in_val = input[offset + pin*numPixelsPerGroup* strideInp ];
-
-			float grad_next = actGrad[y * strideOut + x + pout*numPixelsPerGroup* strideInp ];
-
-			float val_m = fmax(in_val, 0);
-			sum += grad_next*in_val;
-			sum_m += grad_next*val_m;
-		}
-	}
-	int tagOffset = (threadIdx.x + blockIdx.x*blockDim.x) +  (threadIdx.y + blockIdx.y*blockDim.y)*strideTag;
-
-	target[tagOffset] = sum;
-	target_m[tagOffset] = sum_m;
-
-}
 //-------------------------------------------------------------
 //MicroConv
 //-------------------------------------------------------------
