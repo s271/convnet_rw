@@ -179,16 +179,17 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 #endif
 		for (uint y = idxY; y < numPixelsPerGroup; y += gridDim.y * B_Y) {
 			for (uint x = idxX; x < numCases; x += gridDim.x * B_X) {
-				int offset = y * stride*sz + x;
+				int offset_act = y * stride + x;
+				int offset_in = y * stride*sz + x;
 
 				float grad_next[sizeOut];
 				for(int pout = 0; pout < sizeOut; pout++)
-					grad_next[pout] = actGrad[offset + pout*groupOutStride];
+					grad_next[pout] = actGrad[offset_act + pout*groupOutStride];
 
 				for(int pout = 0; pout < sizeOut; pout++)
 				{
 					int ki = sizeIn*pout + pin;
-					float in_val = input[offset + ki*stride];
+					float in_val = input[offset_in + ki*stride];
 #if ELWISE_FUNC_SEC == 3
 					float val_m = fmax(in_val + const_area[pout*sizeIn*ELWISE_FUNC_SEC + 2*sizeIn + pin], 0);
 #else
