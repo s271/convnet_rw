@@ -168,26 +168,21 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
     const uint idxY = blockIdx.y * B_Y + threadIdx.y;
 	const int tagOffset = (threadIdx.x + blockIdx.x*blockDim.x) +  (threadIdx.y + blockIdx.y*blockDim.y)*strideTag;
 
-	for(int pin = 0; pin < sizeIn; pin++)
-	{
-		float sum[sizeOut];
-		float sum_m[sizeOut];
-		memset(sum, 0, sizeof(sum));
-		memset(sum_m, 0, sizeof(sum_m));
+
+	for (uint y = idxY; y < numPixelsPerGroup; y += gridDim.y * B_Y) {
+		for (uint x = idxX; x < numCases; x += gridDim.x * B_X) {
+			int offset_act = y * stride + x;
+			int offset_in = y * stride*sz + x;
+
+			for(int pout = 0; pout < sizeOut; pout++)
+			{
+				grad_next[pout] = actGrad[offset_act + pout*groupOutStride];
+				float sum = 0;
+				float sum_m = 0;
 #if ELWISE_FUNC_SEC == 3
-		float sum_b[sizeOut];
-		memset(sum_b, 0, sizeof(sum_b));
+				sum_b = 0;
 #endif
-		for (uint y = idxY; y < numPixelsPerGroup; y += gridDim.y * B_Y) {
-			for (uint x = idxX; x < numCases; x += gridDim.x * B_X) {
-				int offset_act = y * stride + x;
-				int offset_in = y * stride*sz + x;
-
-				float grad_next[sizeOut];
-				for(int pout = 0; pout < sizeOut; pout++)
-					grad_next[pout] = actGrad[offset_act + pout*groupOutStride];
-
-				for(int pout = 0; pout < sizeOut; pout++)
+				for(int pin = 0; pin < sizeIn; pin++)
 				{
 					int ki = sizeIn*pout + pin;
 					float in_val = input[offset_in + ki*stride];
@@ -196,24 +191,25 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 #else
 					float val_m = fmax(in_val, 0);
 #endif
-					sum[pout] += grad_next[pout]*in_val;
-					sum_m[pout] += grad_next[pout]*(val_m > 0)*in_val;
+					sum += grad_next[pout]*in_val;
+					sum_m += grad_next[pout]*(val_m > 0)*in_val;			
 #if ELWISE_FUNC_SEC == 3
-					sum_b[pout] += grad_next[pout]*(val_m > 0);
+					sum_b += grad_next*(val_m > 0);
 #endif
 				}
 			}
 		}
-
-		for(int pout = 0; pout < sizeOut; pout++)
-		{
-			target[pout*sizeIn*ELWISE_FUNC_SEC + pin][tagOffset] = sum[pout];
-			target[pout*sizeIn*ELWISE_FUNC_SEC + sizeIn + pin][tagOffset] = sum_m[pout];
-#if ELWISE_FUNC_SEC == 3
-			target[pout*sizeIn*ELWISE_FUNC_SEC + 2*sizeIn + pin][tagOffset] = sum_b[pout];
-#endif
-		}
 	}
+
+	for(int pout = 0; pout < sizeOut; pout++)
+	{
+		target[pout*sizeIn*ELWISE_FUNC_SEC + pin][tagOffset] = sum[pout];
+		target[pout*sizeIn*ELWISE_FUNC_SEC + sizeIn + pin][tagOffset] = sum_m[pout];
+#if ELWISE_FUNC_SEC == 3
+		target[pout*sizeIn*ELWISE_FUNC_SEC + 2*sizeIn + pin][tagOffset] = sum_b[pout];
+#endif
+	}
+
 }
 
 template <int B_X, int B_Y, int sizeIn>
