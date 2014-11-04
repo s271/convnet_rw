@@ -1142,6 +1142,7 @@ EltwiseFuncLayer::EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict) : Lay
 
     _sizeIn = pyDictGetInt(paramsDict, "size_in");
 	_sizeOut = pyDictGetInt(paramsDict, "size_out");
+	_channels = pyDictGetInt(paramsDict, "channels");
 	_updates = pyDictGetInt(paramsDict, "updates");
     
     _mom = pyDictGetFloat(paramsDict, "mom");
@@ -1155,12 +1156,18 @@ EltwiseFuncLayer::EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict) : Lay
 	for (int j =0; j < _param.size(); j++)
 		_grad_store[i].push_back(0);
 
-//printf("init EltwiseFuncLayer\n");
-//	for (int k = 0; k < _param.size(); k++)
-//		printf("%f ", _param[k]);
-//	printf("\n");
+	int nump = _sizeIn*2;
+	int numl = (_param.size()+nump-1)/nump;
+	printf("** params *** \n");
+	for (int nk = 0; nk < numl; nk++)
+	{
+		for (int k = 0; k < nump; k++)
+			if(k + nk*nump < _param.size())
+			printf("%f ", _param[k + nk*nump]);
+		printf("\n");
+	}
 
-	//printf(" size_in %i size_out %i  updates %i \n",_sizeIn, _sizeOut, _updates);
+	//printf(" size_in %i size_out %i  _channels %i \n",_sizeIn, _sizeOut, _channels);
 
 	for (int j =0; j < _param.size(); j++)
 		_tempMatrixArray.push_back(NVMatrix());
@@ -1189,7 +1196,7 @@ void EltwiseFuncLayer::copyToCPU()
 void EltwiseFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
 	//printf(" EltwiseFuncLayer fpropActs minibatch %i \n", minibatch);
 
-	computeEltwiseFuncAct(*_inputs[inpIdx],  getActs(), _param, _sizeIn, _sizeOut);
+	computeEltwiseFuncAct(*_inputs[inpIdx],  getActs(), _param, _channels, _sizeIn, _sizeOut);
 
 	//printf(" EltwiseFuncLayer fpropActs end\n");
 }
@@ -1199,10 +1206,9 @@ extern int gepoch;
 
 void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
-
 	computeEltwiseFuncParamWeightGrad(v, *_inputs[inpIdx],
 								 _arrayPtr, _tempMatrixArray, _param,
-								 _sizeIn, _sizeOut);
+								 _channels, _sizeIn, _sizeOut);
 
 	int paramSize = _param.size();
 
@@ -1245,62 +1251,72 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	int vlen = _sizeIn*2;
 	int dimv = paramSize/vlen;
 //project on subspace
-	if(dimv > 1)
-		for(int kinp = 0; kinp <vlen; kinp++)
-		{
-			float avg = 0;
-			for(int inp_seg = 0; inp_seg < dimv; inp_seg++)
-			{
-				avg += _param[inp_seg*vlen + kinp];
-			}
-			avg /= dimv;
+	//if(dimv > 1)
+	//	for(int kinp = 0; kinp <vlen; kinp++)
+	//	{
+	//		float avg = 0;
+	//		for(int inp_seg = 0; inp_seg < dimv; inp_seg++)
+	//		{
+	//			avg += _param[inp_seg*vlen + kinp];
+	//		}
+	//		avg /= dimv;
 
-			for(int inp_seg = 0; inp_seg <dimv; inp_seg++)
-				_param[inp_seg*vlen + kinp] -= avg;
-		}
+	//		for(int inp_seg = 0; inp_seg <dimv; inp_seg++)
+	//			_param[inp_seg*vlen + kinp] -= avg;
+	//	}
 
 //normalize
-	double sumScale = _sizeIn*_sizeOut;;
-	double l1sum = 0;
-	for(int i =0; i < _param.size(); i++)
-		l1sum += fabs(_param[i]);
+	double sumScale = 1;//_sizeIn*_sizeOut;;
+	//double l1sum = 0;
+	//for(int i =0; i < _param.size(); i++)
+	//	l1sum += fabs(_param[i]);
 
-	for(int i =0; i < _param.size(); i++)
-		_param[i] *= sumScale/l1sum;
+	//for(int i =0; i < _param.size(); i++)
+	//	_param[i] *= sumScale/l1sum;
+
+	for(int inp_seg = 0; inp_seg < dimv; inp_seg++)
+	{
+		float l1sum = 0;
+
+		for(int kinp = 0; kinp <vlen; kinp++)
+			l1sum += fabs(_param[inp_seg*vlen + kinp]);
+
+		for(int kinp = 0; kinp <vlen; kinp++)
+			_param[inp_seg*vlen + kinp]*= sumScale/l1sum;
+
+	}
 
 	if(minibatch == 0)
 	{
-		int numl = (_param.size()+9)/9;
-		printf("**EltwiseFunc params *** \n");
+		int nump = _sizeIn*2;
+		int numl = (_param.size()+nump-1)/nump;
+		printf("** params *** \n");
 		for (int nk = 0; nk < numl; nk++)
 		{
-			for (int k = 0; k < 9; k++)
-				if(k + nk*9 < _param.size())
-				printf("%f ", _param[k + nk*9]);
+			for (int k = 0; k < nump; k++)
+				if(k + nk*nump < _param.size())
+				printf("%f ", _param[k + nk*nump]);
 			printf("\n");
 		}
 	}
 
 //test
-//	if(minibatch == 0)
-//	{
-//
-//		testGroupsEltwiseFunc(v, *_inputs[inpIdx],
-//								 _arrayPtr, _tempMatrixArray, _param,
-//								 _sizeIn, _sizeOut);
-//		double gr0 = _tempMatrixArray[0].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
-//		double diff1 = _tempMatrixArray[1].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
-//		double diff2 = _tempMatrixArray[2].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
-//		printf("***EltwiseFunc group test gr0 %f diff1_rel %f diff2_rel %f \n", gr0, diff1/gr0, diff2/gr0);
-////end test
-//	}
+	if(minibatch == 0)
+	{
 
-	computeEltwiseFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(), _param, _sizeIn, _sizeOut);
+		testGroupsEltwiseFunc(v, *_inputs[inpIdx],
+								 _arrayPtr, _tempMatrixArray, _param,
+								 _sizeIn, _sizeOut);
+		double gr0 = _tempMatrixArray[0].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+		double diff1 = _tempMatrixArray[1].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+		double diff2 = _tempMatrixArray[2].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+		printf("***EltwiseFunc group test gr0 %f diff1_rel %f diff2_rel %f \n", gr0, diff1/gr0, diff2/gr0);
+//end test
+	}
+
+	computeEltwiseFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(), _param, _channels, _sizeIn, _sizeOut);
 
 
-//void computeEltwiseFuncParamWeightGrad(NVMatrix& actGrad, NVMatrix& input,
-//								 void* arrayPtr, vector<NVMatrix>& tempMatrix,
-//								 int pin, int pout, int size_in, int size_out)
 /*
 	static int pin_prev = 0;
 	static int pout_prev = 0;
@@ -1320,21 +1336,17 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 		_temp.ResizeAggStorage(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 
-//		double grad = _temp.sum();
-//		double grad_m = _temp_m.sum();
-
-
 		double grad = _temp.sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 		double grad_m = _temp_m.sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 
 		int ind_p = pin + pout*2*_sizeIn;
 		int ind_p_m = ind_p + _sizeIn;
 
-	//printf(" grad %f grad_m %f _epsP %f   \n", grad, grad_m, _epsP);
+//	printf("********* grad %f grad_m %f  %s  \n", grad, grad_m,_name.c_str());
 //debug
 
 
-		double sum = 0, ge =0, ge_m =0;
+		double sum = 0, ge =grad, ge_m =grad_m;
 		for(int k = 0; k < NSTORE; k++)
 			sum += _grad_store[k][ind_p]*_grad_store[k][ind_p];
 
@@ -1360,9 +1372,29 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 		_param[ind_p] += _param_inc[ind_p];
 		_param[ind_p_m] += _param_inc[ind_p_m];
 
+	//	printf("** par delta %f %i %f %i sz %i *** \n", _param_inc[ind_p], ind_p,  _param_inc[ind_p_m], ind_p_m, _param.size());
+
+
+	int vlen = _sizeIn*2;
+	int dimv = _param.size()/vlen;
+//project on subspace
+	if(dimv > 1)
+		for(int kinp = 0; kinp <vlen; kinp++)
+		{
+			float avg = 0;
+			for(int inp_seg = 0; inp_seg < dimv; inp_seg++)
+			{
+				avg += _param[inp_seg*vlen + kinp];
+			}
+			avg /= dimv;
+
+			for(int inp_seg = 0; inp_seg <dimv; inp_seg++)
+				_param[inp_seg*vlen + kinp] -= avg;
+		}
+
 
 	//renormalize
-		double sumScale = 3;
+		double sumScale = 1;//_sizeIn*_sizeOut;
 		double l1sum = 0;
 		for(int i =0; i < _param.size(); i++)
 			l1sum += fabs(_param[i]);
@@ -1372,13 +1404,14 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 		////debug
 		if(minibatch == 0)
 		{
-			int numl = (_param.size()+8)/8;
+			int nump = _sizeIn*2;
+			int numl = (_param.size()+nump-1)/nump;
 			printf("** params *** \n");
 			for (int nk = 0; nk < numl; nk++)
 			{
-				for (int k = 0; k < 8; k++)
-					if(k + nk*8 < _param.size())
-					printf("%f ", _param[k + nk*8]);
+				for (int k = 0; k < nump; k++)
+					if(k + nk*nump < _param.size())
+					printf("%f ", _param[k + nk*nump]);
 				printf("\n");
 			}
 		}
