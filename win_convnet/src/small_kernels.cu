@@ -236,7 +236,7 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 template <int B_X, int B_Y, int sizeIn>
 __global__ void kEltwiseFuncGroupTest(float* actGrad, float* input, float** target,
 								const uint imgInPixels, const uint numCases,
-								const uint stride, const uint strideTag)
+								const uint stride, const uint strideTag, const int cnttest)
 {
 	const int numPixelsPerGroup = imgInPixels/sizeIn;
 	const int groupStride  = numPixelsPerGroup*stride;
@@ -252,13 +252,17 @@ __global__ void kEltwiseFuncGroupTest(float* actGrad, float* input, float** targ
 		for (uint x = idxX; x < numCases; x += gridDim.x * B_X) {
 			int offset = y * stride + x;
 
-			float v0 = input[offset + 0];
+			float v0 = input[offset + cnttest*groupStride];
 			sum[0] += fabs(v0);
 
-			for(int pin = 1; pin < sizeIn; pin++)
+			int ks =0;
+			for(int pin = 0; pin < sizeIn; pin++)
 			{
+				if(cnttest == pin)
+					continue;
 				float in_val = input[offset + pin*groupStride];
-				sum[pin] += fabs(in_val -v0);
+				sum[ks] += fabs(in_val -v0);
+				ks++;
 			}
 		}
 	}
@@ -1260,7 +1264,7 @@ void computeEltwiseFuncParamWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 void testGroupsEltwiseFunc(NVMatrix& actGrad, NVMatrix& input,
 								 void* arrayPtr, vector<NVMatrix>& tempMatrix,
 								 vector<double>& param,
-								 int size_in, int size_out)
+								 int size_in, int size_out, int cnttest)
 {
 
 	assert(size_in <= 8);// || size_out == 12 || size_out == 16);
@@ -1307,7 +1311,7 @@ void testGroupsEltwiseFunc(NVMatrix& actGrad, NVMatrix& input,
 		kEltwiseFuncGroupTest<ELTWISE_THREADS_X, ELTWISE_THREADS_Y, SIZE_ARR><<<blocks, threads>>>(actGrad.getDevData(),\
 		input.getDevData(), (float**)arrayPtr,\
 		inp_height, inp_width,\
-		input.getStride(), tempMatrix[0].getStride());};
+		input.getStride(), tempMatrix[0].getStride(), cnttest);};
 		ELT_T_GRAD(1)
 		ELT_T_GRAD(2)
 		ELT_T_GRAD(3)

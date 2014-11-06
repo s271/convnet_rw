@@ -1251,19 +1251,19 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	int vlen = _sizeIn*2;
 	int dimv = paramSize/vlen;
 //project on subspace
-	if(dimv > 1)
-		for(int kinp = 0; kinp <vlen; kinp++)
-		{
-			float avg = 0;
-			for(int inp_seg = 0; inp_seg < dimv; inp_seg++)
-			{
-				avg += _param[inp_seg*vlen + kinp];
-			}
-			avg /= dimv;
+	//if(dimv > 1)
+	//	for(int kinp = 0; kinp <vlen; kinp++)
+	//	{
+	//		float avg = 0;
+	//		for(int inp_seg = 0; inp_seg < dimv; inp_seg++)
+	//		{
+	//			avg += _param[inp_seg*vlen + kinp];
+	//		}
+	//		avg /= dimv;
 
-			for(int inp_seg = 0; inp_seg <dimv; inp_seg++)
-				_param[inp_seg*vlen + kinp] -= avg;
-		}
+	//		for(int inp_seg = 0; inp_seg <dimv; inp_seg++)
+	//			_param[inp_seg*vlen + kinp] -= avg;
+	//	}
 
 //normalize
 	double sumScale = _sizeOut*_sizeIn;
@@ -1304,13 +1304,23 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	if(minibatch == 0)
 	{
 
+		int numPixelPerGroup =  v.getNumRows()/_sizeOut;
+
 		testGroupsEltwiseFunc(v, *_inputs[inpIdx],
 								 _arrayPtr, _tempMatrixArray, _param,
-								 _sizeIn, _sizeOut);
+								 _sizeIn, _sizeOut, 0);
 		double gr0 = _tempMatrixArray[0].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 		double diff1 = _tempMatrixArray[1].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 		double diff2 = _tempMatrixArray[2].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
-		printf("***EltwiseFunc group test gr0 %f diff1_rel %f diff2_rel %f \n", gr0, diff1/gr0, diff2/gr0);
+		printf("***EltwiseFunc group test gr0 %f diff1_rel %f diff2_rel %f \n", gr0/numPixelPerGroup, diff1/gr0, diff2/gr0);
+
+		testGroupsEltwiseFunc(v, *_inputs[inpIdx],
+								 _arrayPtr, _tempMatrixArray, _param,
+								 _sizeIn, _sizeOut, 1);
+		double gr1 = _tempMatrixArray[0].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+		diff1 = _tempMatrixArray[1].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+		diff2 = _tempMatrixArray[2].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+		printf("***EltwiseFunc group test gr1 %f diff1_rel %f diff2_rel %f \n", gr1/numPixelPerGroup, diff1/gr1, diff2/gr1);
 //end test
 	}
 
