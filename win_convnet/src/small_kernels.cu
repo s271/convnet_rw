@@ -236,7 +236,7 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 template <int B_X, int B_Y, int sizeIn>
 __global__ void kEltwiseFuncGroupTest(float* actGrad, float* input, float** target,
 								const uint imgInPixels, const uint numCases,
-								const uint stride, const uint strideTag, const int cnttest)
+								const uint stride, const uint strideTag, const uint cnttest)
 {
 	const int numPixelsPerGroup = imgInPixels/sizeIn;
 	const int groupStride  = numPixelsPerGroup*stride;
@@ -258,10 +258,10 @@ __global__ void kEltwiseFuncGroupTest(float* actGrad, float* input, float** targ
 			int ks =0;
 			for(int pin = 0; pin < sizeIn; pin++)
 			{
-				if(cnttest == pin)
+				if(pin == cnttest)
 					continue;
 				float in_val = input[offset + pin*groupStride];
-				sum[ks] += fabs(in_val -v0);
+				sum[1+ks] += fabs(in_val -v0);
 				ks++;
 			}
 		}

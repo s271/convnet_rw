@@ -1249,42 +1249,49 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	}
 	
 	int vlen = _sizeIn*2;
-	int dimv = paramSize/vlen;
+	int numv = paramSize/vlen;
 //project on subspace
-	//if(dimv > 1)
-	//	for(int kinp = 0; kinp <vlen; kinp++)
-	//	{
-	//		float avg = 0;
-	//		for(int inp_seg = 0; inp_seg < dimv; inp_seg++)
-	//		{
-	//			avg += _param[inp_seg*vlen + kinp];
-	//		}
-	//		avg /= dimv;
+	int pcurrent = 0;
+	for(int k = 1; k < numv; k++)
+	{
+		double l2 = 0;
+		for(int p =0; p < vlen; p++)
+			l2 += _param[pcurrent*vlen + p]*_param[pcurrent*vlen + p];
 
-	//		for(int inp_seg = 0; inp_seg <dimv; inp_seg++)
-	//			_param[inp_seg*vlen + kinp] -= avg;
-	//	}
+		for(int i = k; i < numv; i++)
+		{
+			double dot = 0;
+			for(int p =0; p < vlen; p++)
+				dot += _param[pcurrent*vlen + p]*_param[i*vlen + p];
+
+			for(int p =0; p < vlen; p++)
+				_param[i*vlen + p] -= dot/l2*_param[pcurrent*vlen + p];
+		}
+
+		pcurrent++;
+	}
 
 //normalize
-	double sumScale = _sizeOut*_sizeIn;
-	double l1sum = 0;
-	for(int i =0; i < _param.size(); i++)
-		l1sum += fabs(_param[i]);
+	//double sumScale = _sizeOut*_sizeIn;
+	//double l1sum = 0;
+	//for(int i =0; i < _param.size(); i++)
+	//	l1sum += fabs(_param[i]);
 
-	for(int i =0; i < _param.size(); i++)
-		_param[i] *= sumScale/l1sum;
+	//for(int i =0; i < _param.size(); i++)
+	//	_param[i] *= sumScale/l1sum;
 
-	//for(int inp_seg = 0; inp_seg < dimv; inp_seg++)
-	//{
-	//	float l1sum = 0;
+	double sumScale = _sizeIn;
+	for(int inp_seg = 0; inp_seg < numv; inp_seg++)
+	{
+		float l1sum = 0;
 
-	//	for(int kinp = 0; kinp <vlen; kinp++)
-	//		l1sum += fabs(_param[inp_seg*vlen + kinp]);
+		for(int kinp = 0; kinp <vlen; kinp++)
+			l1sum += fabs(_param[inp_seg*vlen + kinp]);
 
-	//	for(int kinp = 0; kinp <vlen; kinp++)
-	//		_param[inp_seg*vlen + kinp]*= sumScale/l1sum;
+		for(int kinp = 0; kinp <vlen; kinp++)
+			_param[inp_seg*vlen + kinp]*= sumScale/l1sum;
 
-	//}
+	}
 
 	if(minibatch == 0)
 	{
