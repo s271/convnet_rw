@@ -1238,63 +1238,69 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 		
 		double eps = _epsP;
 		double wc = _wc;
-#if ELWISE_FUNC_SEC == 3
-		int vind = kp%vlen;
-		if(vind >= _sizeIn*2)
-		{
-			eps *= 1e-1;
-			wc *= 1e-1;
-		}
-#endif
+//#if ELWISE_FUNC_SEC == 3
+//		int vind = kp%vlen;
+//		if(vind >= _sizeIn*2)
+//		{
+//			eps *= 1e-1;
+//			wc *= 1e-1;
+//		}
+//#endif
 		_param_inc[kp] = _mom*_param_inc[kp] + eps*grad - wc*_param[kp];
 		_param[kp] += _param_inc[kp];
 
 	}
-	
+
 
 //project on subspace
-	int lsum = _sizeIn*2;
-	int pcurrent = 0;
-	for(int k = 1; k < numv; k++)
-	{
-		double l2 = 0;
-		for(int p =0; p < lsum; p++)
-			l2 += _param[pcurrent*vlen + p]*_param[pcurrent*vlen + p];
+	//int lsum = _sizeIn*2;
+	//int pcurrent = 0;
+	//for(int k = 1; k < numv; k++)
+	//{
+	//	double l2 = 0;
+	//	for(int p =0; p < lsum; p++)
+	//		l2 += _param[pcurrent*vlen + p]*_param[pcurrent*vlen + p];
 
-		for(int i = k; i < numv; i++)
-		{
-			double dot = 0;
-			for(int p =0; p < lsum; p++)
-				dot += _param[pcurrent*vlen + p]*_param[i*vlen + p];
+	//	for(int i = k; i < numv; i++)
+	//	{
+	//		double dot = 0;
+	//		for(int p =0; p < lsum; p++)
+	//			dot += _param[pcurrent*vlen + p]*_param[i*vlen + p];
 
-			for(int p =0; p < lsum; p++)
-				_param[i*vlen + p] -= dot/l2*_param[pcurrent*vlen + p];
-		}
+	//		for(int p =0; p < lsum; p++)
+	//			_param[i*vlen + p] -= dot/l2*_param[pcurrent*vlen + p];
+	//	}
 
-		pcurrent++;
-	}
+	//	pcurrent++;
+	//}
 
 //normalize
-	//double sumScale = _sizeOut*_sizeIn;
-	//double l1sum = 0;
-	//for(int i =0; i < _param.size(); i++)
-	//	l1sum += fabs(_param[i]);
 
-	//for(int i =0; i < _param.size(); i++)
-	//	_param[i] *= sumScale/l1sum;
-
-	double sumScale = _sizeIn;
+	double sumScale = _sizeOut*_sizeIn;
+	double l1sum = 0;
 	for(int inp_seg = 0; inp_seg < numv; inp_seg++)
 	{
-		float l1sum = 0;
 
-		for(int kinp = 0; kinp <vlen; kinp++)
+		for(int kinp = 0; kinp <2*_sizeIn; kinp++)
 			l1sum += fabs(_param[inp_seg*vlen + kinp]);
 
-		for(int kinp = 0; kinp <vlen; kinp++)
-			_param[inp_seg*vlen + kinp]*= sumScale/l1sum;
-
 	}
+
+	for(int i =0; i < _param.size(); i++)
+		_param[i] *= sumScale/l1sum;
+
+	//double sumScale = _sizeIn;
+	//for(int inp_seg = 0; inp_seg < numv; inp_seg++)
+	//{
+	//	float l1sum = 0;
+
+	//	for(int kinp = 0; kinp <vlen; kinp++)
+	//		l1sum += fabs(_param[inp_seg*vlen + kinp]);
+
+	//	for(int kinp = 0; kinp <vlen; kinp++)
+	//		_param[inp_seg*vlen + kinp]*= sumScale/l1sum;
+
+	//}
 
 	if(minibatch == 0)
 	{

@@ -70,7 +70,9 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 				float output = 0;
 #pragma unroll			
 				for (uint inp_i = 0; inp_i < sizeIn; inp_i++)
-				{		
+				{	
+					//if(sizeOut > 1 && inp_i == (out_i+1)%sizeIn)
+					//	continue;
 					float param = const_area[out_par + inp_i];
 					float paramM = const_area[out_par + sizeIn + inp_i];
 #if ELWISE_FUNC_SEC == 3
@@ -143,6 +145,9 @@ __global__ void kEltwiseFuncGrad(const float* actGrad, const float* input, float
 				
 				for (uint out_i = 0; out_i < sizeOut; out_i++)	
 				{
+					//if(sizeOut > 1 && inp_i == (out_i+1)%sizeIn)
+					//	continue;
+
 					int out_par = out_i*sizeIn*ELWISE_FUNC_SEC;
 #if ELWISE_FUNC_SEC == 3
 					float vsign = (val + const_area[out_par  + 2*sizeIn + inp_i] > 0);
@@ -210,6 +215,8 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 
 				for(int pout = 0; pout < sizeOut; pout++)
 				{
+					//if(sizeOut > 1 && pin == (pout+1)%sizeIn)
+					//	continue;
 
 #if ELWISE_FUNC_SEC == 3
 					float val_m = fmax(in_val + const_area[pout*sizeIn*ELWISE_FUNC_SEC + 2*sizeIn + pin], 0);
