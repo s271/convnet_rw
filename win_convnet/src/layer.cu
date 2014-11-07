@@ -1215,6 +1215,8 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 	_tempMatrixArray[0].ResizeAggStorage(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 
+	int vlen = _sizeIn*ELWISE_FUNC_SEC;
+	int numv = paramSize/vlen;
 
 	for(int kp = 0; kp < paramSize; kp++)
 	{
@@ -1237,10 +1239,11 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 		double eps = _epsP;
 		double wc = _wc;
 #if ELWISE_FUNC_SEC == 3
-		if(kp >= paramSize/3)
+		int vind = kp%vlen;
+		if(vind >= _sizeIn*2)
 		{
-			eps *= 1e-3;
-			wc *= 1e-2;
+			eps *= 1e-1;
+			wc *= 1e-1;
 		}
 #endif
 		_param_inc[kp] = _mom*_param_inc[kp] + eps*grad - wc*_param[kp];
@@ -1248,23 +1251,23 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 	}
 	
-	int vlen = _sizeIn*2;
-	int numv = paramSize/vlen;
+
 //project on subspace
+	int lsum = _sizeIn*2;
 	int pcurrent = 0;
 	for(int k = 1; k < numv; k++)
 	{
 		double l2 = 0;
-		for(int p =0; p < vlen; p++)
+		for(int p =0; p < lsum; p++)
 			l2 += _param[pcurrent*vlen + p]*_param[pcurrent*vlen + p];
 
 		for(int i = k; i < numv; i++)
 		{
 			double dot = 0;
-			for(int p =0; p < vlen; p++)
+			for(int p =0; p < lsum; p++)
 				dot += _param[pcurrent*vlen + p]*_param[i*vlen + p];
 
-			for(int p =0; p < vlen; p++)
+			for(int p =0; p < lsum; p++)
 				_param[i*vlen + p] -= dot/l2*_param[pcurrent*vlen + p];
 		}
 
@@ -1295,7 +1298,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 	if(minibatch == 0)
 	{
-		int nump = _sizeIn*2;
+		int nump = _sizeIn*ELWISE_FUNC_SEC;
 		int numl = (_param.size()+nump-1)/nump;
 		printf("** params *** \n");
 		for (int nk = 0; nk < numl; nk++)
@@ -1311,11 +1314,11 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	if(minibatch == 0)
 	{
 
-		int numPixelPerGroup =  v.getNumRows()/_sizeOut;
+		int numPixelPerGroup =  v.getNumRows()*v.getNumCols()/_sizeOut;
 
 		testGroupsEltwiseFunc(v, *_inputs[inpIdx],
 								 _arrayPtr, _tempMatrixArray, _param,
-								 _sizeIn, _sizeOut, 0);
+								 _sizeIn, _sizeOut, _channels, 0);
 		double gr0 = _tempMatrixArray[0].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 		double diff1 = _tempMatrixArray[1].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 		double diff2 = _tempMatrixArray[2].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
@@ -1323,7 +1326,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 		testGroupsEltwiseFunc(v, *_inputs[inpIdx],
 								 _arrayPtr, _tempMatrixArray, _param,
-								 _sizeIn, _sizeOut, 1);
+								 _sizeIn, _sizeOut, _channels, 1);
 		double gr1 = _tempMatrixArray[0].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 		diff1 = _tempMatrixArray[1].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 		diff2 = _tempMatrixArray[2].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);

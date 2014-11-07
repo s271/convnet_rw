@@ -204,15 +204,16 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 					grad_next[pout] = actGrad[offset_act + pout*groupStride];
 
 				float in_val = input[offset_in];
-#if ELWISE_FUNC_SEC == 3
-				float val_m = fmax(in_val + const_area[pout*sizeIn*ELWISE_FUNC_SEC + 2*sizeIn + pin], 0);
-#else
+#if ELWISE_FUNC_SEC == 2
 				float val_m = fmax(in_val, 0);
 #endif
 
 				for(int pout = 0; pout < sizeOut; pout++)
 				{
 
+#if ELWISE_FUNC_SEC == 3
+					float val_m = fmax(in_val + const_area[pout*sizeIn*ELWISE_FUNC_SEC + 2*sizeIn + pin], 0);
+#endif
 					sum[pout] += grad_next[pout]*in_val;
 					sum_m[pout] += grad_next[pout]*(val_m > 0)*in_val;
 #if ELWISE_FUNC_SEC == 3
@@ -236,11 +237,16 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 template <int B_X, int B_Y, int sizeIn>
 __global__ void kEltwiseFuncGroupTest(float* actGrad, float* input, float** target,
 								const uint imgInPixels, const uint numCases,
-								const uint stride, const uint strideTag, const uint cnttest)
+								const uint stride, const uint strideTag,
+								const uint numPixelsPerChannel,
+								const uint cnttest)
 {
 	const int numPixelsPerGroup = imgInPixels/sizeIn;
+#ifdef MIX_F
+	const int groupStride  = numPixelsPerChannel*stride;
+#else
 	const int groupStride  = numPixelsPerGroup*stride;
-
+#endif
     const uint idxX = blockIdx.x * B_X + threadIdx.x;
     const uint idxY = blockIdx.y * B_Y + threadIdx.y;
 	const int tagOffset = (threadIdx.x + blockIdx.x*blockDim.x) +  (threadIdx.y + blockIdx.y*blockDim.y)*strideTag;
@@ -249,10 +255,17 @@ __global__ void kEltwiseFuncGroupTest(float* actGrad, float* input, float** targ
 	memset(sum, 0, sizeof(sum));
 
 	for (uint y = idxY; y < numPixelsPerGroup; y += gridDim.y * B_Y) {
+		const int hiID = y/numPixelsPerChannel;
+		const int pixelChannelID = idxY%numPixelsPerChannel;
 		for (uint x = idxX; x < numCases; x += gridDim.x * B_X) {
-			int offset = y * stride + x;
-
-			float v0 = input[offset + cnttest*groupStride];
+			
+#ifdef MIX_F
+			int offset_in = hiID*sizeIn*groupStride
+					+ pixelChannelID*stride + x;
+#else
+			int offset_in = y * stride + x;
+#endif
+			float v0 = input[offset_in + cnttest*groupStride];
 			sum[0] += fabs(v0);
 
 			int ks =0;
@@ -260,7 +273,7 @@ __global__ void kEltwiseFuncGroupTest(float* actGrad, float* input, float** targ
 			{
 				if(pin == cnttest)
 					continue;
-				float in_val = input[offset + pin*groupStride];
+				float in_val = input[offset_in + pin*groupStride];
 				sum[1+ks] += fabs(in_val -v0);
 				ks++;
 			}
@@ -1264,7 +1277,7 @@ void computeEltwiseFuncParamWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 void testGroupsEltwiseFunc(NVMatrix& actGrad, NVMatrix& input,
 								 void* arrayPtr, vector<NVMatrix>& tempMatrix,
 								 vector<double>& param,
-								 int size_in, int size_out, int cnttest)
+								 int size_in, int size_out, int channels, int cnttest)
 {
 
 	assert(size_in <= 8);// || size_out == 12 || size_out == 16);
@@ -1292,6 +1305,7 @@ void testGroupsEltwiseFunc(NVMatrix& actGrad, NVMatrix& input,
 	int tag_width = blocks.x*threads.x;
 	int tag_height = blocks.y*threads.y;
 	int tag_size = tag_width*tag_height;
+	int numPixelsPerChannel = inp_height/channels;
 
 	float* tempMatrixPtr[CONST_AREA_SIZE];
 	for(int i =0; i < tempMatrix.size(); i++)
@@ -1311,7 +1325,8 @@ void testGroupsEltwiseFunc(NVMatrix& actGrad, NVMatrix& input,
 		kEltwiseFuncGroupTest<ELTWISE_THREADS_X, ELTWISE_THREADS_Y, SIZE_ARR><<<blocks, threads>>>(actGrad.getDevData(),\
 		input.getDevData(), (float**)arrayPtr,\
 		inp_height, inp_width,\
-		input.getStride(), tempMatrix[0].getStride(), cnttest);};
+		input.getStride(), tempMatrix[0].getStride(),\
+		numPixelsPerChannel, cnttest);};
 		ELT_T_GRAD(1)
 		ELT_T_GRAD(2)
 		ELT_T_GRAD(3)
