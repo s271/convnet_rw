@@ -43,12 +43,11 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 	const int pixelChannelID = idxY%numPixelsPerChannel;
 
 // ix, iy == 0 almost always
-   for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDim.y*blockDim.y) {
+   for (uint y = idxY; y < numPixelsPerGroup; y += gridDim.y*blockDim.y) {
 #ifdef MIX_F		
-		const int y = iy + idxY;
 		const int hiID = y/numPixelsPerChannel;
 #else
-		int y_ind = (iy + idxY )*strideInp;
+		int y_ind = y*strideInp;
 #define strideInpStep  numPixelsPerGroup*strideInp
 #endif
         for (uint x = idxX; x < numCases; x += gridDim.x*blockDim.x) {	
@@ -112,8 +111,7 @@ __global__ void kEltwiseFuncGrad(const float* actGrad, const float* input, float
 
 
 //with no N_SUM ix, iy == 0 almost always
-    for (uint iy = 0; iy < numPixelsPerGroup; iy += gridDim.y*blockDim.y) {
-		const int y = iy + idxY;
+    for (uint y = idxY; y < numPixelsPerGroup; y += gridDim.y*blockDim.y) {
 		const int hiID = y/numPixelsPerChannel;
 
         for (uint x = idxX; x < numCases; x += gridDim.x*blockDim.x) {	
