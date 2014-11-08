@@ -51,8 +51,7 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 		int y_ind = (iy + idxY )*strideInp;
 #define strideInpStep  numPixelsPerGroup*strideInp
 #endif
-        for (uint ix = 0; ix < numCases; ix += gridDim.x*blockDim.x) {	
-			const int x = ix + idxX;
+        for (uint x = idxX; x < numCases; x += gridDim.x*blockDim.x) {	
 			
 			float inpVal[sizeArr];//use shared instead?
 #pragma unroll
@@ -117,8 +116,7 @@ __global__ void kEltwiseFuncGrad(const float* actGrad, const float* input, float
 		const int y = iy + idxY;
 		const int hiID = y/numPixelsPerChannel;
 
-        for (uint ix = 0; ix < numCases; ix += gridDim.x*blockDim.x) {	
-			const int x = ix + idxX;
+        for (uint x = idxX; x < numCases; x += gridDim.x*blockDim.x) {	
 
 			float grad_next[sizeArr];
 			int act_off = y*strideInp + x;
