@@ -219,10 +219,12 @@ protected:
 
 	void* _arrayPtr;
 	vector<NVMatrix> _tempMatrixArray;
+	NVMatrix _tempC, _tempB;
 
 
 	AggStorage _aggStorage;
-	NVMatrix _temp, _temp_m;
+	AggStorage _aggStorageC;
+	//NVMatrix _temp, _temp_m;
 
 	vector<double> _grad_store[NSTORE];
 	vector<int> _nstore_count;

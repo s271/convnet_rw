@@ -1207,21 +1207,32 @@ extern int gepoch;
 void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
 	computeEltwiseFuncParamWeightGrad(v, *_inputs[inpIdx],
-								 _arrayPtr, _tempMatrixArray, _param,
+								 _arrayPtr, _tempMatrixArray,
+								 _tempC, _tempB, _param,
 								 _channels, _sizeIn, _sizeOut);
 
 	int paramSize = _param.size();
+#ifdef EL_SWITCH
+	int paramSwSec = (paramSize-2)/EL_SWITCH;
+#else
+	int paramSwSec = paramSize;
+#endif
 
 
 	_tempMatrixArray[0].ResizeAggStorage(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 
-	int vlen = _sizeIn*ELWISE_FUNC_SEC;
-	int numv = paramSize/vlen;
+	_tempC.ResizeAggStorage(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
 
 	for(int kp = 0; kp < paramSize; kp++)
 	{
-		double grad = _tempMatrixArray[kp].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
-
+		double grad;
+		if(kp < paramSize-2)
+			 grad = _tempMatrixArray[kp].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+		else if(kp == paramSize-2)
+			grad = _tempC.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
+		else if(kp == paramSize-1)
+			grad = _tempB.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
+		
 //should make orthognal projection to equal vector(sizeIn)
 
 		double sum_grad = 0;
@@ -1238,16 +1249,11 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 		
 		double eps = _epsP;
 		double wc = _wc;
-//#if ELWISE_FUNC_SEC == 3
-//		int vind = kp%vlen;
-//		if(vind >= _sizeIn*2)
-//		{
-//			eps *= 1e-1;
-//			wc *= 1e-1;
-//		}
-//#endif
+
 		_param_inc[kp] = _mom*_param_inc[kp] + eps*grad - wc*_param[kp];
-		_param[kp] += _param_inc[kp];
+//debug
+		if(kp != paramSize-2)
+			_param[kp] += _param_inc[kp];
 
 	}
 
@@ -1275,6 +1281,8 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	//}
 
 //normalize
+	int vlen = _sizeIn*ELWISE_FUNC_SEC;
+	int numv = paramSwSec/vlen;
 
 	double sumScale = _sizeOut*_sizeIn;
 	double l1sum = 0;
@@ -1286,8 +1294,22 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 	}
 
-	for(int i =0; i < _param.size(); i++)
+	for(int i =0; i < paramSwSec; i++)
 		_param[i] *= sumScale/l1sum;
+
+#ifdef EL_SWITCH
+	l1sum = 0;
+	for(int inp_seg = 0; inp_seg < numv; inp_seg++)
+	{
+
+		for(int kinp = 0; kinp <2*_sizeIn; kinp++)
+			l1sum += fabs(_param[inp_seg*vlen + kinp + paramSwSec]);
+
+	}
+
+	for(int i =0; i < paramSwSec; i++)
+		_param[i+paramSwSec] *= sumScale/l1sum;
+#endif
 
 	//double sumScale = _sizeIn;
 	//for(int inp_seg = 0; inp_seg < numv; inp_seg++)
