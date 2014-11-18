@@ -31,13 +31,6 @@ __device__ inline float Switch(float s, float C, float B)
 	return fminf(fmaxf((s+B)*C, -.5), .5);
 }
 
-__device__ inline float SwitchA(float s, float a0, float a1, float C, float B) 
-{
-	float sw  = fminf(fmaxf((s+B)*C, -.5), .5);
-	return a0*(sw+.5) + a1*(.5-sw);
-};
-
-
 #define MIX_F
 
 template <int sizeArr>
@@ -499,7 +492,7 @@ __global__ void kEltwiseFuncBCWeightGrad(const float* input, const float* actGra
 				inpVal[inp_i] = val;
 				v_sw += val;
 			}
-			v_sw *= Csw;
+			
 #pragma unroll		
 			for (uint out_i = 0; out_i < sizeOut; out_i++) {
 				int out_par = out_i*sizeIn*ELWISE_FUNC_SEC*EL_SWITCH;
@@ -539,8 +532,9 @@ __global__ void kEltwiseFuncBCWeightGrad(const float* input, const float* actGra
 				
 				int tag_off = out_i*numPixelsPerGroup*strideTag +  y*strideTag + x;
 		
-				tagC[tag_off] = gradNext*(output - output_1)*(v_sw > -invC && v_sw < invC)*v_sw;
-				tagB[tag_off] = gradNext*(output - output_1)*(v_sw > -invC && v_sw < invC);
+				float v_b = v_sw + Bsw;//Csw*(v_sw + Bsw);
+//				tagC[tag_off] = gradNext*(output - output_1)*(v_b > -invC && v_b < invC)*v_sw;
+				tagB[tag_off] = gradNext*(output - output_1)*(v_b > -.5 && v_b < .5);
 
 			}//out_i
         }
@@ -666,6 +660,7 @@ __global__ void kEltwiseFuncGroupTest(float* actGrad, float* input, float** targ
 				sum[1+ks] += fabs(in_val -v0);
 				ks++;
 			}
+
 		}
 	}
 
@@ -674,6 +669,57 @@ __global__ void kEltwiseFuncGroupTest(float* actGrad, float* input, float** targ
 		target[pin][tagOffset] = sum[pin];
 	}
 }
+
+template <int B_X, int B_Y, int sizeIn>
+__global__ void kEltwiseFuncGroupTestS(float* actGrad, float* input, float** target,
+								const uint imgInPixels, const uint numCases,
+								const uint stride, const uint strideTag,
+								const uint numPixelsPerChannel,
+								const uint cnttest)
+{
+	const int numPixelsPerGroup = imgInPixels/sizeIn;
+#ifdef MIX_F
+	const int groupStride  = numPixelsPerChannel*stride;
+#else
+	const int groupStride  = numPixelsPerGroup*stride;
+#endif
+    const uint idxX = blockIdx.x * B_X + threadIdx.x;
+    const uint idxY = blockIdx.y * B_Y + threadIdx.y;
+	const int tagOffset = (threadIdx.x + blockIdx.x*blockDim.x) +  (threadIdx.y + blockIdx.y*blockDim.y)*strideTag;
+
+
+	float sum_1[sizeIn];
+	memset(sum_1, 0, sizeof(sum_1));
+
+	for (uint y = idxY; y < numPixelsPerGroup; y += gridDim.y * B_Y) {
+		const int hiID = y/numPixelsPerChannel;
+		const int pixelChannelID = idxY%numPixelsPerChannel;
+		for (uint x = idxX; x < numCases; x += gridDim.x * B_X) {
+			
+#ifdef MIX_F
+			int offset_in = hiID*sizeIn*groupStride
+					+ pixelChannelID*stride + x;
+#else
+			int offset_in = y * stride + x;
+#endif
+
+			for(int pin = 0; pin < sizeIn; pin++)
+			{
+				float in_val = input[offset_in + pin*groupStride];
+
+				sum_1[pin] += in_val;
+
+			}
+
+		}
+	}
+
+	for(int pin = 0; pin < sizeIn; pin++)
+	{
+		target[pin+sizeIn][tagOffset] = sum_1[pin];
+	}
+}
+
 
 //for  ELWISE_FUNC_SEC == 2
 //__global__ void kEltwiseFuncParamGradSingle(float* actGrad, float* input, float* target, float* target_m,
@@ -1759,6 +1805,11 @@ void testGroupsEltwiseFunc(NVMatrix& actGrad, NVMatrix& input,
 		//ELT_T_GRAD(7)
 		//ELT_T_GRAD(8)
 #undef ELT_T_GRAD
+		//kEltwiseFuncGroupTestS<ELTWISE_THREADS_X, ELTWISE_THREADS_Y, 3><<<blocks, threads>>>(actGrad.getDevData(),\
+		//input.getDevData(), (float**)arrayPtr,\
+		//inp_height, inp_width,\
+		//input.getStride(), tempMatrix[0].getStride(),\
+		//numPixelsPerChannel, cnttest);
 
 }
 
