@@ -31,6 +31,11 @@ __device__ inline float Switch(float s, float C, float B)
 	return fminf(fmaxf((s+B)*C, -.5), .5);
 }
 
+__device__ inline float Median3(float a, float b, float c) 
+{
+	return fmaxf(fminf(a,b), fmaxf(max(a,b),c));
+}
+
 #define MIX_F
 
 template <int sizeArr>
@@ -62,7 +67,7 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
         for (uint x = idxX; x < numCases; x += gridDim.x*blockDim.x) {	
 			
 			float inpVal[sizeArr];//use shared instead?
-			float v_sw =0;
+			//float v_sw =0;
 #pragma unroll
 			for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {	
 				int inp_off = hiID*sizeIn*numPixelsPerChannel*strideInp
@@ -70,8 +75,9 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 
 				float val = input[inp_off];
 				inpVal[inp_i] = val;
-				v_sw += val;
+				//v_sw += val;
 			}
+			float v_sw = Median3(inpVal[0],inpVal[1],inpVal[2]);
 #pragma unroll		
 			for (uint out_i = 0; out_i < sizeOut; out_i++) {
 				int out_par = out_i*sizeIn*ELWISE_FUNC_SEC*EL_SWITCH;
@@ -231,13 +237,14 @@ __global__ void kEltwiseFuncGrad(const float* actGrad, const float* input, float
 
 //debug
 			float inpArr[3];
-			float v_sw =0;
+			//float v_sw =0;
 			for (uint inp_i = 0; inp_i < sizeIn; inp_i++)
 			{
 				float val = input[inp_off + inp_i*numPixelsPerChannel*strideInp];
 				inpArr[inp_i] = val;
-				v_sw += val;
+				//v_sw += val;
 			}
+			float v_sw = Median3(inpArr[0],inpArr[1],inpArr[2]);
 			
 			float Sw = Switch(v_sw, Csw, Bsw);
 
@@ -385,7 +392,7 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 #endif
 				float InArr[SIZE_IN_DEB];
 
-				float v_sw = 0;
+				//float v_sw = 0;
 				for(int pin = 0; pin < sizeIn; pin++)
 				{
 #ifdef MIX_F
@@ -396,8 +403,9 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 #endif
 					float val = input[offset_in];
 					InArr[pin] = val;
-					v_sw += val;
+					//v_sw += val;
 				}
+				float v_sw = Median3(InArr[0],InArr[1],InArr[2]);
 
 				float Sw = Switch(v_sw, Csw, Bsw);
 
@@ -482,7 +490,7 @@ __global__ void kEltwiseFuncBCWeightGrad(const float* input, const float* actGra
         for (uint x = idxX; x < numCases; x += gridDim.x*blockDim.x) {	
 			
 			float inpVal[sizeArr];//use shared instead?
-			float v_sw =0;
+			//float v_sw =0;
 #pragma unroll
 			for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {	
 				int inp_off = hiID*sizeIn*numPixelsPerChannel*strideInp
@@ -490,8 +498,9 @@ __global__ void kEltwiseFuncBCWeightGrad(const float* input, const float* actGra
 
 				float val = input[inp_off];
 				inpVal[inp_i] = val;
-				v_sw += val;
+				//v_sw += val;
 			}
+			float v_sw = Median3(inpVal[0],inpVal[1],inpVal[2]);
 			
 #pragma unroll		
 			for (uint out_i = 0; out_i < sizeOut; out_i++) {
