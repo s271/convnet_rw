@@ -1,1 +1,1 @@
-python shownet.py -f E:\cifar-10-py\tmp_colormaj\ConvNet__2014-11-18_12.49.05 --show-cost=svm_cost --cost-idx=1
+python shownet.py -f E:\cifar-10-py\tmp_colormaj\ConvNet__2014-11-19_17.33.39 --show-cost=svm_cost --cost-idx=1

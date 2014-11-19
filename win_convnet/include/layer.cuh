@@ -215,6 +215,8 @@ protected:
 	PyObject* hParamList;
 	PyObject* hParamListInc;
 	float _epsP, _wc, _mom;
+	float _epsPInit, _wcInit, _momInit;
+
 	int _sizeIn, _sizeOut, _updates, _channels;
 
 	void* _arrayPtr;
@@ -233,6 +235,7 @@ protected:
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
     void copyToCPU();
 public:
+	void setCommon(float eps_scale);
     EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict);
 	~EltwiseFuncLayer();
 };
@@ -386,6 +389,14 @@ protected:
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
 public:
     MaxPoolLayer(ConvNet* convNet, PyObject* paramsDict);
+};
+
+class MaxAbsPoolLayer : public PoolLayer {
+protected:
+    void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
+    void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
+public:
+    MaxAbsPoolLayer(ConvNet* convNet, PyObject* paramsDict);
 };
 
 class NailbedLayer : public Layer {

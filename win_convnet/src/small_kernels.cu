@@ -67,7 +67,7 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
         for (uint x = idxX; x < numCases; x += gridDim.x*blockDim.x) {	
 			
 			float inpVal[sizeArr];//use shared instead?
-			//float v_sw =0;
+			float v_sw =0;
 #pragma unroll
 			for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {	
 				int inp_off = hiID*sizeIn*numPixelsPerChannel*strideInp
@@ -75,9 +75,9 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 
 				float val = input[inp_off];
 				inpVal[inp_i] = val;
-				//v_sw += val;
+				v_sw += val;
 			}
-			float v_sw = Median3(inpVal[0],inpVal[1],inpVal[2]);
+			//float v_sw = Median3(inpVal[0],inpVal[1],inpVal[2]);
 #pragma unroll		
 			for (uint out_i = 0; out_i < sizeOut; out_i++) {
 				int out_par = out_i*sizeIn*ELWISE_FUNC_SEC*EL_SWITCH;
@@ -237,14 +237,14 @@ __global__ void kEltwiseFuncGrad(const float* actGrad, const float* input, float
 
 //debug
 			float inpArr[3];
-			//float v_sw =0;
+			float v_sw =0;
 			for (uint inp_i = 0; inp_i < sizeIn; inp_i++)
 			{
 				float val = input[inp_off + inp_i*numPixelsPerChannel*strideInp];
 				inpArr[inp_i] = val;
-				//v_sw += val;
+				v_sw += val;
 			}
-			float v_sw = Median3(inpArr[0],inpArr[1],inpArr[2]);
+			//float v_sw = Median3(inpArr[0],inpArr[1],inpArr[2]);
 			
 			float Sw = Switch(v_sw, Csw, Bsw);
 
@@ -392,7 +392,7 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 #endif
 				float InArr[SIZE_IN_DEB];
 
-				//float v_sw = 0;
+				float v_sw = 0;
 				for(int pin = 0; pin < sizeIn; pin++)
 				{
 #ifdef MIX_F
@@ -403,9 +403,9 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 #endif
 					float val = input[offset_in];
 					InArr[pin] = val;
-					//v_sw += val;
+					v_sw += val;
 				}
-				float v_sw = Median3(InArr[0],InArr[1],InArr[2]);
+				//float v_sw = Median3(InArr[0],InArr[1],InArr[2]);
 
 				float Sw = Switch(v_sw, Csw, Bsw);
 
@@ -466,7 +466,7 @@ __global__ void kEltwiseFuncBCWeightGrad(const float* input, const float* actGra
 								const uint imgInPixels, const uint numCases,
 								const uint strideInp, const uint strideTag,
 								const int numPixelsPerChannel,
-								const float Csw, const float invC, const float Bsw,
+								const float Csw, const float Lim, const float Bsw,
 								const uint sizeIn, const uint sizeOut) {
 
 	const int numPixelsPerGroup = imgInPixels/sizeIn;
@@ -490,7 +490,7 @@ __global__ void kEltwiseFuncBCWeightGrad(const float* input, const float* actGra
         for (uint x = idxX; x < numCases; x += gridDim.x*blockDim.x) {	
 			
 			float inpVal[sizeArr];//use shared instead?
-			//float v_sw =0;
+			float v_sw =0;
 #pragma unroll
 			for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {	
 				int inp_off = hiID*sizeIn*numPixelsPerChannel*strideInp
@@ -498,9 +498,9 @@ __global__ void kEltwiseFuncBCWeightGrad(const float* input, const float* actGra
 
 				float val = input[inp_off];
 				inpVal[inp_i] = val;
-				//v_sw += val;
+				v_sw += val;
 			}
-			float v_sw = Median3(inpVal[0],inpVal[1],inpVal[2]);
+			//float v_sw = Median3(inpVal[0],inpVal[1],inpVal[2]);
 			
 #pragma unroll		
 			for (uint out_i = 0; out_i < sizeOut; out_i++) {
@@ -543,7 +543,8 @@ __global__ void kEltwiseFuncBCWeightGrad(const float* input, const float* actGra
 		
 				float v_b = v_sw + Bsw;//Csw*(v_sw + Bsw);
 //				tagC[tag_off] = gradNext*(output - output_1)*(v_b > -invC && v_b < invC)*v_sw;
-				tagB[tag_off] = gradNext*(output - output_1)*(v_b > -.5 && v_b < .5);
+				//tagB[tag_off] = gradNext*(output - output_1)*(v_b > -.5 && v_b < .5);
+				tagB[tag_off] = gradNext*(output - output_1)*(v_b > -Lim && v_b < Lim);
 
 			}//out_i
         }
@@ -1661,7 +1662,7 @@ void computeEltwiseFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target
 void computeEltwiseFuncParamWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 								 void* arrayPtr, vector<NVMatrix>& tempMatrix,
 								 NVMatrix& tempC, NVMatrix& tempB,
-								 vector<double>& param,
+								 vector<double>& param, float lim,
 								 int channels, int size_in, int size_out)
 {
 
@@ -1738,14 +1739,12 @@ void computeEltwiseFuncParamWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 		tempB.resize(tagc_height, tagc_width);
 	}
 
-//debug
-//	cudaMemset(tempC.getDevData(), 0, inp_height*inp_width*sizeof(float));
 
 	kEltwiseFuncBCWeightGrad<3><<<blocks, threads>>>(input.getDevData(), actGrad.getDevData(), tempC.getDevData(), tempB.getDevData(),
 								inp_height, inp_width,
 								input.getStride(), tempC.getStride(),
 								numPixelsPerChannel,
-								param[param.size()-2], 1./param[param.size()-2], param[param.size()-1],
+								param[param.size()-2], lim, param[param.size()-1],
 								size_in, size_out);
 
 //	float sum = tempC.sum();

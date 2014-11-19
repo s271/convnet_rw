@@ -1149,6 +1149,10 @@ EltwiseFuncLayer::EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict) : Lay
     _epsP = pyDictGetFloat(paramsDict, "epsP");
     _wc = pyDictGetFloat(paramsDict, "wc");
 
+	_epsPInit =_epsP;
+	_wcInit = _wc;
+	_momInit = _mom;
+
 	for (int j =0; j < _param.size(); j++)
 		_nstore_count.push_back(0);
 
@@ -1201,15 +1205,19 @@ void EltwiseFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passT
 	//printf(" EltwiseFuncLayer fpropActs end\n");
 }
 
+void EltwiseFuncLayer::setCommon(float eps_scale) {
+	if(eps_scale > 0)
+	{
+		//_mom = eps_scale*_momInit;
+		_epsP = eps_scale*_epsPInit;
+		_wc = eps_scale*_wcInit;	
+	}
+}
+
 //debug
 extern int gepoch;
 
 void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
-
-	computeEltwiseFuncParamWeightGrad(v, *_inputs[inpIdx],
-								 _arrayPtr, _tempMatrixArray,
-								 _tempC, _tempB, _param,
-								 _channels, _sizeIn, _sizeOut);
 
 	int paramSize = _param.size();
 #ifdef EL_SWITCH
@@ -1218,6 +1226,12 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	int paramSwSec = paramSize;
 #endif
 
+	float lim = 1./_param[paramSize-1];
+
+	computeEltwiseFuncParamWeightGrad(v, *_inputs[inpIdx],
+								 _arrayPtr, _tempMatrixArray,
+								 _tempC, _tempB, _param, lim,
+								 _channels, _sizeIn, _sizeOut);
 
 	_tempMatrixArray[0].ResizeAggStorage(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 
@@ -1249,11 +1263,6 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 		
 		double eps = _epsP;
 		double wc = _wc;
-		//if(kp <= paramSize-2)
-		//{
-		//	eps *= .25;
-		//	wc *= .25;
-		//}
 
 		_param_inc[kp] = _mom*_param_inc[kp] + eps*grad - wc*_param[kp];
 //debug
@@ -1530,6 +1539,8 @@ PoolLayer& PoolLayer::makePoolLayer(ConvNet* convNet, PyObject* paramsDict) {
         return *new MaxPoolLayer(convNet, paramsDict);
     } else if(_pool == "avg") {
         return *new AvgPoolLayer(convNet, paramsDict);
+    } else if(_pool == "maxabs") {
+        return *new MaxAbsPoolLayer(convNet, paramsDict);
     }
     throw string("Unknown pooling layer type ") + _pool;
 }
@@ -1563,6 +1574,22 @@ void MaxPoolLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType)
 }
 
 void MaxPoolLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
+    convLocalMaxUndo(_prev[0]->getActs(), v, getActs(), _prev[inpIdx]->getActsGrad(), _sizeX, _start, _stride, _outputsX, scaleTargets, 1);
+}
+
+/* 
+ * =====================
+ * MaxAbsPoolLayer
+ * =====================
+ */
+MaxAbsPoolLayer::MaxAbsPoolLayer(ConvNet* convNet, PyObject* paramsDict) : PoolLayer(convNet, paramsDict, false) {
+}
+
+void MaxAbsPoolLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
+    convLocalPool(*_inputs[0], getActs(), _channels, _sizeX, _start, _stride, _outputsX, MaxAbsPooler());
+}
+
+void MaxAbsPoolLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
     convLocalMaxUndo(_prev[0]->getActs(), v, getActs(), _prev[inpIdx]->getActsGrad(), _sizeX, _start, _stride, _outputsX, scaleTargets, 1);
 }
 
