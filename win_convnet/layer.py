@@ -664,22 +664,37 @@ class EltwiseFuncParser(LayerWithInputParser):
     
         meta_param = [0.]*size_param     
         if switch_sec > 1:
-            meta_param[size_param-2] = 100.
+            meta_param[size_param-2] = 10.
         
         szout = dic['size_out']
         szin = dic['size_in']
         param_len = param_sec*szin
         stride_out = switch_sec*param_len
+        b_value = 0
         for j in range(szout):   
             
+            for i in range(szin):   
+                meta_param[j*stride_out + i]= b_value   
+                
             meta_param[j*stride_out + ((0+j)%szin)]=1.
+            
+            for i in range(szin): 
+                meta_param[j*stride_out + szin + i]= b_value 
+                
             for i in range(1,szin):   
                 meta_param[j*stride_out + szin + ((i+j)%szin)]=1. 
                 
             if switch_sec > 1:
-                for i in range(szin-1):   
+                for i in range(szin): 
+                    meta_param[j*stride_out + param_len + i]= b_value
+                    
+                for i in range(1, szin):   
                     meta_param[j*stride_out + param_len + ((i+j)%szin)]=1.                                   
-                meta_param[j*stride_out + param_len + szin + ((szin-1+j)%szin)]=1. 
+                    
+                for i in range(szin):    
+                    meta_param[j*stride_out + param_len + szin + i]= b_value   
+                              
+                meta_param[j*stride_out + param_len + szin + ((0+j)%szin)]=1. 
                 '''
             for i in range(szin):   
                 meta_param[j*param_sec*szin + i]= (((i+j)%szin)+1)*1./szin

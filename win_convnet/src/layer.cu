@@ -1233,6 +1233,12 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 								 _tempC, _tempB, _param, lim,
 								 _channels, _sizeIn, _sizeOut);
 
+	//for(int kp = 0; kp < paramSize; kp++)
+	//{
+	//	float sumt = _tempMatrixArray[kp].sum();
+	//	printf("%i num el %i sum t %f \n", kp, _tempMatrixArray[kp].getNumElements(), sumt);
+	//}
+
 	_tempMatrixArray[0].ResizeAggStorage(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 
 	_tempC.ResizeAggStorage(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
