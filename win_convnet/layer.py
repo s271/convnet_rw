@@ -670,7 +670,7 @@ class EltwiseFuncParser(LayerWithInputParser):
         szin = dic['size_in']
         param_len = param_sec*szin
         stride_out = switch_sec*param_len
-        b_value = 0
+        b_value = 0.
         for j in range(szout):   
             
             for i in range(szin):   

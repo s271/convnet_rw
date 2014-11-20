@@ -80,7 +80,7 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 			//float v_sw = Median3(inpVal[0],inpVal[1],inpVal[2]);
 #pragma unroll		
 			for (uint out_i = 0; out_i < sizeOut; out_i++) {
-				int out_par = out_i*sizeIn*ELWISE_FUNC_SEC*EL_SWITCH;
+				int out_par = out_i*EL_SWITCH*sizeIn*ELWISE_FUNC_SEC;
 
 				float output = 0;
 				float output_1 = 0;
@@ -259,7 +259,7 @@ __global__ void kEltwiseFuncGrad(const float* actGrad, const float* input, float
 					//if(sizeOut > 1 && inp_i == (out_i+1)%sizeIn)
 					//	continue;
 
-					int out_par = out_i*sizeIn*ELWISE_FUNC_SEC*EL_SWITCH;
+					int out_par = out_i*EL_SWITCH*sizeIn*ELWISE_FUNC_SEC;
 #if ELWISE_FUNC_SEC == 3
 					float vsign_0 = (val + const_area[out_par + 2*sizeIn + inp_i] > 0);
 					float vsign_1 = (val + const_area[out_par + sw_len + 2*sizeIn + inp_i] > 0);
@@ -444,7 +444,7 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 
 		for(int pin = 0; pin < sizeIn; pin++)
 		{
-			int out_par = pout*sizeIn*ELWISE_FUNC_SEC*EL_SWITCH;
+			int out_par = pout*EL_SWITCH*sizeIn*ELWISE_FUNC_SEC;
 			target[out_par + pin][tagOffset] = sum[pin];
 			target[out_par + sizeIn + pin][tagOffset] = sum_m[pin];
 #if ELWISE_FUNC_SEC == 3
@@ -461,13 +461,13 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 	}
 }
 //---------------------------------------
-template <int sizeArr>
+template <int sizeIn>
 __global__ void kEltwiseFuncBCWeightGrad(const float* input, const float* actGrad, float* const tagC, float* const tagB,
 								const uint imgInPixels, const uint numCases,
 								const uint strideInp, const uint strideTag,
 								const int numPixelsPerChannel,
 								const float Csw, const float Lim, const float Bsw,
-								const uint sizeIn, const uint sizeOut) {
+								const uint sizeOut) {
 
 	const int numPixelsPerGroup = imgInPixels/sizeIn;
 
@@ -489,7 +489,7 @@ __global__ void kEltwiseFuncBCWeightGrad(const float* input, const float* actGra
 #endif
         for (uint x = idxX; x < numCases; x += gridDim.x*blockDim.x) {	
 			
-			float inpVal[sizeArr];//use shared instead?
+			float inpVal[sizeIn];//use shared instead?
 			float v_sw =0;
 #pragma unroll
 			for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {	
@@ -504,7 +504,7 @@ __global__ void kEltwiseFuncBCWeightGrad(const float* input, const float* actGra
 			
 #pragma unroll		
 			for (uint out_i = 0; out_i < sizeOut; out_i++) {
-				int out_par = out_i*sizeIn*ELWISE_FUNC_SEC*EL_SWITCH;
+				int out_par = out_i*sizeIn*EL_SWITCH*ELWISE_FUNC_SEC;
 
 				float output = 0;
 				float output_1 = 0;
@@ -1503,7 +1503,7 @@ void computeEltwiseMaxGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& output,
 void computeEltwiseFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& param, int channels, int size_in, int size_out)
 {
 
-	assert(size_in <= 4 || size_in == 6 || size_in == 8 || size_in == 12 || size_in == 16);
+	assert(size_in <= 4);
 	//int height = input.getFollowingDim(), width = input.getLeadingDim();	
     //int numCases = input.getNumCols(); 
     //int numIn = input.getNumRows(); 
@@ -1571,7 +1571,7 @@ void computeEltwiseFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& pa
 	ELT_ACT(1)
 	ELT_ACT(2)
 	ELT_ACT(3)
-	//ELT_ACT(4)
+	ELT_ACT(4)
 	//ELT_ACT(6)
 	//ELT_ACT(8)
 	//ELT_ACT(12)
@@ -1589,7 +1589,7 @@ void computeEltwiseFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target
 {
 
 
-	assert(size_out <= 4 || size_out == 6 || size_out == 8 || size_out == 12 || size_out == 16);
+	assert(size_out <= 4);
 	//int height = input.getFollowingDim(), width = input.getLeadingDim();	
     //int numCases = input.getNumCols(); 
     //int numIn = input.getNumRows(); 
@@ -1645,7 +1645,7 @@ void computeEltwiseFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target
 		ELT_GRAD(1)
 		ELT_GRAD(2)
 		ELT_GRAD(3)
-		//ELT_GRAD(4)
+		ELT_GRAD(4)
 		//ELT_GRAD(6)
 		//ELT_GRAD(8)
 		//ELT_GRAD(12)
@@ -1666,7 +1666,7 @@ void computeEltwiseFuncParamWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 								 int channels, int size_in, int size_out)
 {
 
-	assert(size_out <= 8);// || size_out == 12 || size_out == 16);
+	assert(size_out <= 4 && size_in <= 4);// || size_out == 12 || size_out == 16);
 
     int inp_width = input.getNumCols(); 
     int inp_height = input.getNumRows();
@@ -1705,7 +1705,6 @@ void computeEltwiseFuncParamWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 			tempMatrix[i].resize(tag_height, tag_width);
 			cudaMemset(tempMatrix[i].getDevData(), 0, tag_size*sizeof(float));
 		}
-
 		tempMatrixPtr[i] = tempMatrix[i].getDevData();
 	}
 
@@ -1720,10 +1719,18 @@ void computeEltwiseFuncParamWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 		ELT_W_GRAD(1,2)
 		ELT_W_GRAD(2,2)
 		ELT_W_GRAD(3,2)
+		ELT_W_GRAD(4,2)
 		ELT_W_GRAD(1,3)
 		ELT_W_GRAD(2,3)
 		ELT_W_GRAD(3,3)
+		ELT_W_GRAD(4,3)
+		ELT_W_GRAD(1,4)
+		ELT_W_GRAD(2,4)
+		ELT_W_GRAD(3,4)
+		ELT_W_GRAD(4,4)
 #undef ELT_W_GRAD
+
+//	printf("size_in %i size_out %i sum %f act %f inp %f \n", size_in, size_out,  tempMatrix[0].sum(), actGrad.sum(), input.sum());
 
 	int tagc_width = inp_width;
 	int tagc_height = inp_height*size_out/size_in;
@@ -1736,14 +1743,19 @@ void computeEltwiseFuncParamWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 		tempB.resize(tagc_height, tagc_width);
 	}
 
-
-	kEltwiseFuncBCWeightGrad<3><<<blocks, threads>>>(input.getDevData(), actGrad.getDevData(), tempC.getDevData(), tempB.getDevData(),
-								inp_height, inp_width,
-								input.getStride(), tempC.getStride(),
-								numPixelsPerChannel,
-								param[param.size()-2], lim, param[param.size()-1],
-								size_in, size_out);
-
+#define ELT_W_BCGRAD(SIZE_ARR_IN) \
+	if(size_in == SIZE_ARR_IN){\
+	kEltwiseFuncBCWeightGrad<SIZE_ARR_IN><<<blocks, threads>>>(input.getDevData(), actGrad.getDevData(), tempC.getDevData(), tempB.getDevData(),\
+								inp_height, inp_width,\
+								input.getStride(), tempC.getStride(),\
+								numPixelsPerChannel,\
+								param[param.size()-2], lim, param[param.size()-1],\
+								size_out);};
+	ELT_W_BCGRAD(1)
+	ELT_W_BCGRAD(2)
+	ELT_W_BCGRAD(3)
+	ELT_W_BCGRAD(4)
+#undef ELT_W_BCGRAD
 //	float sum = tempC.sum();
 //	printf("kEltwiseFuncBCWeightGrad sum %f   \n", sum);
 }
@@ -1754,7 +1766,7 @@ void testGroupsEltwiseFunc(NVMatrix& actGrad, NVMatrix& input,
 								 int size_in, int size_out, int channels, int cnttest)
 {
 
-	assert(size_in <= 8);// || size_out == 12 || size_out == 16);
+	assert(size_in <= 4);// || size_out == 12 || size_out == 16);
 
     int inp_width = input.getNumCols(); 
     int inp_height = input.getNumRows();
@@ -1804,7 +1816,7 @@ void testGroupsEltwiseFunc(NVMatrix& actGrad, NVMatrix& input,
 		ELT_T_GRAD(1)
 		ELT_T_GRAD(2)
 		ELT_T_GRAD(3)
-		//ELT_T_GRAD(4)
+		ELT_T_GRAD(4)
 		//ELT_T_GRAD(5)
 		//ELT_T_GRAD(6)
 		//ELT_T_GRAD(7)
