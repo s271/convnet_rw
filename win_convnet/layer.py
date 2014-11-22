@@ -653,7 +653,7 @@ class EltwiseFuncParser(LayerWithInputParser):
         dic['channels'] = mcp.safe_get_int(name, 'channels')
         dic['outputs'] = dic['numInputs'][0]*dic['size_out']/dic['size_in']
 
-        param_sec = 3 #2 without bias, 3 - bias
+        param_sec = 4 #2 without bias, 3 - bias, 4-shrink
         switch_sec = 2
         
         size_param = switch_sec*param_sec*dic['size_in']*dic['size_out']

@@ -96,22 +96,14 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 					{
 						float param = const_area[out_par + inp_i];
 						float paramM = const_area[out_par + sizeIn + inp_i];
-	#if ELWISE_FUNC_SEC == 3
 						float paramB = const_area[out_par + 2*sizeIn + inp_i];
-	#else
-	#define paramB 0
-	#endif
 						output += param*val + paramM*fmax(val+paramB, 0);
 					}
 
 					{
 						float param = const_area[out_par + inp_i+sw_len];
 						float paramM = const_area[out_par + sizeIn + inp_i+sw_len];
-	#if ELWISE_FUNC_SEC == 3
 						float paramB = const_area[out_par + 2*sizeIn + inp_i+sw_len];
-	#else
-	#define paramB 0
-	#endif
 						output_1 += param*val + paramM*fmax(val+paramB, 0);
 					}
 
@@ -175,11 +167,7 @@ __global__ void kEltwiseFuncAct_single(const float* input, float* const target,
 					//	continue;
 					float param = const_area[out_par + inp_i];
 					float paramM = const_area[out_par + sizeIn + inp_i];
-#if ELWISE_FUNC_SEC == 3
 					float paramB = const_area[out_par + 2*sizeIn + inp_i];
-#else
-#define paramB 0
-#endif
 					float val = inpVal[inp_i];
 					output += param*val + paramM*fmax(val+paramB, 0);
 				}// inp_i
@@ -261,12 +249,8 @@ __global__ void kEltwiseFuncGrad(const float* actGrad, const float* input, float
 					//	continue;
 
 					int out_par = out_i*EL_SWITCH*sizeIn*ELWISE_FUNC_SEC;
-#if ELWISE_FUNC_SEC == 3
 					float vsign_0 = (val + const_area[out_par + 2*sizeIn + inp_i] > 0);
 					float vsign_1 = (val + const_area[out_par + sw_len + 2*sizeIn + inp_i] > 0);
-#else
-					float vsign = (val > 0);
-#endif
 					float c_0 = vsign_0*const_area[out_par + sizeIn + inp_i] + const_area[out_par + inp_i];
 					float c_1 = vsign_1*const_area[out_par + sw_len + sizeIn + inp_i] + const_area[out_par + sw_len + inp_i];
 
@@ -336,11 +320,8 @@ __global__ void kEltwiseFuncGrad_single(const float* actGrad, const float* input
 					//	continue;
 
 					int out_par = out_i*sizeIn*ELWISE_FUNC_SEC;
-#if ELWISE_FUNC_SEC == 3
+
 					float vsign = (val + const_area[out_par  + 2*sizeIn + inp_i] > 0);
-#else
-					float vsign = (val > 0);
-#endif
 					sum_grad += grad_next[out_i]*(vsign*const_area[out_par + sizeIn + inp_i] + const_area[out_par + inp_i]);
 				}
 
@@ -378,10 +359,9 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 		float sum_m[2*sizeIn];
 		memset(sum, 0, sizeof(sum));
 		memset(sum_m, 0, sizeof(sum_m));
-#if ELWISE_FUNC_SEC == 3
 		float sum_b[2*sizeIn];
 		memset(sum_b, 0, sizeof(sum_b));
-#endif
+
 		for (uint y = idxY; y < numPixelsPerGroup; y += gridDim.y * B_Y) {
 			const int hiID = y/numPixelsPerChannel;
 			const int pixelChannelID = idxY%numPixelsPerChannel;
@@ -421,27 +401,17 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 					//	continue;
 
 					float in_val = InArr[pin];
-#if ELWISE_FUNC_SEC == 2
-					float val_m = fmax(in_val, 0);
-#endif
 
-#if ELWISE_FUNC_SEC == 3
+
 					float val_m_0 = fmax(in_val + const_area[pout*sizeIn*ELWISE_FUNC_SEC + 2*sizeIn + pin], 0);
-#endif
 					sum[pin] += (.5+Sw)*grad_next*in_val;
 					sum_m[pin] += (.5+Sw)*grad_next*(val_m_0 > 0)*in_val;
-#if ELWISE_FUNC_SEC == 3
 					sum_b[pin] += (.5+Sw)*grad_next*(val_m_0 > 0);
-#endif
 
-#if ELWISE_FUNC_SEC == 3
 					float val_m_1 = fmax(in_val + const_area[pout*sizeIn*ELWISE_FUNC_SEC + 2*sizeIn + pin + sw_len], 0);
-#endif
 					sum[pin + sizeIn] += (.5-Sw)*grad_next*in_val;
 					sum_m[pin + sizeIn] += (.5-Sw)*grad_next*(val_m_1 > 0)*in_val;
-#if ELWISE_FUNC_SEC == 3
 					sum_b[pin + sizeIn] += (.5-Sw)*grad_next*(val_m_1 > 0);
-#endif
 
 				}
 			}
@@ -452,15 +422,11 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 			int out_par = pout*EL_SWITCH*sizeIn*ELWISE_FUNC_SEC;
 			target[out_par + pin][tagOffset] = sum[pin];
 			target[out_par + sizeIn + pin][tagOffset] = sum_m[pin];
-#if ELWISE_FUNC_SEC == 3
 			target[out_par + 2*sizeIn + pin][tagOffset] = sum_b[pin];
-#endif
 
 			target[out_par + pin + sw_len][tagOffset] = sum[pin + sizeIn];
 			target[out_par + sizeIn + pin + sw_len][tagOffset] = sum_m[pin + sizeIn];
-#if ELWISE_FUNC_SEC == 3
 			target[out_par + 2*sizeIn + pin + sw_len][tagOffset] = sum_b[pin + sizeIn];
-#endif
 
 		}
 	}
@@ -523,22 +489,14 @@ __global__ void kEltwiseFuncBCWeightGrad(const float* input, const float* actGra
 					{
 						float param = const_area[out_par + inp_i];
 						float paramM = const_area[out_par + sizeIn + inp_i];
-	#if ELWISE_FUNC_SEC == 3
 						float paramB = const_area[out_par + 2*sizeIn + inp_i];
-	#else
-	#define paramB 0
-	#endif
 						output += param*val + paramM*fmax(val+paramB, 0);
 					}
 
 					{
 						float param = const_area[out_par + inp_i+sw_len];
 						float paramM = const_area[out_par + sizeIn + inp_i+sw_len];
-	#if ELWISE_FUNC_SEC == 3
 						float paramB = const_area[out_par + 2*sizeIn + inp_i+sw_len];
-	#else
-	#define paramB 0
-	#endif
 						output_1 += param*val + paramM*fmax(val+paramB, 0);
 					}
 
@@ -577,10 +535,9 @@ __global__ void kEltwiseFuncParamWeightGrad_single(float* actGrad, float* input,
 		float sum_m[sizeOut];
 		memset(sum, 0, sizeof(sum));
 		memset(sum_m, 0, sizeof(sum_m));
-#if ELWISE_FUNC_SEC == 3
 		float sum_b[sizeOut];
 		memset(sum_b, 0, sizeof(sum_b));
-#endif
+
 		for (uint y = idxY; y < numPixelsPerGroup; y += gridDim.y * B_Y) {
 			const int hiID = y/numPixelsPerChannel;
 			const int pixelChannelID = idxY%numPixelsPerChannel;
@@ -599,23 +556,17 @@ __global__ void kEltwiseFuncParamWeightGrad_single(float* actGrad, float* input,
 					grad_next[pout] = actGrad[offset_act + pout*groupStride];
 
 				float in_val = input[offset_in];
-#if ELWISE_FUNC_SEC == 2
-				float val_m = fmax(in_val, 0);
-#endif
 
 				for(int pout = 0; pout < sizeOut; pout++)
 				{
 					//if(sizeOut > 1 && pin == (pout+1)%sizeIn)
 					//	continue;
 
-#if ELWISE_FUNC_SEC == 3
 					float val_m = fmax(in_val + const_area[pout*sizeIn*ELWISE_FUNC_SEC + 2*sizeIn + pin], 0);
-#endif
 					sum[pout] += grad_next[pout]*in_val;
 					sum_m[pout] += grad_next[pout]*(val_m > 0)*in_val;
-#if ELWISE_FUNC_SEC == 3
 					sum_b[pout] += grad_next[pout]*(val_m > 0);
-#endif
+
 				}
 			}
 		}
@@ -624,9 +575,7 @@ __global__ void kEltwiseFuncParamWeightGrad_single(float* actGrad, float* input,
 		{
 			target[pout*sizeIn*ELWISE_FUNC_SEC + pin][tagOffset] = sum[pout];
 			target[pout*sizeIn*ELWISE_FUNC_SEC + sizeIn + pin][tagOffset] = sum_m[pout];
-#if ELWISE_FUNC_SEC == 3
 			target[pout*sizeIn*ELWISE_FUNC_SEC + 2*sizeIn + pin][tagOffset] = sum_b[pout];
-#endif
 		}
 	}
 }
@@ -734,52 +683,6 @@ __global__ void kEltwiseFuncGroupTestS(float* actGrad, float* input, float** tar
 		target[pin+sizeIn][tagOffset] = sum_1[pin];
 	}
 }
-
-
-//for  ELWISE_FUNC_SEC == 2
-//__global__ void kEltwiseFuncParamGradSingle(float* actGrad, float* input, float* target, float* target_m,
-//								const uint pin, const uint pout, const uint imgInPixels, const uint numCases,
-//								const uint strideInp, const uint strideOut, const uint strideTag,
-//								const uint sizeIn, const uint sizeOut)
-//{
-//	const int numPixelsPerGroup = imgInPixels/sizeIn;	
-//	const uint idxX = blockIdx.x * blockDim.x + threadIdx.x;
-//	const uint idxY = blockIdx.y * blockDim.y + threadIdx.y;
-//	const int tagOffset = (threadIdx.x + blockIdx.x*blockDim.x) +  (threadIdx.y + blockIdx.y*blockDim.y)*strideTag;
-//	
-//	int groupStrideOut = numPixelsPerGroup*sizeOut;
-//
-//	float sum = 0;
-//	float sum_m = 0;
-//
-//#pragma unroll	
-//    for (uint y = idxY; y < numPixelsPerGroup; y += gridDim.y*blockDim.y) {
-//#pragma unroll
-//      for (uint x = idxX; x < numCases; x += gridDim.x*blockDim.x) {	
-//
-//			int offset_act = y * strideOut + x;
-//#ifdef MIX_F
-//			int offset_in = y * strideInp*sizeIn + x;
-//#define stride_in strideInp
-//#else
-//#define offset_in offset_act
-//#define stride_in strideInp*numPixelsPerGroup
-//#endif
-//			
-//			float in_val = input[offset_in + pin*stride_in];
-//
-//			float grad_next = actGrad[offset_act + pout*groupStrideOut];
-//
-//			float val_m = fmax(in_val, 0);
-//			sum += grad_next*in_val;
-//			sum_m += grad_next*val_m;
-//		}
-//	}
-//
-//	target[tagOffset] = sum;
-//	target_m[tagOffset] = sum_m;
-//
-//}
 
 
 
