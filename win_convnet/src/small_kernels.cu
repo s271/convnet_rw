@@ -26,9 +26,10 @@ __device__ __constant__ float const_area[CONST_AREA_SIZE];
 //EltwiseFunc
 //-------------------------------------------------------------
 
-__device__ inline float Switch(float s, float C, float B) 
+__device__ inline float Switch(float s, float C) 
 {
-	return fminf(fmaxf((s+B)*C, -.5), .5);
+	//return fminf(fmaxf(s*C, -.5), .5);
+	return (s>0)*.5 - (s<0)*.5;
 }
 
 __device__ inline float Median3(float a, float b, float c) 
@@ -118,7 +119,7 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 				
 				int tag_off = out_i*numPixelsPerGroup*strideTag +  y*strideTag + x;
 
-				target[tag_off] = Switch(v_sw,  Csw, Bsw)*(output - output_1) + .5*(output + output_1);
+				target[tag_off] = Switch(v_sw + Bsw,  Csw)*(output - output_1) + .5*(output + output_1);
 			}//out_i
         }
     }
@@ -199,7 +200,7 @@ __global__ void kEltwiseFuncGrad(const float* actGrad, const float* input, float
 								const uint imgInPixels, const uint numCases,
 								const uint strideInp, const uint strideOut,
 								const int numPixelsPerChannel,
-								const float Csw, const float Bsw,
+								const float Csw, const float InvCsw, const float Bsw,
 								const uint sizeIn, const uint sizeOut) {
 
 
@@ -246,7 +247,7 @@ __global__ void kEltwiseFuncGrad(const float* actGrad, const float* input, float
 			}
 			//float v_sw = Median3(inpArr[0],inpArr[1],inpArr[2]);
 			
-			float Sw = Switch(v_sw, Csw, Bsw);
+			float Sw = Switch(v_sw+Bsw, Csw);
 
 			for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {	
 
@@ -266,9 +267,13 @@ __global__ void kEltwiseFuncGrad(const float* actGrad, const float* input, float
 #else
 					float vsign = (val > 0);
 #endif
+					float c_0 = vsign_0*const_area[out_par + sizeIn + inp_i] + const_area[out_par + inp_i];
+					float c_1 = vsign_1*const_area[out_par + sw_len + sizeIn + inp_i] + const_area[out_par + sw_len + inp_i];
+
 					sum_grad += grad_next[out_i]*(
-						(Sw+.5)*(vsign_0*const_area[out_par + sizeIn + inp_i] + const_area[out_par + inp_i])
-						+(.5-Sw)*(vsign_1*const_area[out_par + sw_len + sizeIn + inp_i] + const_area[out_par + sw_len + inp_i]));
+						(Sw+.5)*c_0
+						+(.5-Sw)*c_1);
+						//+(v_sw+Bsw > -InvCsw && v_sw+Bsw < InvCsw)*Csw*(c_0-c_1));
 				}
 
 				target[inp_off + inp_i*numPixelsPerChannel*strideInp] = sum_grad;
@@ -405,7 +410,7 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 				}
 				//float v_sw = Median3(InArr[0],InArr[1],InArr[2]);
 
-				float Sw = Switch(v_sw, Csw, Bsw);
+				float Sw = Switch(v_sw + Bsw, Csw);
 
 
 				float grad_next = actGrad[offset_act + pout*groupStride];
@@ -1641,7 +1646,7 @@ void computeEltwiseFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target
 			kEltwiseFuncGrad<SIZE_ARR><<<blocks, threads>>>(actGrad.getDevData(),\
 				input.getDevData(), target.getDevData(), inp_height, inp_width,\
 				input.getStride(), actGrad.getStride(), numPixelsPerChannel,\
-				Csw, Bsw, size_in, size_out);};
+				Csw, 1./Csw, Bsw, size_in, size_out);};
 		ELT_GRAD(1)
 		ELT_GRAD(2)
 		ELT_GRAD(3)
@@ -1735,19 +1740,19 @@ void computeEltwiseFuncParamWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 //	int tagc_width = inp_width;
 //	int tagc_height = inp_height*size_out/size_in;
 //
-//	if (tempC.getNumCols() != tagc_width || tempC.getNumRows() != tagc_height) {
-//		tempC.resize(tagc_height, tagc_width);
-//	}
+//	//if (tempC.getNumCols() != tagc_width || tempC.getNumRows() != tagc_height) {
+//	//	tempC.resize(tagc_height, tagc_width);
+//	//}
 //
 //	if (tempB.getNumCols() != tagc_width || tempB.getNumRows() != tagc_height) {
 //		tempB.resize(tagc_height, tagc_width);
 //	}
-//
+////
 //#define ELT_W_BCGRAD(SIZE_ARR_IN) \
 //	if(size_in == SIZE_ARR_IN){\
 //	kEltwiseFuncBCWeightGrad<SIZE_ARR_IN><<<blocks, threads>>>(input.getDevData(), actGrad.getDevData(), tempC.getDevData(), tempB.getDevData(),\
 //								inp_height, inp_width,\
-//								input.getStride(), tempC.getStride(),\
+//								input.getStride(), tempB.getStride(),\
 //								numPixelsPerChannel,\
 //								param[param.size()-2], lim, param[param.size()-1],\
 //								size_out);};

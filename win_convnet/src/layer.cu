@@ -1232,9 +1232,9 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 	_tempMatrixArray[0].ResizeAggStorage(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 
-	_tempC.ResizeAggStorage(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
+	//_tempB.ResizeAggStorage(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);B, C off
 
-	for(int kp = 0; kp < paramSize-2; kp++)//debug -2
+	for(int kp = 0; kp < paramSize-2; kp++)//paramSize-2, B, C off
 	{
 
 		double grad = 0;
