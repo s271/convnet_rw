@@ -664,7 +664,7 @@ class EltwiseFuncParser(LayerWithInputParser):
     
         meta_param = [0.]*size_param     
         if switch_sec > 1:
-            meta_param[size_param-2] = 10.
+            meta_param[size_param-2] = 100.
         
         szout = dic['size_out']
         szin = dic['size_in']

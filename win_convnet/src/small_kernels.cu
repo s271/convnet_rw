@@ -1732,30 +1732,30 @@ void computeEltwiseFuncParamWeightGrad(NVMatrix& actGrad, NVMatrix& input,
 
 //	printf("size_in %i size_out %i sum %f act %f inp %f \n", size_in, size_out,  tempMatrix[0].sum(), actGrad.sum(), input.sum());
 
-	int tagc_width = inp_width;
-	int tagc_height = inp_height*size_out/size_in;
-
-	if (tempC.getNumCols() != tagc_width || tempC.getNumRows() != tagc_height) {
-		tempC.resize(tagc_height, tagc_width);
-	}
-
-	if (tempB.getNumCols() != tagc_width || tempB.getNumRows() != tagc_height) {
-		tempB.resize(tagc_height, tagc_width);
-	}
-
-#define ELT_W_BCGRAD(SIZE_ARR_IN) \
-	if(size_in == SIZE_ARR_IN){\
-	kEltwiseFuncBCWeightGrad<SIZE_ARR_IN><<<blocks, threads>>>(input.getDevData(), actGrad.getDevData(), tempC.getDevData(), tempB.getDevData(),\
-								inp_height, inp_width,\
-								input.getStride(), tempC.getStride(),\
-								numPixelsPerChannel,\
-								param[param.size()-2], lim, param[param.size()-1],\
-								size_out);};
-	ELT_W_BCGRAD(1)
-	ELT_W_BCGRAD(2)
-	ELT_W_BCGRAD(3)
-	ELT_W_BCGRAD(4)
-#undef ELT_W_BCGRAD
+//	int tagc_width = inp_width;
+//	int tagc_height = inp_height*size_out/size_in;
+//
+//	if (tempC.getNumCols() != tagc_width || tempC.getNumRows() != tagc_height) {
+//		tempC.resize(tagc_height, tagc_width);
+//	}
+//
+//	if (tempB.getNumCols() != tagc_width || tempB.getNumRows() != tagc_height) {
+//		tempB.resize(tagc_height, tagc_width);
+//	}
+//
+//#define ELT_W_BCGRAD(SIZE_ARR_IN) \
+//	if(size_in == SIZE_ARR_IN){\
+//	kEltwiseFuncBCWeightGrad<SIZE_ARR_IN><<<blocks, threads>>>(input.getDevData(), actGrad.getDevData(), tempC.getDevData(), tempB.getDevData(),\
+//								inp_height, inp_width,\
+//								input.getStride(), tempC.getStride(),\
+//								numPixelsPerChannel,\
+//								param[param.size()-2], lim, param[param.size()-1],\
+//								size_out);};
+//	ELT_W_BCGRAD(1)
+//	ELT_W_BCGRAD(2)
+//	ELT_W_BCGRAD(3)
+//	ELT_W_BCGRAD(4)
+//#undef ELT_W_BCGRAD
 //	float sum = tempC.sum();
 //	printf("kEltwiseFuncBCWeightGrad sum %f   \n", sum);
 }
