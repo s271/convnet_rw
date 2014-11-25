@@ -85,24 +85,12 @@ GPUData& DataProvider::getPrimeDataSlice(int startCase, int endCase, int prime)
     assert(_hData->getNumCases() > 0);
     
     NVMatrixV& miniData = *new NVMatrixV();
-
-//debug
-	//vector <int> testMask;
-	//for(int i=0; i < _hData->getNumCases(); i++)
-	//	testMask.push_back(0);
-	//for(int i=0; i < _hData->getNumCases(); i++)
-	//	testMask[(i*prime)%_hData->getNumCases()]=1;
-
-	//for(int i=0; i < _hData->getNumCases(); i++)
-	//{
-	//	if(testMask[i] !=1)
-	//		printf(" error  %i \n", i);
-	//	assert(testMask[i] ==1);
-	//}
     
     for (int i = 0; i < _hData->getData().size(); i++)
 	{
         miniData.push_back(new NVMatrix());
+
+		//_data[i]->sliceRows(startCase, min(_hData->getNumCases(), endCase), *miniData[i]);
 
         if (_data[i]->isTrans()) {
 			for(int cind = startCase; cind < endCase; cind++)
@@ -129,6 +117,7 @@ GPUData& DataProvider::getPrimeDataSlice(int startCase, int endCase, int prime)
 
         } else {
 
+     //       _data[i]->sliceCols(startCase, min(_hData->getNumCases(), endCase), *miniData[i]);
 
 			for(int cind = startCase; cind < endCase; cind++)
 			{

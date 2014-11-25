@@ -1357,7 +1357,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	}
 
 //test
-	if(0)
+	//if(0)
 	if(minibatch == 0)
 	{
 
