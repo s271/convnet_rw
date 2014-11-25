@@ -85,7 +85,9 @@ public:
     void setData(CPUData&);
     void clearData();
     GPUData& getMinibatch(int idx);
+	GPUData& getMinibatchRnd(int idx, int prime_ind);
     GPUData& getDataSlice(int startCase, int endCase);
+	GPUData& getPrimeDataSlice(int startCase, int endCase, int prime);
     int getNumMinibatches();
     int getMinibatchSize();
     int getNumCases();

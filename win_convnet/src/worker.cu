@@ -92,6 +92,7 @@ int gepoch = 0;
 void TrainingWorker::run() {
     _dp->setData(*_data);
 	_convNet->setEpoch(_epoch);
+
 //debug
 	gepoch = _epoch;
 	size_t free_mem;
@@ -101,22 +102,22 @@ void TrainingWorker::run() {
 
     Cost& batchCost = *new Cost(0);
 
-	vector<int> shaffle;
-	for (int i = 0; i < _dp->getNumMinibatches(); i++)
-		shaffle.push_back(i);
+	//vector<int> shaffle;
+	//for (int i = 0; i < _dp->getNumMinibatches(); i++)
+	//	shaffle.push_back(i);
 
-    for (int i=0; i<_dp->getNumMinibatches(); i++) {
-        int r = rand()%_dp->getNumMinibatches();  
-        int temp = shaffle[i];
-		shaffle[i] = shaffle[r];
-		shaffle[r] = temp;
-    }
+ //   for (int i=0; i<_dp->getNumMinibatches(); i++) {
+ //       int r = rand()%_dp->getNumMinibatches();  
+ //       int temp = shaffle[i];
+	//	shaffle[i] = shaffle[r];
+	//	shaffle[r] = temp;
+ //   }
 //if (!_test)
 //printf(" eps %f \n", _eps_scale);
 //debug
 	//for (int ki = 0; ki < 1; ki++) {
 	for (int ki = 0; ki < _dp->getNumMinibatches(); ki++) {
-		int mini_ind = shaffle[ki];
+//		int mini_ind = shaffle[ki];
 //debug
 minibatch=ki;
 //printf("mini_ind %i \n", mini_ind);
@@ -124,7 +125,9 @@ minibatch=ki;
 		if(_eps_scale > 0)
 			_convNet->setParam(_eps_scale);
 
-        _convNet->fprop(mini_ind, _test ? PASS_TEST : PASS_TRAIN);
+       //_convNet->fprop(mini_ind, _test ? PASS_TEST : PASS_TRAIN);
+		//_convNet->fprop(ki, _test ? PASS_TEST : PASS_TRAIN);
+		_convNet->fpropRnd(ki, _epoch, _test ? PASS_TEST : PASS_TRAIN);
         _convNet->getCost(batchCost);
         
         if (!_test) {

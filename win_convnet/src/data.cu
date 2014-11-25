@@ -69,6 +69,85 @@ GPUData& DataProvider::getMinibatch(int idx) {
     return getDataSlice(idx * _minibatchSize, (idx + 1) * _minibatchSize);
 }
 
+#include "primes.h"
+GPUData& DataProvider::getMinibatchRnd(int idx, int prime_ind)
+{
+	assert(idx >= 0 && idx < getNumMinibatches());
+	assert(prime_ind < sizeof(primes)/sizeof(int));
+	int prime_sector = primes[prime_ind];
+	
+	return getPrimeDataSlice(idx * _minibatchSize,  min(_hData->getNumCases(), (idx + 1) * _minibatchSize), prime_sector);
+};
+
+GPUData& DataProvider::getPrimeDataSlice(int startCase, int endCase, int prime)
+{
+    assert(_hData != NULL);
+    assert(_hData->getNumCases() > 0);
+    
+    NVMatrixV& miniData = *new NVMatrixV();
+    
+    for (int i = 0; i < _hData->getData().size(); i++)
+	{
+        miniData.push_back(new NVMatrix());
+
+		//_data[i]->sliceRows(startCase, min(_hData->getNumCases(), endCase), *miniData[i]);
+
+        if (_data[i]->isTrans()) {
+			for(int cind = startCase; cind < endCase; cind++)
+			{
+//for test only, not optimised
+				int cpos = (cind*prime)%_hData->getNumCases();
+
+				NVMatrix* src = _data[i];
+				NVMatrix* target = miniData[i];
+				int startRow = cpos;
+				int endRow = cpos+1;
+
+				int startCol = 0;
+				int endCol = src->getNumCols();
+				src->_checkBounds(startRow, endRow, startCol, endCol);
+
+				int sliceRows = endCase - startCase, sliceCols = endCol - startCol;
+				if (target->getNumRows() != sliceRows || target->getNumCols() != sliceCols) {
+					target->resize(sliceRows, sliceCols);
+				}
+				src->copy(*target, startRow, endRow, startCol, endCol, cind-startCase, 0);
+
+			}
+
+        } else {
+
+     //       _data[i]->sliceCols(startCase, min(_hData->getNumCases(), endCase), *miniData[i]);
+
+			for(int cind = startCase; cind < endCase; cind++)
+			{
+//for test only, not optimised
+				int cpos = (cind*prime)%_hData->getNumCases();
+
+				NVMatrix* src = _data[i];
+				NVMatrix* target = miniData[i];
+				int startCol = cpos;
+				int endCol = cpos+1;
+
+				int startRow = 0;
+				int endRow = src->getNumRows();
+				src->_checkBounds(startRow, endRow, startCol, endCol);
+
+				int sliceRows = endRow - startRow, sliceCols = endCase - startCase;
+				if (target->getNumRows() != sliceRows || target->getNumCols() != sliceCols) {
+					target->resize(sliceRows, sliceCols);
+				}
+
+				src->copy(*target, startRow, endRow, startCol, endCol, 0, cind-startCase);
+
+			}
+
+        }
+    }
+
+    return *new GPUData(miniData);
+};
+
 GPUData& DataProvider::getDataSlice(int startCase, int endCase) {
     assert(_hData != NULL);
     assert(_hData->getNumCases() > 0);
@@ -78,6 +157,7 @@ GPUData& DataProvider::getDataSlice(int startCase, int endCase) {
     for (int i = 0; i < _hData->getData().size(); i++) {
         miniData.push_back(new NVMatrix());
         if (_dataSize < MAX_DATA_ON_GPU) {
+			//printf(" data on GPU \n");
             if (_data[i]->isTrans()) {
                 _data[i]->sliceRows(startCase, min(_hData->getNumCases(), endCase), *miniData[i]);
             } else {
@@ -85,6 +165,7 @@ GPUData& DataProvider::getDataSlice(int startCase, int endCase) {
             }
         } else {
             Matrix tmp;
+			//printf(" data on CPU \n");
             if ((*_hData)[i].isTrans()) {
                 (*_hData)[i].sliceRows(startCase, min(_hData->getNumCases(), endCase), tmp);
             } else {

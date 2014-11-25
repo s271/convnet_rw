@@ -152,8 +152,8 @@ void ConvNet::initCuda() {
     char* randomSeedEnv;
 
 	//debug
-	srand(11);
-	randomSeed = 11;
+	srand(13);
+	randomSeed = 13;
 
     cudaSetDevice(_deviceID < 0 ? cutGetMaxGflopsDeviceId() : _deviceID);
     cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
@@ -272,6 +272,13 @@ void ConvNet::fprop(int miniIdx, PASS_TYPE passType) {
     _data = &_dp->getMinibatch(miniIdx);
     fprop(passType);
 }
+
+void ConvNet::fpropRnd(int miniIdx, int prime_ind, PASS_TYPE passType)
+{
+    delete _data;
+    _data = &_dp->getMinibatchRnd(miniIdx, prime_ind);
+    fprop(passType);
+};
 
 Cost& ConvNet::getCost() {
     return *new Cost(_data->getNumCases(), _costs);

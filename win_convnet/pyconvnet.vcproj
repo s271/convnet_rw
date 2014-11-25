@@ -541,6 +541,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\src\primes.h"
+				>
+			</File>
+			<File
 				RelativePath=".\include\pyconvnet.cuh"
 				>
 			</File>

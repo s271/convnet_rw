@@ -199,7 +199,7 @@ class ConvNet(IGPUModel):
    
     
 if __name__ == "__main__":
-    nr.seed(5)
+    nr.seed(7)
     op = ConvNet.get_options_parser()
 
     op, load_dic = IGPUModel.parse_options(op)

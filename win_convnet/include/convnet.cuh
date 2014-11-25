@@ -92,6 +92,7 @@ public:
     void bprop(PASS_TYPE passType);
     void fprop(PASS_TYPE passType);
     void fprop(int miniIdx, PASS_TYPE passType);
+	void fpropRnd(int miniIdx, int prime_ind, PASS_TYPE passType);
     void fprop(GPUData& data, PASS_TYPE passType);
 
     bool checkGradient(const std::string& name, float eps, Weights& weights); 
