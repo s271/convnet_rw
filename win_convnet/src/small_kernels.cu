@@ -28,8 +28,8 @@ __device__ __constant__ float const_area[CONST_AREA_SIZE];
 
 __device__ inline float Switch(float s, float C) 
 {
-	//return fminf(fmaxf(s*C, -.5), .5);
-	return (s>0)*.5 - (s<0)*.5;
+	return fminf(fmaxf(s*C, -.5), .5);
+	//return (s>0)*.5 - (s<0)*.5;
 }
 
 __device__ inline float Median3(float a, float b, float c) 
@@ -68,7 +68,7 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 			
 			float inpVal[sizeArr];//use shared instead?
 			float v_sw =0;
-#pragma unroll
+
 			for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {	
 
 #ifdef MIX_F		
@@ -82,37 +82,36 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 				inpVal[inp_i] = val;
 				v_sw += val;
 			}
+			float Sw = Switch(v_sw + Bsw,  Csw);
 			//float v_sw = Median3(inpVal[0],inpVal[1],inpVal[2]);
-#pragma unroll		
+		
 			for (uint out_i = 0; out_i < sizeOut; out_i++) {
 				int out_par = out_i*EL_SWITCH*sizeIn*ELWISE_FUNC_SEC;
 
-				float output = 0;
-				float output_1 = 0;
-#pragma unroll			
+				float sum = 0;
+		
 				for (uint inp_i = 0; inp_i < sizeIn; inp_i++)
 				{	
 					float val = inpVal[inp_i];
+					//float Sw = Switch(v_sw + 4*val + Bsw,  Csw);
 
-					{
-						float param = const_area[out_par + inp_i];
-						float paramM = const_area[out_par + sizeIn + inp_i];
-						float paramB = const_area[out_par + 2*sizeIn + inp_i];
-						output += param*val + paramM*fmax(val+paramB, 0);
-					}
+					float param = const_area[out_par + inp_i];
+					float paramM = const_area[out_par + sizeIn + inp_i];
+					float paramB = const_area[out_par + 2*sizeIn + inp_i];
+					float output = param*val + paramM*fmax(val+paramB, 0);
 
-					{
-						float param = const_area[out_par + inp_i+sw_len];
-						float paramM = const_area[out_par + sizeIn + inp_i+sw_len];
-						float paramB = const_area[out_par + 2*sizeIn + inp_i+sw_len];
-						output_1 += param*val + paramM*fmax(val+paramB, 0);
-					}
+					float param_1 = const_area[out_par + inp_i+sw_len];
+					float paramM_1 = const_area[out_par + sizeIn + inp_i+sw_len];
+					float paramB_1 = const_area[out_par + 2*sizeIn + inp_i+sw_len];
+					float output_1 = param_1*val + paramM_1*fmax(val+paramB_1, 0);
+
+					sum += Sw*(output - output_1) + .5*(output + output_1);
 
 				}// inp_i
 				
 				int tag_off = out_i*numPixelsPerGroup*strideTag +  y*strideTag + x;
 
-				target[tag_off] = Switch(v_sw + Bsw,  Csw)*(output - output_1) + .5*(output + output_1);
+				target[tag_off] = sum;
 			}//out_i
         }
     }
@@ -237,12 +236,14 @@ __global__ void kEltwiseFuncGrad(const float* actGrad, const float* input, float
 				v_sw += val;
 			}
 			//float v_sw = Median3(inpArr[0],inpArr[1],inpArr[2]);
+			float Sw = Switch(v_sw + Bsw, Csw);
 			
-			float Sw = Switch(v_sw+Bsw, Csw);
 
 			for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {	
 
 				float val = inpArr[inp_i];
+
+				//float Sw = Switch(v_sw + 4*val + Bsw, Csw);
 								
 				float sum_grad = 0;
 				
@@ -391,20 +392,19 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 					InArr[pin] = val;
 					v_sw += val;
 				}
+
+				float Sw = Switch(v_sw+ Bsw, Csw);
+
 				//float v_sw = Median3(InArr[0],InArr[1],InArr[2]);
-
-				float Sw = Switch(v_sw + Bsw, Csw);
-
 
 				float grad_next = actGrad[offset_act + pout*groupStride];
 
 				for(int pin = 0; pin < sizeIn; pin++)
 				{
-					//if(sizeOut > 1 && pin == (pout+1)%sizeIn)
-					//	continue;
 
 					float in_val = InArr[pin];
 
+					//float Sw = Switch(v_sw + 4*in_val + Bsw, Csw);
 
 					float val_m_0 = fmax(in_val + const_area[pout*sizeIn*ELWISE_FUNC_SEC + 2*sizeIn + pin], 0);
 					sum[pin] += (.5+Sw)*grad_next*in_val;
@@ -466,7 +466,7 @@ __global__ void kEltwiseFuncBCWeightGrad(const float* input, const float* actGra
 			
 			float inpVal[sizeIn];//use shared instead?
 			float v_sw =0;
-#pragma unroll
+
 			for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {	
 #ifdef MIX_F	
 				int inp_off = hiID*sizeIn*numPixelsPerChannel*strideInp
@@ -480,7 +480,7 @@ __global__ void kEltwiseFuncBCWeightGrad(const float* input, const float* actGra
 			}
 			//float v_sw = Median3(inpVal[0],inpVal[1],inpVal[2]);
 			
-#pragma unroll		
+	
 			for (uint out_i = 0; out_i < sizeOut; out_i++) {
 				int out_par = out_i*sizeIn*EL_SWITCH*ELWISE_FUNC_SEC;
 
@@ -488,7 +488,7 @@ __global__ void kEltwiseFuncBCWeightGrad(const float* input, const float* actGra
 				float output_1 = 0;
 				float  gradNext = actGrad[ y * strideInp + x + out_i*numPixelsPerGroup*strideInp];
 
-#pragma unroll			
+		
 				for (uint inp_i = 0; inp_i < sizeIn; inp_i++)
 				{	
 					float val = inpVal[inp_i];

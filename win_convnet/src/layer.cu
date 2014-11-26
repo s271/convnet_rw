@@ -1243,7 +1243,8 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 		else if(kp == paramSize-2)
 			grad =0;// _tempC.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
 		else if(kp == paramSize-1)
-			grad = _tempB.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
+			_tempB.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
+			//grad = -6*(*_inputs[inpIdx]).sum()/(*_inputs[inpIdx]).getNumElements() - _param[paramSize-1];
 		
 //should make orthognal projection to equal vector(sizeIn)
 
@@ -1267,8 +1268,8 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 //debug
 		if(kp != paramSize-2)
 			_param[kp] += _param_inc[kp];
-
 	}
+
 
 
 //project on subspace
@@ -1372,7 +1373,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 		testGroupsEltwiseFunc(v, *_inputs[inpIdx],
 								 _arrayPtr, _tempMatrixArray, _param,
-								 _sizeIn, _sizeOut, _channels, 1);
+								 _sizeIn, _sizeOut, _channels, 0);
 		double gr0 = _tempMatrixArray[0].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 		double diff1 = _tempMatrixArray[1].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 		double diff2 = _tempMatrixArray[2].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
