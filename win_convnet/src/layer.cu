@@ -418,6 +418,55 @@ Weights& WeightLayer::getWeights(int idx) {
     return _weights[idx];
 }
 
+
+/* 
+ * =======================
+ * BiasLayer
+ * =======================
+ */
+BiasLayer::BiasLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, bool useGrad) : 
+    Layer(convNet, paramsDict, trans) {
+
+    Matrix& hBiases = *pyDictGetMatrix(paramsDict, "biases");
+    Matrix& hBiasesInc = *pyDictGetMatrix(paramsDict, "biasesInc");
+
+	string layerType = pyDictGetString(paramsDict, "type");
+
+    float mom = pyDictGetFloat(paramsDict, "mom");
+    float eps = pyDictGetFloat(paramsDict, "eps");
+    float wc = pyDictGetFloat(paramsDict, "wc"); 
+
+	_biases = new Weights(hBiases, hBiasesInc, eps, wc, mom, 0, 0, true);
+}
+
+void BiasLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType) {
+    if (_biases->getEps() > 0) {
+        bpropBiases(v, passType);
+    }
+}
+
+void BiasLayer::setCommon(float eps_scale) {
+	if(eps_scale > 0)
+		_biases->setEps(_biases->getEpsInit()*eps_scale);
+
+}
+
+void BiasLayer::updateBiases() {
+    _biases->update(false);    
+}
+
+void BiasLayer::copyToCPU() {
+    _biases->copyToCPU();
+}
+
+void BiasLayer::copyToGPU() {
+    _biases->copyToGPU();
+}
+
+Weights* BiasLayer::getBiases() {
+    return _biases;
+}
+
 /* 
  * =======================
  * FCLayer

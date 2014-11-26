@@ -162,6 +162,22 @@ public:
     Weights& getWeights(int idx);
 };
 
+class BiasLayer : public Layer {
+protected:
+    Weights *_biases;
+	float _renorm;
+   
+    void bpropCommon(NVMatrix& v, PASS_TYPE passType);
+	virtual void setCommon(float eps_scale);
+    virtual void bpropBiases(NVMatrix& v, PASS_TYPE passType) = 0;
+public:
+    BiasLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, bool useGrad);
+    virtual void updateBiases();
+    virtual void copyToCPU();
+    virtual void copyToGPU();
+    Weights* getBiases();
+};
+
 class FCLayer : public WeightLayer {
 protected:
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);

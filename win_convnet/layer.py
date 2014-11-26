@@ -845,6 +845,90 @@ class MicroConvParser(LayerWithInputParser):
         print "Initialized microconv layer '%s', producing %d outputs" % (name, dic['outputs'])
         return dic    
 
+class BiasLayerParser(LayerWithInputParser):
+    LAYER_PAT = re.compile(r'^\s*([^\s\[]+)(?:\[(\d+)\])?\s*$') # matches things like layername[5], etc
+    
+    def __init__(self):
+        BiasLayerParser.__init__(self)
+    
+    @staticmethod
+    def get_layer_name(name_str):
+        m = BiasLayerParser.LAYER_PAT.match(name_str)
+        if not m:
+            return None
+        return m.group(1), m.group(2)
+    
+    def add_params(self, mcp):
+        BiasLayerParser.add_params(self, mcp)
+
+        dic, name = self.dic, self.dic['name']
+        dic['eps'] = mcp.safe_get_float(name, 'eps')
+        dic['mom'] = mcp.safe_get_float(name, 'mom')
+        dic['wc'] =  mcp.safe_get_float(name, 'wc')       
+        
+        self.verify_num_params(['eps', 'mom', 'wc'])
+        
+        dic['gradConsumer'] = dic['eps'] > 0
+         
+    # Load biases initialization module
+    def call_init_func(self, param_name, shapes, input_idx=-1):
+        dic = self.dic
+        func_pat = re.compile('^([^\.]+)\.([^\(\)]+)\s*(?:\(([^,]+(?:,[^,]+)*)\))?$')
+        m = func_pat.match(dic[param_name])
+        if not m:
+            raise LayerParsingError("Layer '%s': '%s' parameter must have format 'moduleName.functionName(param1,param2,...)'; got: %s." % (dic['name'], param_name, dic['initWFunc']))
+        module, func = m.group(1), m.group(2)
+        params = m.group(3).split(',') if m.group(3) is not None else []
+        try:
+            mod = __import__(module)
+            return getattr(mod, func)(dic['name'], input_idx, shapes, params=params) if input_idx >= 0 else getattr(mod, func)(dic['name'], shapes, params=params)
+        except (ImportError, AttributeError, TypeError), e:
+            raise LayerParsingError("Layer '%s': %s." % (dic['name'], e))
+         
+    def make_biases(self, rows, cols, order='C'):
+        dic = self.dic
+        if dic['initBFunc']:
+            dic['biases'] = self.call_init_func('initBFunc', (rows, cols))
+            if type(dic['biases']) != n.ndarray:
+                raise LayerParsingError("Layer '%s': bias initialization function %s must return numpy.ndarray object. Got: %s." % (dic['name'], dic['initBFunc'], type(dic['biases'])))
+            if dic['biases'].dtype != n.float32:
+                raise LayerParsingError("Layer '%s': bias initialization function %s must return numpy.ndarray object consisting of single-precision floats. Got: %s." % (dic['name'], dic['initBFunc'], dic['biases'].dtype))
+            if dic['biases'].shape != (rows, cols):
+                raise LayerParsingError("Layer '%s': bias vector returned by bias initialization function %s has wrong shape. Should be: %s; got: %s." % (dic['name'], dic['initBFunc'], (rows, cols), dic['biases'].shape))
+
+            dic['biases'] = n.require(dic['biases'], requirements=order)
+            print "Layer '%s' initialized bias vector from function %s" % (dic['name'], dic['initBFunc'])
+        else:
+            dic['biases'] = dic['initB'] * n.ones((rows, cols), order='C', dtype=n.single)
+        dic['biasesInc'] = n.zeros_like(dic['biases'])
+        
+    def parse(self, name, mcp, prev_layers, model):
+        dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
+        dic['requiresParams'] = True
+        dic['gradConsumer'] = True
+        dic['initB'] = mcp.safe_get_float(name, 'initB', default=0)
+        dic['initBFunc'] = mcp.safe_get(name, 'initBFunc', default="")
+                
+        return dic
+        
+class ShrinkLayerParser(BiasLayerParser):
+    def __init__(self):
+        BiasLayerParser.__init__(self)
+        
+    def parse(self, name, mcp, prev_layers, model):
+        dic = BiasLayerParser.parse(self, name, mcp, prev_layers, model)
+        
+        dic['usesActs'] = False
+        dic['channels'] = mcp.safe_get_int(name, 'channels')
+        dic['outputs'] = dic['channels']
+        
+        self.verify_num_range(dic['outputs'], 'outputs', 1, None)
+        self.make_biases(1, dic['outputs'], order='F')
+                
+        print "Initialized shrink layer '%s', producing %d outputs" % (name, dic['outputs'])
+        return dic
+        
+
 class WeightLayerParser(LayerWithInputParser):
     LAYER_PAT = re.compile(r'^\s*([^\s\[]+)(?:\[(\d+)\])?\s*$') # matches things like layername[5], etc
     
@@ -1009,6 +1093,7 @@ class WeightLayerParser(LayerWithInputParser):
             dic['weightSourceMatrixIndices'] += [src_layer_matrix_idx]
                 
         return dic
+
         
 class FCLayerParser(WeightLayerParser):
     def __init__(self):
@@ -1411,6 +1496,7 @@ layer_parsers = {'data': lambda : DataLayerParser(),
                  'mavg': lambda : MAvgParser(),
                  'eltmax': lambda : EltwiseMaxLayerParser(),
                  'eltfunc': lambda : EltwiseFuncParser(),
+                 'shrink': lambda : ShrinkLayerParser(),
                  'vfunc': lambda : VectFuncParser(),
                  'neuron': lambda : NeuronLayerParser(),
                  'pool': lambda : PoolLayerParser(),
