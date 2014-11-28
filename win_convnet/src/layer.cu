@@ -353,6 +353,7 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
     // Epsilons for finite-difference gradient checking operation
     _wStep = 0.001;
     _bStep = 0.002;
+	_notUseBias = false;
     
     delete &weightSourceLayerIndices;
     delete &weightSourceMatrixIndices;
@@ -370,7 +371,7 @@ void WeightLayer::setCommon(float eps_scale) {
 }
 
 void WeightLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType) {
-    if (_biases->getEps() > 0) {
+    if (_biases->getEps() > 0 && !_notUseBias) {
         bpropBiases(v, passType);
     }
     for (int i = 0; i < _weights.getSize(); i++) {
@@ -388,12 +389,8 @@ void WeightLayer::updateWeights() {
 	//if(_type == "conv")
 	//	use_inc_drop = true;
 
-//debug shrink
-//	if(_name == "fc128_1" || _name == "fc128_2" || _name == "fc128_3")
-//		_weights.shrink(1000*1000);
-
     _weights.update(use_inc_drop);
-    _biases->update(false);
+	_biases->update(false);
     
 }
 
@@ -416,6 +413,20 @@ void WeightLayer::checkGradients() {
 
 Weights& WeightLayer::getWeights(int idx) {
     return _weights[idx];
+}
+
+Weights* WeightLayer::getBiases() {
+    return _biases;
+}
+
+void WeightLayer::postInit() {
+	Layer::postInit();
+	if(_next[0]->getType() == "dshrink")
+	{
+		printf("next dshrink detected in layer %s, bias off\n", _name.c_str());
+		_notUseBias = true;
+	}
+
 }
 
 
@@ -467,17 +478,98 @@ Weights* BiasLayer::getBiases() {
     return _biases;
 }
 
-/* 
- * =======================
- * FCLayer
- * =======================
- */
+
 extern int train;//temp
 extern  int gmini;//temp
 extern  int gmini_max;//temp
 //#define show_mini gmini
 #define show_mini (gmini_max-1)
 //#define show_mini 1
+
+
+/* 
+ * =======================
+ * ShrinkLayer
+ * =======================
+ */
+
+ShrinkLayer::ShrinkLayer(ConvNet* convNet, PyObject* paramsDict) : BiasLayer(convNet, paramsDict, true, false) {
+}
+
+void ShrinkLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType)
+{
+	_inputs[inpIdx]->applyBinary(NVMatrixBinaryOps::DShrink(), _biases->getW(), getActs());
+};
+
+void ShrinkLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
+
+	assert(_prev[inpIdx]->getType() == "conv" || _prev[inpIdx]->getType() == "fc");
+
+	WeightLayer* prevLayer = (WeightLayer*)_prev[inpIdx];
+	Weights* prevBias = prevLayer->getBiases();
+
+	dshrinkGrad(v, *_inputs[inpIdx], prevBias->getW(), _biases->getW(),
+					   _prev[inpIdx]->getActsGrad());
+
+}
+
+void ShrinkLayer::bpropBiases(NVMatrix& v, PASS_TYPE passType)
+{
+
+	assert(_prev.size() == 1);
+	assert(_prev[0]->getType() == "conv" || _prev[0]->getType() == "fc");
+
+	WeightLayer* prevLayer = (WeightLayer*)_prev[0];
+	Weights* prevBias = prevLayer->getBiases();
+
+	assert(prevBias->getW().getNumRows() == _biases->getW().getNumRows()
+		&& prevBias->getW().getNumCols() == _biases->getW().getNumCols());
+
+	assert(prevLayer->getActs().getNumRows() == _biases->getW().getNumRows()
+		&& prevLayer->getActs().getNumCols() == _biases->getW().getNumCols());
+
+	assert(_inputs.size()==1);
+
+	_temp_pos.resizeUp(v.getNumRows(), v.getNumCols());
+	_temp_neg.resizeUp(v.getNumRows(), v.getNumCols());
+
+	 int numCases = v.getNumCols();
+
+	dshrinkWeightGrad(v, *_inputs[0], prevBias->getW(), _biases->getW(),
+					   _temp_pos, _temp_neg);
+
+	float scaleBGrad = _biases->getEps() / numCases;
+
+	if(_prev[0]->getType() == "conv" )
+	{
+		ConvLayer* convLayer = (ConvLayer*)_prev[0];
+		assert(convLayer->isSharedBiases());
+
+		int numFilters = convLayer->getNumFilters();
+		int modules = convLayer->getNumModules();
+
+        _temp_pos.reshape(numFilters, _temp_pos.getNumElements() / numFilters);
+        prevBias->getGrad().addSum(_temp_pos, 1, 0, scaleBGrad);
+        _temp_pos.reshape(numFilters * modules, _temp_pos.getNumElements() / (numFilters * modules));
+
+        _temp_neg.reshape(numFilters, _temp_neg.getNumElements() / numFilters);
+        _biases->getGrad().addSum(_temp_neg, 1, 0, scaleBGrad);
+        _temp_pos.reshape(numFilters * modules, _temp_neg.getNumElements() / (numFilters * modules));
+
+	}
+	else //fc layer
+	{
+        prevBias->getGrad().addSum(_temp_pos, 1, 0, scaleBGrad);
+		_biases->getGrad().addSum(_temp_neg, 1, 0, scaleBGrad);
+	}
+
+};
+
+/* 
+ * =======================
+ * FCLayer
+ * =======================
+ */
 
 FCLayer::FCLayer(ConvNet* convNet, PyObject* paramsDict) : WeightLayer(convNet, paramsDict, true, false) {
     _wStep = 0.1;
@@ -566,6 +658,17 @@ void LocalLayer::copyToGPU() {
         }
     }
 }
+
+int LocalLayer::getNumFilters()
+{
+	return _numFilters;
+};
+
+int LocalLayer::getNumModules()
+{
+	return _modules;
+};
+
 
 /* 
  * =======================
@@ -672,6 +775,11 @@ void ConvLayer::truncBwdActs() {
         _actGradTmp.truncate();
     }
 }
+
+bool ConvLayer::isSharedBiases()
+{
+	return _sharedBiases;
+};
 /* 
  * =======================
  * LocalUnsharedLayer

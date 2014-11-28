@@ -339,6 +339,17 @@ public:
             return scale * b;
         }
     };
+
+    class DShrink {
+    public:
+        __device__ inline float operator()(const float a, const float b) const {
+            float ma = fmaxf(a, 0);
+			float mb = fminf(b, 0);
+			if(fabsf(a) > fabsf(b)) return ma;
+			else return mb;
+        }
+    };
+
 };
 
 class NVMatrixAggs {

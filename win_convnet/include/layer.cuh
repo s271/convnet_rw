@@ -147,12 +147,15 @@ protected:
     Weights *_biases;
     float _wStep, _bStep;
 	float _renorm;
+	bool _notUseBias;
    
     void bpropCommon(NVMatrix& v, PASS_TYPE passType);
 	virtual void setCommon(float eps_scale);
 
     virtual void bpropBiases(NVMatrix& v, PASS_TYPE passType) = 0;
     virtual void bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType) = 0;
+	virtual void postInit();
+
 public:
     WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, bool useGrad);
     virtual void updateWeights();
@@ -160,6 +163,7 @@ public:
     virtual void copyToGPU();
     void checkGradients();
     Weights& getWeights(int idx);
+	Weights* getBiases();
 };
 
 class BiasLayer : public Layer {
@@ -176,6 +180,16 @@ public:
     virtual void copyToCPU();
     virtual void copyToGPU();
     Weights* getBiases();
+};
+
+class ShrinkLayer : public BiasLayer {
+protected:
+	NVMatrix _temp_pos, _temp_neg;
+    void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
+    void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
+    void bpropBiases(NVMatrix& v, PASS_TYPE passType);
+public:
+    ShrinkLayer(ConvNet* convNet, PyObject* paramsDict);
 };
 
 class FCLayer : public WeightLayer {
@@ -350,6 +364,8 @@ protected:
     
 public:
     LocalLayer(ConvNet* convNet, PyObject* paramsDict, bool useGrad);
+	int getNumFilters();
+	int getNumModules();
 };
 
 class ConvLayer : public LocalLayer {
@@ -367,6 +383,7 @@ protected:
 
 public:
     ConvLayer(ConvNet* convNet, PyObject* paramsDict);
+	bool isSharedBiases();
 }; 
 
 class LocalUnsharedLayer : public LocalLayer {
