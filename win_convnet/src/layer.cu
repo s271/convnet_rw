@@ -489,19 +489,19 @@ extern  int gmini_max;//temp
 
 /* 
  * =======================
- * ShrinkLayer
+ * DShrinkLayer
  * =======================
  */
 
-ShrinkLayer::ShrinkLayer(ConvNet* convNet, PyObject* paramsDict) : BiasLayer(convNet, paramsDict, true, false) {
+DShrinkLayer::DShrinkLayer(ConvNet* convNet, PyObject* paramsDict) : BiasLayer(convNet, paramsDict, true, false) {
 }
 
-void ShrinkLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType)
+void DShrinkLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType)
 {
 	_inputs[inpIdx]->applyBinary(NVMatrixBinaryOps::DShrink(), _biases->getW(), getActs());
 };
 
-void ShrinkLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
+void DShrinkLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
 	assert(_prev[inpIdx]->getType() == "conv" || _prev[inpIdx]->getType() == "fc");
 
@@ -513,7 +513,7 @@ void ShrinkLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TY
 
 }
 
-void ShrinkLayer::bpropBiases(NVMatrix& v, PASS_TYPE passType)
+void DShrinkLayer::bpropBiases(NVMatrix& v, PASS_TYPE passType)
 {
 
 	assert(_prev.size() == 1);
@@ -578,7 +578,7 @@ FCLayer::FCLayer(ConvNet* convNet, PyObject* paramsDict) : WeightLayer(convNet, 
 
 void FCLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
     getActs().addProduct(*_inputs[inpIdx], *_weights[inpIdx], scaleTargets, 1);
-    if (scaleTargets == 0) {
+    if (scaleTargets == 0 && !_notUseBias) {
         getActs().addVector(_biases->getW());
     }
 }
@@ -697,15 +697,17 @@ void ConvLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
 //debug
 //getActs().nan2zero();
    
-    if (scaleTargets == 0) {
-        if (_sharedBiases) {
-            getActs().reshape(_numFilters, getActs().getNumElements() / _numFilters);
-            getActs().addVector(_biases->getW());
-            getActs().reshape(_numFilters * _modules, getActs().getNumElements() / (_numFilters * _modules));
-        } else {
-            getActs().addVector(_biases->getW());
-        }
-    }
+
+	if (scaleTargets == 0 && !_notUseBias) {
+		if (_sharedBiases) {
+			getActs().reshape(_numFilters, getActs().getNumElements() / _numFilters);
+			getActs().addVector(_biases->getW());
+			getActs().reshape(_numFilters * _modules, getActs().getNumElements() / (_numFilters * _modules));
+		} else {
+			getActs().addVector(_biases->getW());
+		}
+	}
+
 }
 
 void ConvLayer::bpropBiases(NVMatrix& v, PASS_TYPE passType) {

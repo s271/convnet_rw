@@ -182,14 +182,14 @@ public:
     Weights* getBiases();
 };
 
-class ShrinkLayer : public BiasLayer {
+class DShrinkLayer : public BiasLayer {
 protected:
 	NVMatrix _temp_pos, _temp_neg;
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropBiases(NVMatrix& v, PASS_TYPE passType);
 public:
-    ShrinkLayer(ConvNet* convNet, PyObject* paramsDict);
+    DShrinkLayer(ConvNet* convNet, PyObject* paramsDict);
 };
 
 class FCLayer : public WeightLayer {
