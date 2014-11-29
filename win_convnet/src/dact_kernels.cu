@@ -252,9 +252,9 @@ __global__ void kEltwiseDFuncParamWeightGrad(float* actGrad, float* input, float
 					float val_n_0 = in_val + const_area[out_ind + 4*sizeIn];
 					target[out_ind][tagOffset] += (.5+Sw)*grad_next*in_val;
 					target[out_ind + sizeIn][tagOffset] += (.5+Sw)*grad_next*(val_p_0 > 0)*in_val;
-					target[out_ind + 2*sizeIn][tagOffset] += (.5+Sw)*grad_next*(val_n_0 < 0);
+					target[out_ind + 2*sizeIn][tagOffset] += (.5+Sw)*grad_next*(val_n_0 < 0)*in_val;
 					target[out_ind + 3*sizeIn][tagOffset]  += 
-						(.5+Sw)*grad_next*const_area[out_ind + sizeIn]*(val_p_0 > 0)*in_val;
+						(.5+Sw)*grad_next*const_area[out_ind + sizeIn]*(val_p_0 > 0);
 					target[out_ind + 4*sizeIn][tagOffset]  += 
 						(.5+Sw)*grad_next*const_area[out_ind + 2*sizeIn]*(val_n_0 < 0);
 
@@ -264,10 +264,11 @@ __global__ void kEltwiseDFuncParamWeightGrad(float* actGrad, float* input, float
 					float val_n_1 = in_val + const_area[out_ind_sw + 4*sizeIn];
 					target[out_ind_sw][tagOffset] += (.5-Sw)*grad_next*in_val;
 					target[out_ind_sw + sizeIn][tagOffset] += (.5-Sw)*grad_next*(val_p_1 > 0)*in_val;
-					target[out_ind_sw + 2*sizeIn][tagOffset] += (.5-Sw)*grad_next*(val_n_1 < 0);
+					target[out_ind_sw + 2*sizeIn][tagOffset] += (.5-Sw)*grad_next*(val_n_1 < 0)*in_val;
 					target[out_ind_sw + 3*sizeIn][tagOffset] +=
-						(.5-Sw)*grad_next*const_area[out_ind_sw + sizeIn]*(val_p_1 > 0)*in_val;
-					target[out_ind_sw + 4*sizeIn][tagOffset] += (.5-Sw)*grad_next*const_area[out_ind_sw + 2*sizeIn]*grad_next*(val_n_1 < 0);
+						(.5-Sw)*grad_next*const_area[out_ind_sw + sizeIn]*(val_p_1 > 0);
+					target[out_ind_sw + 4*sizeIn][tagOffset] +=
+						(.5-Sw)*grad_next*const_area[out_ind_sw + 2*sizeIn]*grad_next*(val_n_1 < 0);
 				}
 			}
 		}
