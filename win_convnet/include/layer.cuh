@@ -236,6 +236,14 @@ public:
     EltwiseMaxLayer(ConvNet* convNet, PyObject* paramsDict);
 };
 
+class EltwiseAbsMaxLayer : public Layer {
+protected:
+    void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
+    void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
+public:
+    EltwiseAbsMaxLayer(ConvNet* convNet, PyObject* paramsDict);
+};
+
 #define NSTORE 64
 
 class EltwiseFuncLayer : public Layer {

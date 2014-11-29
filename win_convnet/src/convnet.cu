@@ -106,6 +106,8 @@ Layer* ConvNet::initLayer(string& layerType, PyObject* paramsDict, bool fix_nan)
         _layers.push_back(new EltwiseSumLayer(this, paramsDict));
     } else if (layerType == "eltmax") {
         _layers.push_back(new EltwiseMaxLayer(this, paramsDict));
+    } else if (layerType == "eltabsmax") {
+        _layers.push_back(new EltwiseAbsMaxLayer(this, paramsDict));
     } else if (layerType == "mavg") {
         _layers.push_back(new MAvgPoolLayer(this, paramsDict));
     } else if (layerType == "mconv") {

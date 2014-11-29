@@ -955,6 +955,26 @@ void EltwiseMaxLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PAS
     computeEltwiseMaxGrad(v, *_inputs[inpIdx], getActs(), _prev[inpIdx]->getActsGrad(), scaleTargets != 0);
 }
 
+/* 
+ * =======================
+ * EltwiseAbsMaxLayer
+ * =======================
+ */
+EltwiseAbsMaxLayer::EltwiseAbsMaxLayer(ConvNet* convNet, PyObject* paramsDict) : Layer(convNet, paramsDict, false) {
+}
+
+void EltwiseAbsMaxLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
+    if (inpIdx == 1) { // First input, do nothing
+        _inputs[inpIdx]->applyBinary(NVMatrixAggs::AbsMax(), *_inputs[0], getActs());
+    } else if (inpIdx > 1) {
+        getActs().applyBinary(NVMatrixAggs::AbsMax(), *_inputs[inpIdx]);
+    }
+}
+
+void EltwiseAbsMaxLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
+    computeEltwiseMaxGrad(v, *_inputs[inpIdx], getActs(), _prev[inpIdx]->getActsGrad(), scaleTargets != 0);
+}
+
 
 /* 
  * =====================

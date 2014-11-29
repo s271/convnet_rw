@@ -374,6 +374,16 @@ public:
         }
     };
 
+   class AbsMax {
+    public:
+        __device__ inline float operator()(const float a, const float b) const {
+            return fabs(a) > fabs(b) ? a : b;
+        }
+        __device__ inline float getBaseValue() {
+            return -2e38;
+        }
+    };
+
     class Min {
     public:
         __device__ inline float operator()(const float a, const float b) const {

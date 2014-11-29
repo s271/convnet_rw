@@ -630,6 +630,21 @@ class EltwiseMaxLayerParser(LayerWithInputParser):
         print "Initialized elementwise max layer '%s', producing %d outputs" % (name, dic['outputs'])
         return dic
         
+class EltwiseAbsMaxLayerParser(LayerWithInputParser):
+    def __init__(self):
+        LayerWithInputParser.__init__(self)
+        
+    def parse(self, name, mcp, prev_layers, model):
+        dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
+        if len(dic['inputs']) < 2:
+            raise LayerParsingError("Layer '%s': elementwise max layer must have at least 2 inputs, got %d." % (name, len(dic['inputs'])))
+        if len(set(dic['numInputs'])) != 1:
+            raise LayerParsingError("Layer '%s': all inputs must have the same dimensionality. Got dimensionalities: %s" % (name, ", ".join(str(s) for s in dic['numInputs'])))
+        dic['outputs'] = dic['numInputs'][0]
+        
+        print "Initialized elementwise max layer '%s', producing %d outputs" % (name, dic['outputs'])
+        return dic        
+        
 class EltwiseFuncParser(LayerWithInputParser):
     def __init__(self):
         LayerWithInputParser.__init__(self)
@@ -1579,6 +1594,7 @@ layer_parsers = {'data': lambda : DataLayerParser(),
                  'mconv': lambda : MicroConvParser(),
                  'mavg': lambda : MAvgParser(),
                  'eltmax': lambda : EltwiseMaxLayerParser(),
+                 'eltabsmax': lambda : EltwiseAbsMaxLayerParser(),
                  'eltfunc': lambda : EltwiseFuncParser(),
                  'eltdfunc': lambda : EltwiseDFuncParser(),
                  'dshrink': lambda : ShrinkLayerParser(),
