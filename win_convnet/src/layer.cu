@@ -498,7 +498,15 @@ DShrinkLayer::DShrinkLayer(ConvNet* convNet, PyObject* paramsDict) : BiasLayer(c
 
 void DShrinkLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType)
 {
-	_inputs[inpIdx]->applyBinary(NVMatrixBinaryOps::DShrink(), _biases->getW(), getActs());
+	assert(_prev[inpIdx]->getType() == "conv" || _prev[inpIdx]->getType() == "fc");
+
+	WeightLayer* prevLayer = (WeightLayer*)_prev[inpIdx];
+	Weights* prevBias = prevLayer->getBiases();
+
+	//_inputs[inpIdx]->applyBinary(NVMatrixBinaryOps::DShrink(), _biases->getW(), getActs());
+	dshrinkAct(*_inputs[inpIdx], prevBias->getW(), _biases->getW(),
+					   _prev[inpIdx]->getActsGrad());
+
 };
 
 void DShrinkLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
@@ -1624,9 +1632,8 @@ void EltwiseDFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, P
 #endif
 
 	double sumScale = _sizeIn*_sizeOut*2;
-	int vect_len = _sizeIn*ELWISE_FUNC_SEC;
-	int vnorm_len = _sizeIn*5;
-
+	int vect_len = _sizeIn*ELWISE_DFUNC_SEC;
+	int vnorm_len = _sizeIn*3;
 
 
 	for(int k_sw = 0; k_sw < EL_SWITCH; k_sw++)
@@ -1636,7 +1643,7 @@ void EltwiseDFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, P
 		{
 			for(int kinp = 0; kinp < vnorm_len; kinp++)
 			{
-				double pv = _param[k_out*EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn + k_sw*ELWISE_FUNC_SEC*_sizeIn + kinp];
+				double pv = _param[k_out*EL_SWITCH*ELWISE_DFUNC_SEC*_sizeIn + k_sw*ELWISE_DFUNC_SEC*_sizeIn + kinp];
 				l1sum += fabs(pv);
 			}
 		}
@@ -1646,14 +1653,14 @@ void EltwiseDFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, P
 		for(int k_out = 0; k_out < _sizeOut; k_out++)
 		{
 			for(int kinp = 0; kinp < vnorm_len; kinp++)
-				_param[k_out*EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn + k_sw*ELWISE_FUNC_SEC*_sizeIn + kinp] *= sumScale/l1sum;
+				_param[k_out*EL_SWITCH*ELWISE_DFUNC_SEC*_sizeIn + k_sw*ELWISE_DFUNC_SEC*_sizeIn + kinp] *= sumScale/l1sum;
 		}
 	}
 
 
 	if(minibatch == 0)
 	{
-		int nump = _sizeIn*ELWISE_FUNC_SEC;
+		int nump = _sizeIn*ELWISE_DFUNC_SEC;
 		int numl = (_param.size()+nump-1)/nump;
 		printf("** params *** \n");
 		for (int nk = 0; nk < numl; nk++)
@@ -1670,6 +1677,23 @@ void EltwiseDFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, P
 	computeEltwiseDFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(), _param, _channels, _sizeIn, _sizeOut);
 
 //		printf("EltwiseFuncLayer bpropActs end\n");
+
+	if(minibatch == 0)
+	{
+
+		int numPixelPerGroup =  v.getNumElements()/_sizeOut;
+
+		testGroupsEltwiseFunc(v, *_inputs[inpIdx],
+								 _arrayPtr, _tempMatrixArray, _param,
+								 _sizeIn, _sizeOut, _channels, 0);
+		double gr0 = _tempMatrixArray[0].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+		double diff1 = _tempMatrixArray[1].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+		double diff2 = _tempMatrixArray[2].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+		printf("***EltwiseDFunc %s group test gr0 %f diff1_rel %f diff2_rel %f \n",_name.c_str(), gr0/numPixelPerGroup, diff1/gr0, diff2/gr0);
+
+
+	}
+
 }
 
 

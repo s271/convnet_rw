@@ -14,6 +14,30 @@ __device__ inline float Switch(float s, float C)
 	//return (s>0)*.5 - (s<0)*.5;
 }
 
+__global__ void kDShrinkAct(const float* input,
+							const float* pos_bias, const float* neg_bias,
+							float* const target,
+                            const uint height, const uint width, uint stride) {
+    const uint idxX = blockIdx.x * ELTWISE_THREADS_X + threadIdx.x;
+    const uint idxY = blockIdx.y * ELTWISE_THREADS_Y + threadIdx.y;
+
+    for (uint y = idxY; y < height; y += gridDim.y * ELTWISE_THREADS_Y) {
+        for (uint x = idxX; x < width; x += gridDim.x * ELTWISE_THREADS_X) {
+			uint ind = y * stride + x;
+			float inp = input[ind];
+			float v_pos = fmax(inp + pos_bias[ind], 0);
+			float v_neg = fmin(inp + neg_bias[ind], 0);
+			float tag = 0;
+			if(v_pos > -v_neg)
+				tag = v_pos;
+			if(-v_neg > v_pos)
+				tag = v_neg;
+
+			target[ind] = tag;
+        }
+    }
+}
+
 
 __global__ void kDShrinkWeightGrad(const float* actGrad, const float* input,
 								   const float* pos_bias, const float* neg_bias,
@@ -96,7 +120,7 @@ __global__ void kEltwiseDFuncAct(const float* input, float* const target,
 #ifdef MIX_F
 	const int pixelChannelID = idxY%numPixelsPerChannel;
 #endif
-	const int sw_len = sizeIn*ELWISE_FUNC_SEC;
+	const int sw_len = sizeIn*ELWISE_DFUNC_SEC;
 
 // ix, iy == 0 almost always
    for (uint y = idxY; y < numPixelsPerGroup; y += gridDim.y*blockDim.y) {
@@ -125,7 +149,7 @@ __global__ void kEltwiseDFuncAct(const float* input, float* const target,
 			//float v_sw = Median3(inpVal[0],inpVal[1],inpVal[2]);
 		
 			for (uint out_i = 0; out_i < sizeOut; out_i++) {
-				int out_par = out_i*EL_SWITCH*sizeIn*ELWISE_FUNC_SEC;
+				int out_par = out_i*EL_SWITCH*sizeIn*ELWISE_DFUNC_SEC;
 
 				float sum = 0;
 		
@@ -171,7 +195,7 @@ __global__ void kEltwiseDFuncParamWeightGrad(float* actGrad, float* input, float
 {
 	const int numPixelsPerGroup = imgInPixels/sizeIn;
 	const int groupStride  = numPixelsPerGroup*stride;
-	const int sw_len = sizeIn*ELWISE_FUNC_SEC;
+	const int sw_len = sizeIn*ELWISE_DFUNC_SEC;
 	const int tagOffset = (threadIdx.x + blockIdx.x*blockDim.x) +  (threadIdx.y + blockIdx.y*blockDim.y)*strideTag;
 
     const uint idxX = blockIdx.x * B_X + threadIdx.x;
@@ -215,37 +239,35 @@ __global__ void kEltwiseDFuncParamWeightGrad(float* actGrad, float* input, float
 
 				float grad_next = actGrad[offset_act + pout*groupStride];
 
-				int out_ind = pout*sizeIn*ELWISE_FUNC_SEC ;
+				int out_par = pout*EL_SWITCH*sizeIn*ELWISE_DFUNC_SEC;
 
 				for(int pin = 0; pin < sizeIn; pin++)
 				{
-					int out_par = pout*EL_SWITCH*sizeIn*ELWISE_FUNC_SEC;
 					float in_val = InArr[pin];
-					int in_ind = out_ind + pin;
+					int out_ind = out_par + pin;
 
 					//float Sw = Switch(v_sw + 4*in_val + Bsw, Csw);
 
-					float val_p_0 = in_val + const_area[in_ind + 3*sizeIn];
-					float val_n_0 = in_val + const_area[in_ind + 4*sizeIn];
-					target[out_par + pin][tagOffset] += (.5+Sw)*grad_next*in_val;
-					target[out_par + sizeIn + pin][tagOffset] += (.5+Sw)*grad_next*(val_p_0 > 0)*in_val;
-					target[out_par + 2*sizeIn + pin][tagOffset] += (.5+Sw)*grad_next*(val_n_0 < 0);
-					target[out_par + 3*sizeIn + pin][tagOffset]  += 
-						(.5+Sw)*grad_next*const_area[in_ind + sizeIn]*(val_p_0 > 0)*in_val;
-					target[out_par + 4*sizeIn + pin][tagOffset]  += 
-						(.5+Sw)*grad_next*const_area[in_ind + 2*sizeIn]*(val_n_0 < 0);
+					float val_p_0 = in_val + const_area[out_ind + 3*sizeIn];
+					float val_n_0 = in_val + const_area[out_ind + 4*sizeIn];
+					target[out_ind][tagOffset] += (.5+Sw)*grad_next*in_val;
+					target[out_ind + sizeIn][tagOffset] += (.5+Sw)*grad_next*(val_p_0 > 0)*in_val;
+					target[out_ind + 2*sizeIn][tagOffset] += (.5+Sw)*grad_next*(val_n_0 < 0);
+					target[out_ind + 3*sizeIn][tagOffset]  += 
+						(.5+Sw)*grad_next*const_area[out_ind + sizeIn]*(val_p_0 > 0)*in_val;
+					target[out_ind + 4*sizeIn][tagOffset]  += 
+						(.5+Sw)*grad_next*const_area[out_ind + 2*sizeIn]*(val_n_0 < 0);
 
-					int in_ind_sw = out_ind + pin + sw_len;
+					int out_ind_sw = out_ind + sw_len;
 
-					float val_p_1 = in_val + const_area[in_ind_sw + 3*sizeIn];
-					float val_n_1 = in_val + const_area[in_ind_sw + 4*sizeIn];
-					target[out_par + pin + sw_len][tagOffset] += (.5-Sw)*grad_next*in_val;
-					target[out_par + sizeIn + pin + sw_len][tagOffset] += (.5-Sw)*grad_next*(val_p_1 > 0)*in_val;
-					target[out_par + 2*sizeIn + pin + sw_len][tagOffset] += (.5-Sw)*grad_next*(val_n_1 < 0);
-					target[out_par + 3*sizeIn + pin + sw_len][tagOffset] +=
-						(.5-Sw)*grad_next*const_area[in_ind_sw + sizeIn]*(val_p_1 > 0)*in_val;
-					target[out_par + 4*sizeIn + pin + sw_len][tagOffset] +=
-						(.5-Sw)*grad_next*const_area[in_ind_sw + 2*sizeIn]*grad_next*(val_n_1 < 0);
+					float val_p_1 = in_val + const_area[out_ind_sw + 3*sizeIn];
+					float val_n_1 = in_val + const_area[out_ind_sw + 4*sizeIn];
+					target[out_ind_sw][tagOffset] += (.5-Sw)*grad_next*in_val;
+					target[out_ind_sw + sizeIn][tagOffset] += (.5-Sw)*grad_next*(val_p_1 > 0)*in_val;
+					target[out_ind_sw + 2*sizeIn][tagOffset] += (.5-Sw)*grad_next*(val_n_1 < 0);
+					target[out_ind_sw + 3*sizeIn][tagOffset] +=
+						(.5-Sw)*grad_next*const_area[out_ind_sw + sizeIn]*(val_p_1 > 0)*in_val;
+					target[out_ind_sw + 4*sizeIn][tagOffset] += (.5-Sw)*grad_next*const_area[out_ind_sw + 2*sizeIn]*grad_next*(val_n_1 < 0);
 				}
 			}
 		}
@@ -271,7 +293,7 @@ __global__ void kEltwiseDFuncGrad(const float* actGrad, const float* input, floa
 #ifdef MIX_F
 	const int pixelChannelID = idxY%numPixelsPerChannel;
 #endif
-	const int sw_len = sizeIn*ELWISE_FUNC_SEC;
+	const int sw_len = sizeIn*ELWISE_DFUNC_SEC;
 
 
 //with no N_SUM ix, iy == 0 almost always
@@ -321,7 +343,7 @@ __global__ void kEltwiseDFuncGrad(const float* actGrad, const float* input, floa
 				for (uint out_i = 0; out_i < sizeOut; out_i++)	
 				{
 
-					int out_par = out_i*EL_SWITCH*sizeIn*ELWISE_FUNC_SEC;
+					int out_par = out_i*EL_SWITCH*sizeIn*ELWISE_DFUNC_SEC;
 					float vsignp_0 = (val + const_area[out_par + 3*sizeIn + inp_i] > 0);
 					float vsignn_0 = (val + const_area[out_par + 4*sizeIn + inp_i] < 0);
 					float c_0 = vsignp_0*const_area[out_par + sizeIn + inp_i]
@@ -352,6 +374,27 @@ __global__ void kEltwiseDFuncGrad(const float* actGrad, const float* input, floa
 }
 
 //*************************************************************************************
+void dshrinkAct(NVMatrix& input, NVMatrix& pos_bias, NVMatrix& neg_bias,
+					   NVMatrix& target){
+	assert(input.isSameDims(pos_bias));
+	assert(input.isSameDims(neg_bias));
+	assert(input.isSameDims(target));
+
+	assert(input.isTrans() == pos_bias.isTrans());
+	assert(input.isTrans() == neg_bias.isTrans());
+	assert(input.isTrans() == target.isTrans());
+
+    int height = input.getFollowingDim(), width = input.getLeadingDim();
+    dim3 blocks(std::min(NUM_BLOCKS_MAX, DIVUP(width, ELTWISE_THREADS_X)),
+                std::min(NUM_BLOCKS_MAX, DIVUP(height, ELTWISE_THREADS_Y)));
+    dim3 threads(ELTWISE_THREADS_X, ELTWISE_THREADS_Y);
+
+	kDShrinkAct<<<blocks, threads>>>(input.getDevData(), pos_bias.getDevData(),
+											neg_bias.getDevData(), target.getDevData(),
+											height, width, input.getStride());
+
+    cutilCheckMsg("dshrinkGrad: Kernel execution failed");
+}
 
 
 void dshrinkWeightGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& pos_bias, NVMatrix& neg_bias,
