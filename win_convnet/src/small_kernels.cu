@@ -406,15 +406,15 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 
 					//float Sw = Switch(v_sw + 4*in_val + Bsw, Csw);
 
-					float val_m_0 = fmax(in_val + const_area[pout*sizeIn*ELWISE_FUNC_SEC + 2*sizeIn + pin], 0);
+					float val_m_0 = in_val + const_area[pout*sizeIn*ELWISE_FUNC_SEC + 2*sizeIn + pin];
 					sum[pin] += (.5+Sw)*grad_next*in_val;
 					sum_m[pin] += (.5+Sw)*grad_next*(val_m_0 > 0)*in_val;
-					sum_b[pin] += (.5+Sw)*grad_next*(val_m_0 > 0);
+					sum_b[pin] += (.5+Sw)*grad_next*const_area[pout*sizeIn*ELWISE_FUNC_SEC + sizeIn + pin]*(val_m_0 > 0);
 
-					float val_m_1 = fmax(in_val + const_area[pout*sizeIn*ELWISE_FUNC_SEC + 2*sizeIn + pin + sw_len], 0);
+					float val_m_1 = in_val + const_area[pout*sizeIn*ELWISE_FUNC_SEC + 2*sizeIn + pin + sw_len];
 					sum[pin + sizeIn] += (.5-Sw)*grad_next*in_val;
 					sum_m[pin + sizeIn] += (.5-Sw)*grad_next*(val_m_1 > 0)*in_val;
-					sum_b[pin + sizeIn] += (.5-Sw)*grad_next*(val_m_1 > 0);
+					sum_b[pin + sizeIn] += (.5-Sw)*grad_next*const_area[pout*sizeIn*ELWISE_FUNC_SEC + sizeIn + pin + sw_len]*(val_m_1 > 0);
 
 				}
 			}

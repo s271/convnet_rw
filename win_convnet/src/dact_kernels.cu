@@ -6,7 +6,7 @@
 #include "tt.h"
 
 #define CONST_AREA_SIZE 256
-extern __device__ __constant__ float const_area[CONST_AREA_SIZE];
+__device__ __constant__ float const_area[CONST_AREA_SIZE];
 
 __device__ inline float Switch(float s, float C) 
 {
@@ -172,24 +172,13 @@ __global__ void kEltwiseDFuncParamWeightGrad(float* actGrad, float* input, float
 	const int numPixelsPerGroup = imgInPixels/sizeIn;
 	const int groupStride  = numPixelsPerGroup*stride;
 	const int sw_len = sizeIn*ELWISE_FUNC_SEC;
-
+	const int tagOffset = (threadIdx.x + blockIdx.x*blockDim.x) +  (threadIdx.y + blockIdx.y*blockDim.y)*strideTag;
 
     const uint idxX = blockIdx.x * B_X + threadIdx.x;
     const uint idxY = blockIdx.y * B_Y + threadIdx.y;
 
 	for(int pout = 0; pout < sizeOut; pout++)
 	{
-
-		float sum[2*sizeIn];
-		float sum_mp[2*sizeIn];
-		float sum_bp[2*sizeIn];
-		float sum_mn[2*sizeIn];
-		float sum_bn[2*sizeIn];
-		memset(sum, 0, sizeof(sum));
-		memset(sum_mp, 0, sizeof(sum_mp));
-		memset(sum_bp, 0, sizeof(sum_bp));
-		memset(sum_mn, 0, sizeof(sum_mn));
-		memset(sum_bn, 0, sizeof(sum_bn));
 
 		for (uint y = idxY; y < numPixelsPerGroup; y += gridDim.y * B_Y) {
 #ifdef MIX_F
@@ -226,49 +215,42 @@ __global__ void kEltwiseDFuncParamWeightGrad(float* actGrad, float* input, float
 
 				float grad_next = actGrad[offset_act + pout*groupStride];
 
+				int out_ind = pout*sizeIn*ELWISE_FUNC_SEC ;
+
 				for(int pin = 0; pin < sizeIn; pin++)
 				{
-
+					int out_par = pout*EL_SWITCH*sizeIn*ELWISE_FUNC_SEC;
 					float in_val = InArr[pin];
+					int in_ind = out_ind + pin;
 
 					//float Sw = Switch(v_sw + 4*in_val + Bsw, Csw);
 
-					float val_m_0 = fmax(in_val + const_area[pout*sizeIn*ELWISE_FUNC_SEC + 2*sizeIn + pin], 0);
-					sum[pin] += (.5+Sw)*grad_next*in_val;
-					sum_mp[pin] += (.5+Sw)*grad_next*(val_m_0 > 0)*in_val;
-					sum_bp[pin] += (.5+Sw)*grad_next*(val_m_0 > 0);
-					sum_mn[pin] += (.5+Sw)*grad_next*(val_m_0 < 0)*in_val;
-					sum_bn[pin] += (.5+Sw)*grad_next*(val_m_0 < 0);
+					float val_p_0 = in_val + const_area[in_ind + 3*sizeIn];
+					float val_n_0 = in_val + const_area[in_ind + 4*sizeIn];
+					target[out_par + pin][tagOffset] += (.5+Sw)*grad_next*in_val;
+					target[out_par + sizeIn + pin][tagOffset] += (.5+Sw)*grad_next*(val_p_0 > 0)*in_val;
+					target[out_par + 2*sizeIn + pin][tagOffset] += (.5+Sw)*grad_next*(val_n_0 < 0);
+					target[out_par + 3*sizeIn + pin][tagOffset]  += 
+						(.5+Sw)*grad_next*const_area[in_ind + sizeIn]*(val_p_0 > 0)*in_val;
+					target[out_par + 4*sizeIn + pin][tagOffset]  += 
+						(.5+Sw)*grad_next*const_area[in_ind + 2*sizeIn]*(val_n_0 < 0);
 
-					float val_m_1 = fmax(in_val + const_area[pout*sizeIn*ELWISE_FUNC_SEC + 2*sizeIn + pin + sw_len], 0);
-					sum[pin + sizeIn] += (.5-Sw)*grad_next*in_val;
-					sum_mp[pin + sizeIn] += (.5-Sw)*grad_next*(val_m_1 > 0)*in_val;
-					sum_bp[pin + sizeIn] += (.5-Sw)*grad_next*(val_m_1 > 0);
-					sum_mn[pin + sizeIn] += (.5-Sw)*grad_next*(val_m_1 < 0)*in_val;
-					sum_bn[pin + sizeIn] += (.5-Sw)*grad_next*(val_m_1 < 0);
+					int in_ind_sw = out_ind + pin + sw_len;
 
+					float val_p_1 = in_val + const_area[in_ind_sw + 3*sizeIn];
+					float val_n_1 = in_val + const_area[in_ind_sw + 4*sizeIn];
+					target[out_par + pin + sw_len][tagOffset] += (.5-Sw)*grad_next*in_val;
+					target[out_par + sizeIn + pin + sw_len][tagOffset] += (.5-Sw)*grad_next*(val_p_1 > 0)*in_val;
+					target[out_par + 2*sizeIn + pin + sw_len][tagOffset] += (.5-Sw)*grad_next*(val_n_1 < 0);
+					target[out_par + 3*sizeIn + pin + sw_len][tagOffset] +=
+						(.5-Sw)*grad_next*const_area[in_ind_sw + sizeIn]*(val_p_1 > 0)*in_val;
+					target[out_par + 4*sizeIn + pin + sw_len][tagOffset] +=
+						(.5-Sw)*grad_next*const_area[in_ind_sw + 2*sizeIn]*grad_next*(val_n_1 < 0);
 				}
 			}
 		}
 
-		const int tagOffset = (threadIdx.x + blockIdx.x*blockDim.x) +  (threadIdx.y + blockIdx.y*blockDim.y)*strideTag;
 
-		for(int pin = 0; pin < sizeIn; pin++)
-		{
-			int out_par = pout*EL_SWITCH*sizeIn*ELWISE_FUNC_SEC;
-			target[out_par + pin][tagOffset] = sum[pin];
-			target[out_par + sizeIn + pin][tagOffset] = sum_mp[pin];
-			target[out_par + 2*sizeIn + pin][tagOffset] = sum_mn[pin];
-			target[out_par + 3*sizeIn + pin][tagOffset] = sum_bp[pin];
-			target[out_par + 4*sizeIn + pin][tagOffset] = sum_bn[pin];
-
-			target[out_par + pin + sw_len][tagOffset] = sum[pin + sizeIn];
-			target[out_par + sizeIn + pin + sw_len][tagOffset] = sum_mp[pin + sizeIn];
-			target[out_par + 2*sizeIn + pin + sw_len][tagOffset] = sum_mn[pin + sizeIn];
-			target[out_par + 3*sizeIn + pin + sw_len][tagOffset] = sum_bp[pin + sizeIn];
-			target[out_par + 4*sizeIn + pin + sw_len][tagOffset] = sum_bn[pin + sizeIn];
-
-		}
 	}
 }
 
