@@ -113,5 +113,16 @@ void dshrinkWeightGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& pos_bias, N
 void dshrinkGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& pos_bias, NVMatrix& neg_bias,
 					   NVMatrix& target);
 
+void computeEltwiseDFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& param, int channels, int size_in, int size_out);
+
+void computeEltwiseDFuncParamWeightGrad(NVMatrix& actGrad, NVMatrix& input,
+								 void* arrayPtr, vector<NVMatrix>& tempMatrix,
+								 NVMatrix& tempC, NVMatrix& tempB,
+								 vector<double>& param, float lim,
+								 int channels, int size_in, int size_out);
+
+void computeEltwiseDFuncGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& target,
+								 vector<double>& param, int channels, int size_in, int size_out);
+
 #endif	/* LAYER_KERNELS_CUH */
 

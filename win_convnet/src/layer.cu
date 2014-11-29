@@ -1561,7 +1561,7 @@ EltwiseDFuncLayer::EltwiseDFuncLayer(ConvNet* convNet, PyObject* paramsDict) : E
 
 void EltwiseDFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
-	//computeEltwiseFuncAct(*_inputs[inpIdx],  getActs(), _param, _channels, _sizeIn, _sizeOut);
+	computeEltwiseDFuncAct(*_inputs[inpIdx],  getActs(), _param, _channels, _sizeIn, _sizeOut);
 }
 
 void EltwiseDFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
@@ -1570,10 +1570,10 @@ void EltwiseDFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, P
 
 	float lim = 1./_param[paramSize-1];
 
-	//computeEltwiseFuncParamWeightGrad(v, *_inputs[inpIdx],
-	//							 _arrayPtr, _tempMatrixArray,
-	//							 _tempC, _tempB, _param, lim,
-	//							 _channels, _sizeIn, _sizeOut);
+	computeEltwiseDFuncParamWeightGrad(v, *_inputs[inpIdx],
+								 _arrayPtr, _tempMatrixArray,
+								 _tempC, _tempB, _param, lim,
+								 _channels, _sizeIn, _sizeOut);
 
 	_tempMatrixArray[0].ResizeAggStorage(_aggStorage._aggMatrix, _aggStorage._srcCPU);
 
@@ -1623,9 +1623,9 @@ void EltwiseDFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, P
 	int paramSwSectionLen = paramSize;
 #endif
 
-	double sumScale = _sizeIn*_sizeOut;
+	double sumScale = _sizeIn*_sizeOut*2;
 	int vect_len = _sizeIn*ELWISE_FUNC_SEC;
-	int vnorm_len = _sizeIn*2;
+	int vnorm_len = _sizeIn*5;
 
 
 
@@ -1667,7 +1667,7 @@ void EltwiseDFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, P
 
 
 
-//	computeEltwiseFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(), _param, _channels, _sizeIn, _sizeOut);
+	computeEltwiseDFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(), _param, _channels, _sizeIn, _sizeOut);
 
 //		printf("EltwiseFuncLayer bpropActs end\n");
 }
