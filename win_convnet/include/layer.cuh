@@ -261,13 +261,20 @@ protected:
 	vector<double> _grad_store[NSTORE];
 	vector<int> _nstore_count;
 
-    void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
-    void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
+    virtual void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
+    virtual void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
     void copyToCPU();
 public:
-	void setCommon(float eps_scale);
+	virtual void setCommon(float eps_scale);
     EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict);
 	~EltwiseFuncLayer();
+};
+
+class EltwiseDFuncLayer : public EltwiseFuncLayer {
+    void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
+    void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
+public:
+    EltwiseDFuncLayer(ConvNet* convNet, PyObject* paramsDict);
 };
 
 class MAvgPoolLayer : public Layer {

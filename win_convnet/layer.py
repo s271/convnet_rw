@@ -653,7 +653,7 @@ class EltwiseFuncParser(LayerWithInputParser):
         dic['channels'] = mcp.safe_get_int(name, 'channels')
         dic['outputs'] = dic['numInputs'][0]*dic['size_out']/dic['size_in']
 
-        param_sec = 3 #2 without bias, 3 - bias, 4-shrink
+        param_sec = 3 #2 without bias, 3 - bias,
         switch_sec = 2
         
         size_param = switch_sec*param_sec*dic['size_in']*dic['size_out']
@@ -683,6 +683,7 @@ class EltwiseFuncParser(LayerWithInputParser):
                 
             for i in range(1,szin):   
                 meta_param[j*stride_out + szin + ((i+j)%szin)]=1. 
+
                 
             if switch_sec > 1:
                 for i in range(szin): 
@@ -695,11 +696,7 @@ class EltwiseFuncParser(LayerWithInputParser):
                     meta_param[j*stride_out + param_len + szin + i]= b_value   
                               
                 meta_param[j*stride_out + param_len + szin + ((0+j)%szin)]=1. 
-                '''
-            for i in range(szin):   
-                meta_param[j*param_sec*szin + i]= (((i+j)%szin)+1)*1./szin
-                meta_param[j*param_sec*szin + szin + i]=(((i+j+1)%szin)+1)*1./szin 
-            '''
+
             
         meta_param_inc = [0.]*size_param
 
@@ -708,6 +705,93 @@ class EltwiseFuncParser(LayerWithInputParser):
 
         print "Initialized elementwise func layer '%s', producing %d outputs" % (name, dic['outputs'])
         return dic 
+        
+        
+class EltwiseDFuncParser(LayerWithInputParser):
+    def __init__(self):
+        LayerWithInputParser.__init__(self)
+        
+    def add_params(self, mcp):
+        LayerWithInputParser.add_params(self, mcp)
+
+        dic, name = self.dic, self.dic['name'] 
+        dic['gradConsumer'] = True
+        dic['epsP'] = mcp.safe_get_float(name, 'epsP')      
+        dic['wc'] = mcp.safe_get_float(name, 'wc')    
+        dic['mom'] = mcp.safe_get_float(name, 'mom')     
+        
+    def parse(self, name, mcp, prev_layers, model):
+        dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
+        if len(set(dic['numInputs'])) != 1:
+            raise LayerParsingError("Layer '%s': all inputs must have the same dimensionality. Got dimensionalities: %s" % (name, ", ".join(str(s) for s in dic['numInputs'])))
+        
+        dic['size_in'] = mcp.safe_get_int(name, 'size_in')
+        dic['size_out'] = mcp.safe_get_int(name, 'size_out') 
+        dic['channels'] = mcp.safe_get_int(name, 'channels')
+        dic['outputs'] = dic['numInputs'][0]*dic['size_out']/dic['size_in']
+
+        param_sec = 5 #2 without bias, 3 - bias, 4-shrink
+        switch_sec = 2
+        
+        size_param = switch_sec*param_sec*dic['size_in']*dic['size_out']
+        if switch_sec > 1:
+            size_param += 2
+        dic['updates'] = mcp.safe_get_int(name, 'updates', default=param_sec*dic['size_in'])         
+    
+    
+        meta_param = [0.]*size_param     
+        if switch_sec > 1:
+            meta_param[size_param-2] = 100.
+        
+        szout = dic['size_out']
+        szin = dic['size_in']
+        param_len = param_sec*szin
+        stride_out = switch_sec*param_len
+        b_value = 0.
+        for j in range(szout):   
+            
+            for i in range(szin):   
+                meta_param[j*stride_out + i]= b_value   
+                
+            meta_param[j*stride_out + ((0+j)%szin)]=1.
+#pos relu            
+            for i in range(szin): 
+                meta_param[j*stride_out + szin + i]= b_value 
+                
+            for i in range(1,szin):   
+                meta_param[j*stride_out + szin + ((i+j)%szin)]=1. 
+#neg relu                
+            for i in range(szin): 
+                meta_param[j*stride_out + 2*szin + i]= b_value 
+                
+            for i in range(1,szin):   
+                meta_param[j*stride_out + 2*szin + ((i+j)%szin)]=1.                                 
+# 2nd section
+                
+            if switch_sec > 1:
+                for i in range(szin): 
+                    meta_param[j*stride_out + param_len + i]= b_value
+                    
+                for i in range(1, szin):   
+                    meta_param[j*stride_out + param_len + ((i+j)%szin)]=1.                                   
+#pos relu                    
+                for i in range(szin):    
+                    meta_param[j*stride_out + param_len + szin + i]= b_value   
+                              
+                meta_param[j*stride_out + param_len + szin + ((0+j)%szin)]=1. 
+#neg relu
+                for i in range(szin):    
+                    meta_param[j*stride_out + param_len + 2*szin + i]= b_value   
+                              
+                meta_param[j*stride_out + param_len + 2*szin + ((0+j)%szin)]=1.                 
+            
+        meta_param_inc = [0.]*size_param
+
+        dic['meta_param'] = meta_param    
+        dic['meta_param_inc'] = meta_param_inc 
+
+        print "Initialized elementwise func layer '%s', producing %d outputs" % (name, dic['outputs'])
+        return dic         
         
 class VectFuncParser(LayerWithInputParser):        
     def __init__(self):
@@ -1496,6 +1580,7 @@ layer_parsers = {'data': lambda : DataLayerParser(),
                  'mavg': lambda : MAvgParser(),
                  'eltmax': lambda : EltwiseMaxLayerParser(),
                  'eltfunc': lambda : EltwiseFuncParser(),
+                 'eltdfunc': lambda : EltwiseDFuncParser(),
                  'dshrink': lambda : ShrinkLayerParser(),
                  'vfunc': lambda : VectFuncParser(),
                  'neuron': lambda : NeuronLayerParser(),

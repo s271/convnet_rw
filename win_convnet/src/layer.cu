@@ -1551,6 +1551,127 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 //		printf("EltwiseFuncLayer bpropActs end\n");
 }
 
+/* 
+ * =======================
+ * EltwiseDFuncLayer
+ * =======================
+ */
+EltwiseDFuncLayer::EltwiseDFuncLayer(ConvNet* convNet, PyObject* paramsDict) : EltwiseFuncLayer(convNet, paramsDict){
+}
+
+void EltwiseDFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
+
+	//computeEltwiseFuncAct(*_inputs[inpIdx],  getActs(), _param, _channels, _sizeIn, _sizeOut);
+}
+
+void EltwiseDFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
+
+	int paramSize = _param.size();
+
+	float lim = 1./_param[paramSize-1];
+
+	//computeEltwiseFuncParamWeightGrad(v, *_inputs[inpIdx],
+	//							 _arrayPtr, _tempMatrixArray,
+	//							 _tempC, _tempB, _param, lim,
+	//							 _channels, _sizeIn, _sizeOut);
+
+	_tempMatrixArray[0].ResizeAggStorage(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+
+	//_tempB.ResizeAggStorage(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);B, C off
+
+	for(int kp = 0; kp < paramSize-2; kp++)//paramSize-2, B, C off
+	{
+
+		double grad = 0;
+		if(kp < paramSize-2)
+			 grad = _tempMatrixArray[kp].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+		else if(kp == paramSize-2)
+			grad =0;// _tempC.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
+		else if(kp == paramSize-1)
+			_tempB.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
+		
+//should make orthognal projection to equal vector(sizeIn)
+
+		double sum_grad = 0;
+		for(int k = 0; k < NSTORE; k++)
+		{
+			sum_grad += _grad_store[k][kp]*_grad_store[k][kp];
+		}
+
+		_grad_store[_nstore_count[kp]][kp] = grad;
+		_nstore_count[kp] = (_nstore_count[kp]+1)%NSTORE;
+
+		if(sum_grad > 0)
+			grad = grad*sqrt(NSTORE)/sqrt(sum_grad);
+	
+		double eps = _epsP;
+		double wc = _wc;
+
+		_param_inc[kp] = _mom*_param_inc[kp] + eps*grad - wc*_param[kp];
+			
+//debug
+		if(kp != paramSize-2)
+			_param[kp] += _param_inc[kp];
+	}
+
+
+
+
+#ifdef EL_SWITCH
+	int paramSwSectionLen = (paramSize-2)/EL_SWITCH;
+#else
+	int paramSwSectionLen = paramSize;
+#endif
+
+	double sumScale = _sizeIn*_sizeOut;
+	int vect_len = _sizeIn*ELWISE_FUNC_SEC;
+	int vnorm_len = _sizeIn*2;
+
+
+
+	for(int k_sw = 0; k_sw < EL_SWITCH; k_sw++)
+	{
+		double l1sum = 0;
+		for(int k_out = 0; k_out < _sizeOut; k_out++)
+		{
+			for(int kinp = 0; kinp < vnorm_len; kinp++)
+			{
+				double pv = _param[k_out*EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn + k_sw*ELWISE_FUNC_SEC*_sizeIn + kinp];
+				l1sum += fabs(pv);
+			}
+		}
+		
+		assert(l1sum>0);
+
+		for(int k_out = 0; k_out < _sizeOut; k_out++)
+		{
+			for(int kinp = 0; kinp < vnorm_len; kinp++)
+				_param[k_out*EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn + k_sw*ELWISE_FUNC_SEC*_sizeIn + kinp] *= sumScale/l1sum;
+		}
+	}
+
+
+	if(minibatch == 0)
+	{
+		int nump = _sizeIn*ELWISE_FUNC_SEC;
+		int numl = (_param.size()+nump-1)/nump;
+		printf("** params *** \n");
+		for (int nk = 0; nk < numl; nk++)
+		{
+			for (int k = 0; k < nump; k++)
+				if(k + nk*nump < _param.size())
+				printf("%f ", _param[k + nk*nump]);
+			printf("\n");
+		}
+	}
+
+
+
+//	computeEltwiseFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(), _param, _channels, _sizeIn, _sizeOut);
+
+//		printf("EltwiseFuncLayer bpropActs end\n");
+}
+
 
 /* 
  * =======================

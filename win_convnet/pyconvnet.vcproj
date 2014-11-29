@@ -387,6 +387,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\src\dact_kernels.cu"
+				>
+			</File>
+			<File
 				RelativePath=".\src\data.cu"
 				>
 			</File>
