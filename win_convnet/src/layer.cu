@@ -117,7 +117,6 @@ void Layer::fprop(NVMatrixV& v, PASS_TYPE passType) {
         (*it)->transpose(_trans);
     }
     getActs().transpose(_trans);
-
     // First do fprop on the input whose acts matrix I'm sharing, if any
     if (_actsTarget >= 0) {
         fpropActs(_actsTarget, 0, passType);
@@ -503,7 +502,23 @@ void DShrinkLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType)
 	WeightLayer* prevLayer = (WeightLayer*)_prev[inpIdx];
 	Weights* prevBias = prevLayer->getBiases();
 
+	ConvLayer* convLayer = (ConvLayer*)_prev[0];
+	assert(convLayer->isSharedBiases());
 
+	int numFilters = convLayer->getNumFilters();
+	int modules = convLayer->getNumModules();
+
+    if (!getActs().isSameDims(*_inputs[inpIdx])) {
+        getActs().resize(*_inputs[inpIdx]);
+    }
+
+	printf("getActs() tran %i rc %i %i \n", getActs().isTrans(),
+		getActs().getNumRows(), getActs().getNumCols());
+
+    (*_inputs[inpIdx]).reshape(numFilters, (*_inputs[inpIdx]).getNumElements() / numFilters);
+     getActs().reshape(numFilters, getActs().getNumElements() / numFilters);
+
+	printf(" fpropActs %s prev bias  cont %i bias cont %i \n", _name.c_str(), prevBias->getW().isContiguous(), _biases->getW().isContiguous());  
 
 	printf("inp tran %i rc %i %i pbias %i %i %i biases %i %i %i \n", 
 		(*_inputs[inpIdx]).isTrans(),
@@ -513,12 +528,16 @@ void DShrinkLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType)
 		_biases->getW().isTrans(),
 		_biases->getW().getNumRows(), _biases->getW().getNumCols());
 
-	_inputs[inpIdx]->applyTernaryV(NVMatrixTernaryOps::DShrink(), prevBias->getW(), _biases->getW(), _prev[inpIdx]->getActsGrad());
+
+	_inputs[inpIdx]->applyTernaryV(NVMatrixTernaryOps::DShrink(), prevBias->getW(), _biases->getW(), getActs());
+
+     (*_inputs[inpIdx]).reshape(numFilters * modules, (*_inputs[inpIdx]).getNumElements() / (numFilters * modules));
+	 getActs().reshape(numFilters * modules, getActs().getNumElements() / (numFilters * modules));
 
 };
 
 void DShrinkLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
-
+printf("start bpropActs \n");
 	assert(_prev[inpIdx]->getType() == "conv");
 
 	WeightLayer* prevLayer = (WeightLayer*)_prev[inpIdx];
@@ -533,8 +552,6 @@ void DShrinkLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_T
 		_prev[inpIdx]->getActsGrad().getNumRows(), _prev[inpIdx]->getActsGrad().getNumCols());
 
 
-
-
 	dshrinkGrad(v, *_inputs[inpIdx], prevBias->getW(), _biases->getW(),
 					   _prev[inpIdx]->getActsGrad());
 
@@ -542,7 +559,7 @@ void DShrinkLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_T
 
 void DShrinkLayer::bpropBiases(NVMatrix& v, PASS_TYPE passType)
 {
-
+printf("start bpropBiases \n");
 	assert(_prev.size() == 1);
 	assert(_prev[0]->getType() == "conv");
 
@@ -584,11 +601,11 @@ void DShrinkLayer::bpropBiases(NVMatrix& v, PASS_TYPE passType)
         _temp_pos.reshape(numFilters * modules, _temp_neg.getNumElements() / (numFilters * modules));
 
 	}
-	else //fc layer
-	{
-        prevBias->getGrad().addSum(_temp_pos, 1, 0, scaleBGrad);
-		_biases->getGrad().addSum(_temp_neg, 1, 0, scaleBGrad);
-	}
+	//else //fc layer
+	//{
+ //       prevBias->getGrad().addSum(_temp_pos, 1, 0, scaleBGrad);
+	//	_biases->getGrad().addSum(_temp_neg, 1, 0, scaleBGrad);
+	//}
 
 };
 
@@ -723,7 +740,6 @@ void ConvLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
     }
 //debug
 //getActs().nan2zero();
-   
 
 	if (scaleTargets == 0 && !_notUseBias) {
 		if (_sharedBiases) {

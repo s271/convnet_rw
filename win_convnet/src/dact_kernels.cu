@@ -14,65 +14,99 @@ __device__ inline float Switch(float s, float C)
 	//return (s>0)*.5 - (s<0)*.5;
 }
 
-__global__ void kDShrinkWeightGrad(const float* actGrad, const float* input,
-								   const float* pos_bias, const float* neg_bias,
-								   float* const target_pos, float* const target_neg,
-                                   const uint height, const uint width, uint stride) {
-    const uint idxX = blockIdx.x * ELTWISE_THREADS_X + threadIdx.x;
-    const uint idxY = blockIdx.y * ELTWISE_THREADS_Y + threadIdx.y;
+__global__ void kDShrinkGrad(const float* input, const float* actGrad, const float* vec_0, const float* vec_1, float* const tgt,
+                             const uint width, const uint height,
+                             const uint matStride, const uint tgtStride) {
 
-    for (uint y = idxY; y < height; y += gridDim.y * ELTWISE_THREADS_Y) {
-        for (uint x = idxX; x < width; x += gridDim.x * ELTWISE_THREADS_X) {
-			uint ind = y * stride + x;
-			float inp = input[ind];
-			float v_pos = fmaxf(inp + pos_bias[ind], 0);
-			float v_neg = fminf(inp + neg_bias[ind], 0);
-			float agrad = actGrad[ind];
-			float tpos = 0;
-			float tneg = 0;
+    __shared__ float shVec_0[ADD_VEC_THREADS_Y];
+	__shared__ float shVec_1[ADD_VEC_THREADS_Y];
+    const uint by = ADD_VEC_THREADS_Y * blockIdx.y;
+    const uint bx = ADD_VEC_THREADS_X * blockIdx.x;
+//    const uint matIdx = (by + threadIdx.y) * matStride + bx + threadIdx.x;
+//    const uint tgtIdx = (by + threadIdx.y) * tgtStride + bx + threadIdx.x;
+    const uint tidx = ADD_VEC_THREADS_X * threadIdx.y + threadIdx.x;
 
-			if(v_pos > -v_neg)
-			{
-				tpos += agrad;
-			}
+    for (uint y = by; y < height; y += gridDim.y * ADD_VEC_THREADS_Y) {
+        __syncthreads();
+        if (y + tidx < height && tidx < ADD_VEC_THREADS_Y) {
+            shVec_0[tidx] = vec_0[y + tidx];
+			shVec_1[tidx] = vec_1[y + tidx];
+        }
+        __syncthreads();
 
-			if(-v_neg > v_pos)
-			{
-				tneg += agrad;
-			}
+        if (y + threadIdx.y < height) {
+            for (uint x = bx + threadIdx.x; x < width; x += gridDim.x * ADD_VEC_THREADS_X) {
 
-			target_pos[ind] = tpos;
-			target_pos[ind] = tneg;
+				float b_pos = shVec_0[threadIdx.y];
+				float b_neg = shVec_1[threadIdx.y];
+				int ind  = (y+threadIdx.y) * matStride + x;
+				float inp = input[ind];
+				float act_grad = actGrad[ind];
+				
+				float grad;
+				if(b_pos > b_neg)
+				{
+					grad = ((inp > b_pos)||(inp < b_neg))*act_grad;
+				}
+				else
+				{
+					grad = act_grad;
+				}
+
+                tgt[(y+threadIdx.y) * tgtStride + x] = grad;
+            }
         }
     }
 }
 
-__global__ void kDShrinkGrad(const float* actGrad, const float* input,
-							const float* pos_bias, const float* neg_bias,
-							float* const target,
-                            const uint height, const uint width, uint stride) {
-    const uint idxX = blockIdx.x * ELTWISE_THREADS_X + threadIdx.x;
-    const uint idxY = blockIdx.y * ELTWISE_THREADS_Y + threadIdx.y;
+__global__ void kDShrinkWeightGrad(const float* input, const float* actGrad, const float* vec_0, const float* vec_1,
+								   float* const tgt_p, float* const tgt_n,
+									const uint width, const uint height,
+									const uint matStride, const uint tgtStride) {
 
-    for (uint y = idxY; y < height; y += gridDim.y * ELTWISE_THREADS_Y) {
-        for (uint x = idxX; x < width; x += gridDim.x * ELTWISE_THREADS_X) {
-			uint ind = y * stride + x;
-			float b_pos = pos_bias[ind];
-			float b_neg = neg_bias[ind];
-			float inp = input[ind];
-			float agrad = actGrad[ind];
-			
-			float grad;
-			if(b_pos > b_neg)
-			{
-				grad = ((inp > b_pos)||(inp < b_neg))*agrad;
-			}
-			else
-			{
-				grad = agrad;
-			}
+    __shared__ float shVec_0[ADD_VEC_THREADS_Y];
+	__shared__ float shVec_1[ADD_VEC_THREADS_Y];
+    const uint by = ADD_VEC_THREADS_Y * blockIdx.y;
+    const uint bx = ADD_VEC_THREADS_X * blockIdx.x;
+//    const uint matIdx = (by + threadIdx.y) * matStride + bx + threadIdx.x;
+//    const uint tgtIdx = (by + threadIdx.y) * tgtStride + bx + threadIdx.x;
+    const uint tidx = ADD_VEC_THREADS_X * threadIdx.y + threadIdx.x;
 
-			target[ind] = grad;
+    for (uint y = by; y < height; y += gridDim.y * ADD_VEC_THREADS_Y) {
+        __syncthreads();
+        if (y + tidx < height && tidx < ADD_VEC_THREADS_Y) {
+            shVec_0[tidx] = vec_0[y + tidx];
+			shVec_1[tidx] = vec_1[y + tidx];
+        }
+        __syncthreads();
+
+        if (y + threadIdx.y < height) {
+            for (uint x = bx + threadIdx.x; x < width; x += gridDim.x * ADD_VEC_THREADS_X) {
+
+				float b_pos = shVec_0[threadIdx.y];
+				float b_neg = shVec_1[threadIdx.y];
+				int ind  = (y+threadIdx.y) * matStride + x;
+				float inp = input[ind];
+				float act_grad = actGrad[ind];				
+				float v_pos = fmaxf(inp + b_pos, 0);
+				float v_neg = fminf(inp + b_neg, 0);
+
+				float tpos = 0;
+				float tneg = 0;
+
+				if(v_pos > -v_neg)
+				{
+					tpos += act_grad;
+				}
+
+				if(-v_neg > v_pos)
+				{
+					tneg += act_grad;
+				}
+
+                tgt_p[(y+threadIdx.y) * tgtStride + x] = tpos;
+				tgt_n[(y+threadIdx.y) * tgtStride + x] = tneg;
+            }
         }
     }
 }
@@ -353,9 +387,8 @@ __global__ void kEltwiseDFuncGrad(const float* actGrad, const float* input, floa
 
 void dshrinkWeightGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& pos_bias, NVMatrix& neg_bias,
 					   NVMatrix& target_pos, NVMatrix& target_neg){
+
     assert(actGrad.isSameDims(input));
-	assert(actGrad.isSameDims(pos_bias));
-	assert(actGrad.isSameDims(neg_bias));
 	assert(actGrad.isSameDims(target_pos));
 	assert(actGrad.isSameDims(target_neg));
 
@@ -365,40 +398,63 @@ void dshrinkWeightGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& pos_bias, N
 	assert(actGrad.isTrans() == target_pos.isTrans());
 	assert(actGrad.isTrans() == target_neg.isTrans());
 
+	assert(actGrad.getStride() == input.getStride());
 
+    assert(pos_bias.getNumRows() == 1 || pos_bias.getNumCols() == 1);
+    assert(pos_bias.getNumRows() == input.getNumRows() || pos_bias.getNumCols() == input.getNumCols());
+    assert(pos_bias.isContiguous());
+	assert(neg_bias.isContiguous());
 
-    int height = actGrad.getFollowingDim(), width = actGrad.getLeadingDim();
-    dim3 blocks(std::min(NUM_BLOCKS_MAX, DIVUP(width, ELTWISE_THREADS_X)),
-                std::min(NUM_BLOCKS_MAX, DIVUP(height, ELTWISE_THREADS_Y)));
-    dim3 threads(ELTWISE_THREADS_X, ELTWISE_THREADS_Y);
+    target_pos.resize(input); // target must be same orientation as me for now
+	target_neg.resize(input);
 
-	kDShrinkWeightGrad<<<blocks, threads>>>(actGrad.getDevData(), input.getDevData(), pos_bias.getDevData(),
-											neg_bias.getDevData(), target_pos.getDevData(), target_neg.getDevData(),
-											height, width, actGrad.getStride());
+	if (pos_bias.getNumRows() == input.getNumRows() && !input.isTrans() || pos_bias.getNumCols() == input.getNumCols() && input.isTrans());
+
+    int width = input.getLeadingDim(); //_isTrans ? _numRows : _numCols;
+    int height = input.getFollowingDim(); //_isTrans ? _numCols : _numRows;
+    dim3 threads(ADD_VEC_THREADS_X, ADD_VEC_THREADS_Y);
+    dim3 blocks(MIN(NUM_BLOCKS_MAX, DIVUP(width, ADD_VEC_THREADS_X)), MIN(NUM_BLOCKS_MAX, DIVUP(height, ADD_VEC_THREADS_Y)));
+
+	kDShrinkWeightGrad<<<blocks, threads>>>(input.getDevData(), actGrad.getDevData(),  pos_bias.getDevData(), neg_bias.getDevData(),
+											target_pos.getDevData(), target_neg.getDevData(),
+									        width, height,
+											actGrad.getStride(), target_pos.getStride());
+
 
     cutilCheckMsg("dshrinkWeightGrad: Kernel execution failed");
 }
 
 void dshrinkGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& pos_bias, NVMatrix& neg_bias,
 					   NVMatrix& target){
-    assert(actGrad.isSameDims(input));
-	assert(actGrad.isSameDims(pos_bias));
-	assert(actGrad.isSameDims(neg_bias));
-	assert(actGrad.isSameDims(target));
+
+	assert(pos_bias.isSameDims(neg_bias));
+	assert(input.isSameDims(target));
 
     assert(actGrad.isTrans() == input.isTrans());
 	assert(actGrad.isTrans() == pos_bias.isTrans());
 	assert(actGrad.isTrans() == neg_bias.isTrans());
 	assert(actGrad.isTrans() == target.isTrans());
 
-    int height = actGrad.getFollowingDim(), width = actGrad.getLeadingDim();
-    dim3 blocks(std::min(NUM_BLOCKS_MAX, DIVUP(width, ELTWISE_THREADS_X)),
-                std::min(NUM_BLOCKS_MAX, DIVUP(height, ELTWISE_THREADS_Y)));
-    dim3 threads(ELTWISE_THREADS_X, ELTWISE_THREADS_Y);
+	assert(actGrad.getStride() == input.getStride());
 
-	kDShrinkGrad<<<blocks, threads>>>(actGrad.getDevData(), input.getDevData(), pos_bias.getDevData(),
-											neg_bias.getDevData(), target.getDevData(),
-											height, width, actGrad.getStride());
+    assert(pos_bias.getNumRows() == 1 || pos_bias.getNumCols() == 1);
+    assert(pos_bias.getNumRows() == input.getNumRows() || pos_bias.getNumCols() == input.getNumCols());
+    assert(pos_bias.isContiguous());
+	assert(neg_bias.isContiguous());
+
+    target.resize(input); // target must be same orientation as me for now
+
+	if (pos_bias.getNumRows() == input.getNumRows() && !input.isTrans() || pos_bias.getNumCols() == input.getNumCols() && input.isTrans());
+
+    int width = input.getLeadingDim(); //_isTrans ? _numRows : _numCols;
+    int height = input.getFollowingDim(); //_isTrans ? _numCols : _numRows;
+    dim3 threads(ADD_VEC_THREADS_X, ADD_VEC_THREADS_Y);
+    dim3 blocks(MIN(NUM_BLOCKS_MAX, DIVUP(width, ADD_VEC_THREADS_X)), MIN(NUM_BLOCKS_MAX, DIVUP(height, ADD_VEC_THREADS_Y)));
+
+	kDShrinkGrad<<<blocks, threads>>>(input.getDevData(), actGrad.getDevData(), 
+									pos_bias.getDevData(), neg_bias.getDevData(),
+									target.getDevData(),
+									width, height, actGrad.getStride(), target.getStride());
 
     cutilCheckMsg("dshrinkGrad: Kernel execution failed");
 }

@@ -491,6 +491,7 @@ public:
         } else {
             kRowVectorTernaryOp<Op><<<blocks,threads>>>(_devData, vec_0._devData, vec_1._devData, target._devData, width, height, getStride(), target.getStride(), op);
         }
+
         cutilCheckMsg("Kernel execution failed");
     //    cudaThreadSynchronize();
     }
