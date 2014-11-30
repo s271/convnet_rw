@@ -472,6 +472,29 @@ public:
     //    cudaThreadSynchronize();
     }
 
+    template <class Op> void applyTernaryV(Op op, NVMatrix& vec_0, NVMatrix& vec_1, NVMatrix& target) {
+        assert(&target != &vec_0); // for now
+		assert(vec_0.isSameDims(vec_1));
+		assert(vec_0.isTrans() == vec_1.isTrans());
+        assert(vec_0.getNumRows() == 1 || vec_0.getNumCols() == 1);
+        assert(vec_0.getNumRows() == _numRows || vec_0.getNumCols() == _numCols);
+        assert(vec_0.isContiguous());
+
+        target.resize(*this); // target must be same orientation as me for now
+
+        int width = getLeadingDim(); //_isTrans ? _numRows : _numCols;
+        int height = getFollowingDim(); //_isTrans ? _numCols : _numRows;
+        dim3 threads(ADD_VEC_THREADS_X, ADD_VEC_THREADS_Y);
+        dim3 blocks(MIN(NUM_BLOCKS_MAX, DIVUP(width, ADD_VEC_THREADS_X)), MIN(NUM_BLOCKS_MAX, DIVUP(height, ADD_VEC_THREADS_Y)));
+        if (vec_0.getNumRows() == _numRows && !isTrans() || vec_0.getNumCols() == _numCols && isTrans()) {
+            kColVectorTernaryOp<Op><<<blocks,threads>>>(_devData, vec_0._devData, vec_1._devData, target._devData, width, height, getStride(), target.getStride(), op);
+        } else {
+            kRowVectorTernaryOp<Op><<<blocks,threads>>>(_devData, vec_0._devData, vec_1._devData, target._devData, width, height, getStride(), target.getStride(), op);
+        }
+        cutilCheckMsg("Kernel execution failed");
+    //    cudaThreadSynchronize();
+    }
+
     template<class UnaryOperator> float argMax(UnaryOperator u) {
        return _totalAgg(NVMatrixAggs::ArgMax<UnaryOperator>(u));
     }

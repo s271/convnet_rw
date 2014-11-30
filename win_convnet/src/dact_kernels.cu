@@ -14,31 +14,6 @@ __device__ inline float Switch(float s, float C)
 	//return (s>0)*.5 - (s<0)*.5;
 }
 
-__global__ void kDShrinkAct(const float* input,
-							const float* pos_bias, const float* neg_bias,
-							float* const target,
-                            const uint height, const uint width, uint stride) {
-    const uint idxX = blockIdx.x * ELTWISE_THREADS_X + threadIdx.x;
-    const uint idxY = blockIdx.y * ELTWISE_THREADS_Y + threadIdx.y;
-
-    for (uint y = idxY; y < height; y += gridDim.y * ELTWISE_THREADS_Y) {
-        for (uint x = idxX; x < width; x += gridDim.x * ELTWISE_THREADS_X) {
-			uint ind = y * stride + x;
-			float inp = input[ind];
-			float v_pos = fmax(inp + pos_bias[ind], 0);
-			float v_neg = fmin(inp + neg_bias[ind], 0);
-			float tag = 0;
-			if(v_pos > -v_neg)
-				tag = v_pos;
-			if(-v_neg > v_pos)
-				tag = v_neg;
-
-			target[ind] = tag;
-        }
-    }
-}
-
-
 __global__ void kDShrinkWeightGrad(const float* actGrad, const float* input,
 								   const float* pos_bias, const float* neg_bias,
 								   float* const target_pos, float* const target_neg,
@@ -375,28 +350,6 @@ __global__ void kEltwiseDFuncGrad(const float* actGrad, const float* input, floa
 }
 
 //*************************************************************************************
-void dshrinkAct(NVMatrix& input, NVMatrix& pos_bias, NVMatrix& neg_bias,
-					   NVMatrix& target){
-	assert(input.isSameDims(pos_bias));
-	assert(input.isSameDims(neg_bias));
-	assert(input.isSameDims(target));
-
-	assert(input.isTrans() == pos_bias.isTrans());
-	assert(input.isTrans() == neg_bias.isTrans());
-	assert(input.isTrans() == target.isTrans());
-
-    int height = input.getFollowingDim(), width = input.getLeadingDim();
-    dim3 blocks(std::min(NUM_BLOCKS_MAX, DIVUP(width, ELTWISE_THREADS_X)),
-                std::min(NUM_BLOCKS_MAX, DIVUP(height, ELTWISE_THREADS_Y)));
-    dim3 threads(ELTWISE_THREADS_X, ELTWISE_THREADS_Y);
-
-	kDShrinkAct<<<blocks, threads>>>(input.getDevData(), pos_bias.getDevData(),
-											neg_bias.getDevData(), target.getDevData(),
-											height, width, input.getStride());
-
-    cutilCheckMsg("dshrinkGrad: Kernel execution failed");
-}
-
 
 void dshrinkWeightGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& pos_bias, NVMatrix& neg_bias,
 					   NVMatrix& target_pos, NVMatrix& target_neg){
@@ -460,7 +413,6 @@ void computeEltwiseDFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& p
 
 	int out_width = inp_width;
 	int out_height = (inp_height*size_out)/size_in;
-
 
     if (target.getNumCols() != out_width || target.getNumRows() != out_height) {
         target.resize(out_height, out_width);

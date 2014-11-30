@@ -493,7 +493,7 @@ extern  int gmini_max;//temp
  * =======================
  */
 
-DShrinkLayer::DShrinkLayer(ConvNet* convNet, PyObject* paramsDict) : BiasLayer(convNet, paramsDict, true, false) {
+DShrinkLayer::DShrinkLayer(ConvNet* convNet, PyObject* paramsDict) : BiasLayer(convNet, paramsDict, false, true) {
 }
 
 void DShrinkLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType)
@@ -513,8 +513,7 @@ void DShrinkLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType)
 		_biases->getW().isTrans(),
 		_biases->getW().getNumRows(), _biases->getW().getNumCols());
 
-	dshrinkAct(*_inputs[inpIdx], prevBias->getW(), _biases->getW(),
-					   _prev[inpIdx]->getActsGrad());
+	_inputs[inpIdx]->applyTernaryV(NVMatrixTernaryOps::DShrink(), prevBias->getW(), _biases->getW(), _prev[inpIdx]->getActsGrad());
 
 };
 

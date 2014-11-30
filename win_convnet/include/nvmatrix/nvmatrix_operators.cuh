@@ -418,6 +418,19 @@ public:
             return a + b + c;
         }
     };
+    class DShrink{
+    public:
+        __device__ inline float operator()(const float a, const float b, const float c) const {
+            float v_pos = fmax(a + b, 0);
+			float v_neg = fmin(a + c, 0);
+			float tag = 0;
+			if(v_pos > -v_neg)
+				tag = v_pos;
+			if(-v_neg > v_pos)
+				tag = v_neg;
+			return tag;
+        }
+    };
 };
 
 #endif	/* NVMATRIX_OPERATORS_CUH */

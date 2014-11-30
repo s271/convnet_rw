@@ -1433,7 +1433,7 @@ void computeEltwiseFuncAct(NVMatrix& input, NVMatrix& target, vector<double>& pa
 	int out_width = inp_width;
 	int out_height = (inp_height*size_out)/size_in;
 
-	//printf(" inp_height %i inp_width %i \n",inp_height, inp_width);
+	//printf("computeEltwiseFuncAct inp_height %i inp_width %i tran %i \n",inp_height, inp_width, input.isTrans());
 	//printf(" size_in %i size_out %i \n", size_in, size_out);
 	//printf(" out_height %i out_width %i \n",out_height, out_width);
 
