@@ -551,15 +551,33 @@ printf("start bpropActs \n");
 		_biases->getW().getNumRows(), _biases->getW().getNumCols(),
 		_prev[inpIdx]->getActsGrad().getNumRows(), _prev[inpIdx]->getActsGrad().getNumCols());
 
+	ConvLayer* convLayer = (ConvLayer*)_prev[0];
+	assert(convLayer->isSharedBiases());
 
+	int numFilters = convLayer->getNumFilters();
+	int modules = convLayer->getNumModules();
+
+
+	 _prev[inpIdx]->getActsGrad().resize(v); // target must be same orientation as me for now
+
+	_inputs[0]->reshape(numFilters, _temp_neg.getNumElements() / numFilters);
+	v.reshape(numFilters, _temp_neg.getNumElements() / numFilters);
+	_prev[inpIdx]->getActsGrad().reshape(numFilters, _temp_neg.getNumElements() / numFilters);
+
+//no reshape inside dshrinkGrad
 	dshrinkGrad(v, *_inputs[inpIdx], prevBias->getW(), _biases->getW(),
 					   _prev[inpIdx]->getActsGrad());
+
+	 _inputs[0]->reshape(numFilters * modules, _temp_pos.getNumElements() / (numFilters * modules));
+	 v.reshape(numFilters * modules, _temp_pos.getNumElements() / (numFilters * modules));
+	 _prev[inpIdx]->getActsGrad().reshape(numFilters * modules, _temp_pos.getNumElements() / (numFilters * modules));
+
 
 }
 
 void DShrinkLayer::bpropBiases(NVMatrix& v, PASS_TYPE passType)
 {
-printf("start bpropBiases \n");
+printf("start DShrinkLayer::bpropBiases \n");
 	assert(_prev.size() == 1);
 	assert(_prev[0]->getType() == "conv");
 
@@ -569,18 +587,12 @@ printf("start bpropBiases \n");
 	assert(prevBias->getW().getNumRows() == _biases->getW().getNumRows()
 		&& prevBias->getW().getNumCols() == _biases->getW().getNumCols());
 
-	assert(prevLayer->getActs().getNumRows() == _biases->getW().getNumRows()
-		&& prevLayer->getActs().getNumCols() == _biases->getW().getNumCols());
-
-	assert(_inputs.size()==1);
 
 	_temp_pos.resizeUp(v.getNumRows(), v.getNumCols());
 	_temp_neg.resizeUp(v.getNumRows(), v.getNumCols());
 
 	 int numCases = v.getNumCols();
 
-	dshrinkWeightGrad(v, *_inputs[0], prevBias->getW(), _biases->getW(),
-					   _temp_pos, _temp_neg);
 
 	float scaleBGrad = _biases->getEps() / numCases;
 
@@ -592,17 +604,32 @@ printf("start bpropBiases \n");
 		int numFilters = convLayer->getNumFilters();
 		int modules = convLayer->getNumModules();
 
-        _temp_pos.reshape(numFilters, _temp_pos.getNumElements() / numFilters);
-        prevBias->getGrad().addSum(_temp_pos, 1, 0, scaleBGrad);
-        _temp_pos.reshape(numFilters * modules, _temp_pos.getNumElements() / (numFilters * modules));
+		_inputs[0]->reshape(numFilters, _temp_neg.getNumElements() / numFilters);
+		v.reshape(numFilters, _temp_neg.getNumElements() / numFilters);
 
-        _temp_neg.reshape(numFilters, _temp_neg.getNumElements() / numFilters);
+		if (!_temp_pos.isSameDims(v))
+			_temp_pos.reshape(numFilters, _temp_pos.getNumElements() / numFilters);
+
+		if (!_temp_neg.isSameDims(v))
+			_temp_neg.reshape(numFilters, _temp_neg.getNumElements() / numFilters);
+
+
+		dshrinkWeightGrad(v, *_inputs[0], prevBias->getW(), _biases->getW(),
+					   _temp_pos, _temp_neg);
+
+         prevBias->getGrad().addSum(_temp_pos, 1, 0, scaleBGrad);
         _biases->getGrad().addSum(_temp_neg, 1, 0, scaleBGrad);
-        _temp_pos.reshape(numFilters * modules, _temp_neg.getNumElements() / (numFilters * modules));
+
+  		 _inputs[0]->reshape(numFilters * modules, _temp_pos.getNumElements() / (numFilters * modules));
+		 v.reshape(numFilters * modules, _temp_pos.getNumElements() / (numFilters * modules));
 
 	}
 	//else //fc layer
 	//{
+//check sizes
+//	dshrinkWeightGrad(v, *_inputs[0], prevBias->getW(), _biases->getW(),
+//					   _temp_pos, _temp_neg);
+
  //       prevBias->getGrad().addSum(_temp_pos, 1, 0, scaleBGrad);
 	//	_biases->getGrad().addSum(_temp_neg, 1, 0, scaleBGrad);
 	//}
@@ -726,7 +753,6 @@ ConvLayer::ConvLayer(ConvNet* convNet, PyObject* paramsDict) : LocalLayer(convNe
 
 void ConvLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
-//debug
 //	printf(" conv fprop name %s \n", _name.c_str());
 
 
@@ -1160,10 +1186,10 @@ void VectFuncLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType)
 
 	//debug
 	if(minibatch == 0)
-		{
-			printf("vectf %f %f  %f %f  %f %f  %f %f \n",  _param[0], _param[1], _param[2], _param[3], _param[4], _param[5], _param[6], _param[7]);
-			printf("      %f %f  %f %f  %f %f  %f %f \n",  _param[8], _param[9], _param[10], _param[11], _param[12], _param[13], _param[14], _param[15]);
-		}
+	{
+		printf("vectf %f %f  %f %f  %f %f  %f %f \n",  _param[0], _param[1], _param[2], _param[3], _param[4], _param[5], _param[6], _param[7]);
+		printf("      %f %f  %f %f  %f %f  %f %f \n",  _param[8], _param[9], _param[10], _param[11], _param[12], _param[13], _param[14], _param[15]);
+	}
 
 //	printf(" VectFuncLayer bpropWeights end\n");
 }

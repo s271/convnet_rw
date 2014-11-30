@@ -405,9 +405,6 @@ void dshrinkWeightGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& pos_bias, N
     assert(pos_bias.isContiguous());
 	assert(neg_bias.isContiguous());
 
-    target_pos.resize(input); // target must be same orientation as me for now
-	target_neg.resize(input);
-
 	if (pos_bias.getNumRows() == input.getNumRows() && !input.isTrans() || pos_bias.getNumCols() == input.getNumCols() && input.isTrans());
 
     int width = input.getLeadingDim(); //_isTrans ? _numRows : _numCols;
@@ -428,7 +425,6 @@ void dshrinkGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& pos_bias, NVMatri
 					   NVMatrix& target){
 
 	assert(pos_bias.isSameDims(neg_bias));
-	assert(input.isSameDims(target));
 
     assert(actGrad.isTrans() == input.isTrans());
 	assert(actGrad.isTrans() == pos_bias.isTrans());
@@ -442,7 +438,6 @@ void dshrinkGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& pos_bias, NVMatri
     assert(pos_bias.isContiguous());
 	assert(neg_bias.isContiguous());
 
-    target.resize(input); // target must be same orientation as me for now
 
 	if (pos_bias.getNumRows() == input.getNumRows() && !input.isTrans() || pos_bias.getNumCols() == input.getNumCols() && input.isTrans());
 
