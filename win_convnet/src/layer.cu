@@ -498,7 +498,7 @@ DShrinkLayer::DShrinkLayer(ConvNet* convNet, PyObject* paramsDict) : BiasLayer(c
 
 void DShrinkLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType)
 {
-	assert(_prev[inpIdx]->getType() == "conv" || _prev[inpIdx]->getType() == "fc");
+	assert(_prev[inpIdx]->getType() == "conv");
 
 	WeightLayer* prevLayer = (WeightLayer*)_prev[inpIdx];
 	Weights* prevBias = prevLayer->getBiases();
@@ -520,7 +520,7 @@ void DShrinkLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType)
 
 void DShrinkLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
-	assert(_prev[inpIdx]->getType() == "conv" || _prev[inpIdx]->getType() == "fc");
+	assert(_prev[inpIdx]->getType() == "conv");
 
 	WeightLayer* prevLayer = (WeightLayer*)_prev[inpIdx];
 	Weights* prevBias = prevLayer->getBiases();
@@ -545,7 +545,7 @@ void DShrinkLayer::bpropBiases(NVMatrix& v, PASS_TYPE passType)
 {
 
 	assert(_prev.size() == 1);
-	assert(_prev[0]->getType() == "conv" || _prev[0]->getType() == "fc");
+	assert(_prev[0]->getType() == "conv");
 
 	WeightLayer* prevLayer = (WeightLayer*)_prev[0];
 	Weights* prevBias = prevLayer->getBiases();

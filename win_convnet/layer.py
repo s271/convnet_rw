@@ -1021,7 +1021,7 @@ class ShrinkLayerParser(BiasLayerParser):
         dic['usesActs'] = False
          
         self.verify_num_range(dic['outputs'], 'outputs', 1, None)
-        self.make_biases(1, dic['channels'], order='F')
+        self.make_biases(dic['channels'], 1, order='C')
                 
         print "Initialized shrink layer '%s', producing %d outputs" % (name, dic['outputs'])
         return dic
