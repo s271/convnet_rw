@@ -948,7 +948,7 @@ class BiasLayerParser(LayerWithInputParser):
     LAYER_PAT = re.compile(r'^\s*([^\s\[]+)(?:\[(\d+)\])?\s*$') # matches things like layername[5], etc
     
     def __init__(self):
-        BiasLayerParser.__init__(self)
+        LayerWithInputParser.__init__(self)
     
     @staticmethod
     def get_layer_name(name_str):
@@ -958,15 +958,14 @@ class BiasLayerParser(LayerWithInputParser):
         return m.group(1), m.group(2)
     
     def add_params(self, mcp):
-        BiasLayerParser.add_params(self, mcp)
+        LayerWithInputParser.add_params(self, mcp)
 
         dic, name = self.dic, self.dic['name']
         dic['eps'] = mcp.safe_get_float(name, 'eps')
         dic['mom'] = mcp.safe_get_float(name, 'mom')
         dic['wc'] =  mcp.safe_get_float(name, 'wc')       
         
-        self.verify_num_params(['eps', 'mom', 'wc'])
-        
+       
         dic['gradConsumer'] = dic['eps'] > 0
          
     # Load biases initialization module
@@ -1003,6 +1002,7 @@ class BiasLayerParser(LayerWithInputParser):
         
     def parse(self, name, mcp, prev_layers, model):
         dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
+        dic['outputs'] = dic['numInputs'][0]
         dic['requiresParams'] = True
         dic['gradConsumer'] = True
         dic['initB'] = mcp.safe_get_float(name, 'initB', default=0)
@@ -1018,9 +1018,7 @@ class ShrinkLayerParser(BiasLayerParser):
         dic = BiasLayerParser.parse(self, name, mcp, prev_layers, model)
         
         dic['usesActs'] = False
-        dic['channels'] = mcp.safe_get_int(name, 'channels')
-        dic['outputs'] = dic['channels']
-        
+         
         self.verify_num_range(dic['outputs'], 'outputs', 1, None)
         self.make_biases(1, dic['outputs'], order='F')
                 

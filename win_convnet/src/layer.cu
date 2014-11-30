@@ -503,7 +503,15 @@ void DShrinkLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType)
 	WeightLayer* prevLayer = (WeightLayer*)_prev[inpIdx];
 	Weights* prevBias = prevLayer->getBiases();
 
-	//_inputs[inpIdx]->applyBinary(NVMatrixBinaryOps::DShrink(), _biases->getW(), getActs());
+
+
+	printf("tran %i inp %i %i pbias %i %i biases %i %i prevaccgrad %i %i \n", 
+		(*_inputs[inpIdx]).isTrans(),
+		(*_inputs[inpIdx]).getNumRows(), (*_inputs[inpIdx]).getNumCols(),
+		prevBias->getW().getNumRows(), prevBias->getW().getNumCols(),
+		_biases->getW().getNumRows(), _biases->getW().getNumCols(),
+		_prev[inpIdx]->getActsGrad().getNumRows(), _prev[inpIdx]->getActsGrad().getNumCols());
+
 	dshrinkAct(*_inputs[inpIdx], prevBias->getW(), _biases->getW(),
 					   _prev[inpIdx]->getActsGrad());
 
@@ -515,6 +523,17 @@ void DShrinkLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_T
 
 	WeightLayer* prevLayer = (WeightLayer*)_prev[inpIdx];
 	Weights* prevBias = prevLayer->getBiases();
+
+	printf("tran %i inp %i %i v %i %i pbias %i %i biases %i %i prevaccgrad %i %i \n", 
+		v.isTrans(),
+		(*_inputs[inpIdx]).getNumRows(), (*_inputs[inpIdx]).getNumCols(),
+		v.getNumRows(), v.getNumCols(),
+		prevBias->getW().getNumRows(), prevBias->getW().getNumCols(),
+		_biases->getW().getNumRows(), _biases->getW().getNumCols(),
+		_prev[inpIdx]->getActsGrad().getNumRows(), _prev[inpIdx]->getActsGrad().getNumCols());
+
+
+
 
 	dshrinkGrad(v, *_inputs[inpIdx], prevBias->getW(), _biases->getW(),
 					   _prev[inpIdx]->getActsGrad());
