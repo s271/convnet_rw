@@ -1002,6 +1002,7 @@ class BiasLayerParser(LayerWithInputParser):
         
     def parse(self, name, mcp, prev_layers, model):
         dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
+        dic['channels'] = mcp.safe_get_int(name, 'channels')
         dic['outputs'] = dic['numInputs'][0]
         dic['requiresParams'] = True
         dic['gradConsumer'] = True
@@ -1020,7 +1021,7 @@ class ShrinkLayerParser(BiasLayerParser):
         dic['usesActs'] = False
          
         self.verify_num_range(dic['outputs'], 'outputs', 1, None)
-        self.make_biases(1, dic['outputs'], order='F')
+        self.make_biases(1, dic['channels'], order='F')
                 
         print "Initialized shrink layer '%s', producing %d outputs" % (name, dic['outputs'])
         return dic

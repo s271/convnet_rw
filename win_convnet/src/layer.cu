@@ -505,12 +505,13 @@ void DShrinkLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType)
 
 
 
-	printf("tran %i inp %i %i pbias %i %i biases %i %i prevaccgrad %i %i \n", 
+	printf("inp tran %i rc %i %i pbias %i %i %i biases %i %i %i \n", 
 		(*_inputs[inpIdx]).isTrans(),
 		(*_inputs[inpIdx]).getNumRows(), (*_inputs[inpIdx]).getNumCols(),
+		prevBias->getW().isTrans(),
 		prevBias->getW().getNumRows(), prevBias->getW().getNumCols(),
-		_biases->getW().getNumRows(), _biases->getW().getNumCols(),
-		_prev[inpIdx]->getActsGrad().getNumRows(), _prev[inpIdx]->getActsGrad().getNumCols());
+		_biases->getW().isTrans(),
+		_biases->getW().getNumRows(), _biases->getW().getNumCols());
 
 	dshrinkAct(*_inputs[inpIdx], prevBias->getW(), _biases->getW(),
 					   _prev[inpIdx]->getActsGrad());
