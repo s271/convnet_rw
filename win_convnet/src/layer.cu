@@ -512,21 +512,21 @@ void DShrinkLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType)
         getActs().resize(*_inputs[inpIdx]);
     }
 
-	printf("getActs() tran %i rc %i %i \n", getActs().isTrans(),
-		getActs().getNumRows(), getActs().getNumCols());
+//	printf("getActs() tran %i rc %i %i \n", getActs().isTrans(),
+//		getActs().getNumRows(), getActs().getNumCols());
 
     (*_inputs[inpIdx]).reshape(numFilters, (*_inputs[inpIdx]).getNumElements() / numFilters);
      getActs().reshape(numFilters, getActs().getNumElements() / numFilters);
 
-	printf(" fpropActs %s prev bias  cont %i bias cont %i \n", _name.c_str(), prevBias->getW().isContiguous(), _biases->getW().isContiguous());  
+//	printf(" fpropActs %s prev bias  cont %i bias cont %i \n", _name.c_str(), prevBias->getW().isContiguous(), _biases->getW().isContiguous());  
 
-	printf("inp tran %i rc %i %i pbias %i %i %i biases %i %i %i \n", 
-		(*_inputs[inpIdx]).isTrans(),
-		(*_inputs[inpIdx]).getNumRows(), (*_inputs[inpIdx]).getNumCols(),
-		prevBias->getW().isTrans(),
-		prevBias->getW().getNumRows(), prevBias->getW().getNumCols(),
-		_biases->getW().isTrans(),
-		_biases->getW().getNumRows(), _biases->getW().getNumCols());
+	//printf("inp tran %i rc %i %i pbias %i %i %i biases %i %i %i \n", 
+	//	(*_inputs[inpIdx]).isTrans(),
+	//	(*_inputs[inpIdx]).getNumRows(), (*_inputs[inpIdx]).getNumCols(),
+	//	prevBias->getW().isTrans(),
+	//	prevBias->getW().getNumRows(), prevBias->getW().getNumCols(),
+	//	_biases->getW().isTrans(),
+	//	_biases->getW().getNumRows(), _biases->getW().getNumCols());
 
 
 	_inputs[inpIdx]->applyTernaryV(NVMatrixTernaryOps::DShrink(), prevBias->getW(), _biases->getW(), getActs());
@@ -537,19 +537,19 @@ void DShrinkLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType)
 };
 
 void DShrinkLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
-printf("start bpropActs \n");
+//printf("start bpropActs \n");
 	assert(_prev[inpIdx]->getType() == "conv");
 
 	WeightLayer* prevLayer = (WeightLayer*)_prev[inpIdx];
 	Weights* prevBias = prevLayer->getBiases();
 
-	printf("tran %i inp %i %i v %i %i pbias %i %i biases %i %i prevaccgrad %i %i \n", 
-		v.isTrans(),
-		(*_inputs[inpIdx]).getNumRows(), (*_inputs[inpIdx]).getNumCols(),
-		v.getNumRows(), v.getNumCols(),
-		prevBias->getW().getNumRows(), prevBias->getW().getNumCols(),
-		_biases->getW().getNumRows(), _biases->getW().getNumCols(),
-		_prev[inpIdx]->getActsGrad().getNumRows(), _prev[inpIdx]->getActsGrad().getNumCols());
+	//printf("tran %i inp %i %i v %i %i pbias %i %i biases %i %i prevaccgrad %i %i \n", 
+	//	v.isTrans(),
+	//	(*_inputs[inpIdx]).getNumRows(), (*_inputs[inpIdx]).getNumCols(),
+	//	v.getNumRows(), v.getNumCols(),
+	//	prevBias->getW().getNumRows(), prevBias->getW().getNumCols(),
+	//	_biases->getW().getNumRows(), _biases->getW().getNumCols(),
+	//	_prev[inpIdx]->getActsGrad().getNumRows(), _prev[inpIdx]->getActsGrad().getNumCols());
 
 	ConvLayer* convLayer = (ConvLayer*)_prev[0];
 	assert(convLayer->isSharedBiases());
@@ -577,7 +577,6 @@ printf("start bpropActs \n");
 
 void DShrinkLayer::bpropBiases(NVMatrix& v, PASS_TYPE passType)
 {
-printf("start DShrinkLayer::bpropBiases \n");
 	assert(_prev.size() == 1);
 	assert(_prev[0]->getType() == "conv");
 
@@ -1646,6 +1645,11 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
  * =======================
  */
 EltwiseDFuncLayer::EltwiseDFuncLayer(ConvNet* convNet, PyObject* paramsDict) : EltwiseFuncLayer(convNet, paramsDict){
+//debug
+	int paramSizeC = _param.size()-2;
+	for(int kp = paramSizeC/2; kp < paramSizeC; kp++)
+		_param[kp] = 0;
+
 }
 
 void EltwiseDFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
@@ -1653,7 +1657,11 @@ void EltwiseDFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE pass
 	computeEltwiseDFuncAct(*_inputs[inpIdx],  getActs(), _param, _channels, _sizeIn, _sizeOut);
 }
 
+static int debug_count = 0;
+
 void EltwiseDFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
+//debug
+debug_count++;
 
 	int paramSize = _param.size();
 
@@ -1703,21 +1711,19 @@ void EltwiseDFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, P
 			_param[kp] += _param_inc[kp];
 	}
 
-
-
-
 #ifdef EL_SWITCH
 	int paramSwSectionLen = (paramSize-2)/EL_SWITCH;
 #else
 	int paramSwSectionLen = paramSize;
 #endif
 
-	double sumScale = _sizeIn*_sizeOut*2;
+	double sumScale = .5*_sizeIn*_sizeOut;
 	int vect_len = _sizeIn*ELWISE_DFUNC_SEC;
 	int vnorm_len = _sizeIn*3;
 
 
-	for(int k_sw = 0; k_sw < EL_SWITCH; k_sw++)
+	//for(int k_sw = 0; k_sw < EL_SWITCH; k_sw++)
+	 int k_sw = 0; 
 	{
 		double l1sum = 0;
 		for(int k_out = 0; k_out < _sizeOut; k_out++)
@@ -1728,6 +1734,28 @@ void EltwiseDFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, P
 				l1sum += fabs(pv);
 			}
 		}
+
+
+//if(l1sum <= 0 || debug_count==35)
+//if(0)
+//{
+//	{
+//		int nump = _sizeIn*ELWISE_DFUNC_SEC;
+//		int numl = (_param.size()+nump-1)/nump;
+//		printf("** params *** \n");
+//		for (int nk = 0; nk < numl; nk++)
+//		{
+//			for (int k = 0; k < nump; k++)
+//				if(k + nk*nump < _param.size())
+//				printf("%f ", _param[k + nk*nump]);
+//			printf("\n");
+//		}
+//	}
+//
+//	printf(" dcount %i, l1sum %f \n", debug_count, l1sum);
+//	//exit(-1);
+//}
+
 		
 		assert(l1sum>0);
 
