@@ -51,7 +51,7 @@ private:
 	Matrix *_hBregman_b_weights;
 	NVMatrix *_bregman_b_weights;
 
-    float _epsW, _epsWinit, _wc, _mom, _mom_init;
+    float _epsW, _epsWinit, _wc, _wc_init, _mom, _mom_init;
 
 	float _muL1;
 
@@ -69,7 +69,7 @@ public:
         return getW();
     }
     
-    Weights(Weights& srcWeights, float epsW) : _srcWeights(&srcWeights), _epsW(epsW), _epsWinit(epsW), _wc(0), _muL1(0), _renorm(0), _onGPU(false), _numUpdates(0),
+    Weights(Weights& srcWeights, float epsW) : _srcWeights(&srcWeights), _epsW(epsW), _epsWinit(epsW), _wc(0), _wc_init(0), _muL1(0), _renorm(0), _onGPU(false), _numUpdates(0),
                                                _weights(NULL), _weightsInc(NULL), _weightsGrad(NULL) {
         _hWeights = &srcWeights.getCPUW();
         _hWeightsInc = &srcWeights.getCPUWInc();
@@ -89,7 +89,7 @@ public:
         : _srcWeights(NULL), _hWeights(&hWeights), _hWeightsInc(&hWeightsInc),
 		_hBregman_b_weights(NULL),
 			_numUpdates(0),
-          _epsW(epsW), _epsWinit(epsW),_wc(wc), _mom(mom), _mom_init(mom), _muL1(muL1), _renorm(renorm), _useGrad(useGrad), _onGPU(false), _weights(NULL),
+          _epsW(epsW), _epsWinit(epsW),_wc(wc), _wc_init(wc), _mom(mom), _mom_init(mom), _muL1(muL1), _renorm(renorm), _useGrad(useGrad), _onGPU(false), _weights(NULL),
           _weightsInc(NULL), _weightsGrad(NULL) {
         if (_autoCopyToGPU) {
             copyToGPU();
@@ -105,7 +105,7 @@ public:
 //bregman
 	_hBregman_b_weights(&hBregman_b_weights),		
 
-		_numUpdates(0), _epsW(epsW), _epsWinit(epsW),_wc(wc), _mom(mom), _mom_init(mom), _muL1(muL1), _renorm(renorm),
+		_numUpdates(0), _epsW(epsW), _epsWinit(epsW),_wc(wc), _wc_init(wc), _mom(mom), _mom_init(mom), _muL1(muL1), _renorm(renorm),
 		_useGrad(useGrad), _onGPU(false), _weights(NULL),
         _weightsInc(NULL), _weightsGrad(NULL) {
         if (_autoCopyToGPU) {
@@ -232,8 +232,16 @@ public:
         return _epsWinit;
     }
 
+    float getWcInit() const {
+        return _wc_init;
+    }
+
     void setEps(float epsW)  {
         _epsW = epsW;
+    }
+
+    void setWc(float wc)  {
+        _wc = wc;
     }
     
     float getMom() const {

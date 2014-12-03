@@ -244,7 +244,7 @@ public:
     EltwiseAbsMaxLayer(ConvNet* convNet, PyObject* paramsDict);
 };
 
-#define NSTORE 64
+
 
 class EltwiseFuncLayer : public Layer {
 protected:
@@ -252,10 +252,11 @@ protected:
 	vector<double> _param_inc;
 	PyObject* hParamList;
 	PyObject* hParamListInc;
+	PyObject* hParamListGrad;
 	float _epsP, _wc, _mom;
 	float _epsPInit, _wcInit, _momInit;
 
-	int _sizeIn, _sizeOut, _updates, _channels;
+	int _sizeIn, _sizeOut, _updates, _channels, _nstore;
 
 	void* _arrayPtr;
 	vector<NVMatrix> _tempMatrixArray;
@@ -266,8 +267,8 @@ protected:
 	AggStorage _aggStorageC;
 	//NVMatrix _temp, _temp_m;
 
-	vector<double> _grad_store[NSTORE];
-	vector<int> _nstore_count;
+	vector<double> _grad_store;
+	int _nstore_count;
 
     virtual void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     virtual void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
@@ -284,6 +285,8 @@ class EltwiseDFuncLayer : public EltwiseFuncLayer {
 public:
     EltwiseDFuncLayer(ConvNet* convNet, PyObject* paramsDict);
 };
+
+#define NSTORE 64
 
 class MAvgPoolLayer : public Layer {
 protected:

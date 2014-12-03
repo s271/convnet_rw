@@ -362,10 +362,22 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
     delete &epsW;
     delete &wc;
 }
+
+#define MOM_MULTIPLYER 5
+
 void WeightLayer::setCommon(float eps_scale) {
-    for (int i = 0; i < _weights.getSize(); i++) {
-		if(eps_scale > 0)
+	if(eps_scale > 0)
+	{
+		for (int i = 0; i < _weights.getSize(); i++) {
+
 			_weights[i].setEps(_weights[i].getEpsInit()*eps_scale);
+			//_weights[i].setWc(_weights[i].getWcInit()*eps_scale);
+			//float dm = 1 - _weights[i].getMomInit();
+			//dm *= eps_scale*MOM_MULTIPLYER;
+			//_weights[i].setMom(min(1 - dm, .9999));
+		}
+		//_biases->setEps(_biases->getEpsInit()*eps_scale);
+
 	}
 }
 
@@ -457,8 +469,13 @@ void BiasLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType) {
 
 void BiasLayer::setCommon(float eps_scale) {
 	if(eps_scale > 0)
+	{
 		_biases->setEps(_biases->getEpsInit()*eps_scale);
-
+		_biases->setWc(_biases->getWcInit()*eps_scale);
+		//float dm = 1 - _biases->getMomInit();
+		//dm *= eps_scale*2;
+		//_biases->setMom(1 - dm);
+	}
 }
 
 void BiasLayer::updateBiases() {
@@ -1391,7 +1408,7 @@ EltwiseFuncLayer::EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict) : Lay
 	_sizeOut = pyDictGetInt(paramsDict, "size_out");
 	_channels = pyDictGetInt(paramsDict, "channels");
 	_updates = pyDictGetInt(paramsDict, "updates");
-    
+    _nstore = pyDictGetInt(paramsDict, "nstore");
     _mom = pyDictGetFloat(paramsDict, "mom");
     _epsP = pyDictGetFloat(paramsDict, "epsP");
     _wc = pyDictGetFloat(paramsDict, "wc");
@@ -1400,12 +1417,10 @@ EltwiseFuncLayer::EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict) : Lay
 	_wcInit = _wc;
 	_momInit = _mom;
 
-	for (int j =0; j < _param.size(); j++)
-		_nstore_count.push_back(0);
+	_nstore_count = 0;
 
-	for (int i =0; i < NSTORE; i++)
-	for (int j =0; j < _param.size(); j++)
-		_grad_store[i].push_back(0);
+	hParamListGrad = PyDict_GetItemString(paramsDict, "meta_param_nstore");
+	_grad_store = getVectorDouble(hParamListGrad);
 
 	int nump = _sizeIn*2;
 	int numl = (_param.size()+nump-1)/nump;
@@ -1441,6 +1456,18 @@ void EltwiseFuncLayer::copyToCPU()
 		PyList_SetItem(hParamList, i,  PyFloat_FromDouble(_param[i]));
 		PyList_SetItem(hParamListInc, i,  PyFloat_FromDouble(_param_inc[i]));
 	}
+
+	int offset = _nstore_count;
+
+	for(int j = 0; j < _nstore; j++)
+	for(int i = 0; i < _param.size(); i++)
+	{
+		int out = j*_param.size() + i;
+		int in = ((j+offset)%_nstore)*_param.size() + i;
+		PyList_SetItem(hParamListGrad, out,  PyFloat_FromDouble(_grad_store[in]));
+	}
+
+
 };
 
 
@@ -1457,9 +1484,12 @@ void EltwiseFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passT
 void EltwiseFuncLayer::setCommon(float eps_scale) {
 	if(eps_scale > 0)
 	{
-		//_mom = eps_scale*_momInit;
+		//float dm = 1 - _momInit;
+		//dm *= eps_scale*MOM_MULTIPLYER;
+		//_mom = min(1 - dm, .9999);
+
 		_epsP = eps_scale*_epsPInit;
-		_wc = eps_scale*_wcInit;	
+		//_wc = eps_scale*_wcInit;	
 	}
 }
 
@@ -1496,16 +1526,21 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 //should make orthognal projection to equal vector(sizeIn)
 
 		double sum_grad = 0;
-		for(int k = 0; k < NSTORE; k++)
+		int nsum = 0;
+		for(int k = 0; k < _nstore; k++)
 		{
-			sum_grad += _grad_store[k][kp]*_grad_store[k][kp];
+			double g_stored = _grad_store[k*_param.size() + kp];
+
+			if(g_stored > 0)
+				nsum++;
+
+			sum_grad += g_stored*g_stored;
 		}
 
-		_grad_store[_nstore_count[kp]][kp] = grad;
-		_nstore_count[kp] = (_nstore_count[kp]+1)%NSTORE;
+		_grad_store[_nstore_count*_param.size() + kp] = grad;
 
 		if(sum_grad > 0)
-			grad = grad*sqrt(NSTORE)/sqrt(sum_grad);
+			grad = grad*sqrt(nsum)/sqrt(sum_grad);
 	
 		double eps = _epsP;
 		double wc = _wc;
@@ -1516,6 +1551,9 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 		if(kp != paramSize-2)
 			_param[kp] += _param_inc[kp];
 	}
+
+	_nstore_count = (_nstore_count+1)%_nstore;
+
 
 
 
@@ -1647,8 +1685,8 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 EltwiseDFuncLayer::EltwiseDFuncLayer(ConvNet* convNet, PyObject* paramsDict) : EltwiseFuncLayer(convNet, paramsDict){
 //debug
 	int paramSizeC = _param.size()-2;
-	for(int kp = paramSizeC/2; kp < paramSizeC; kp++)
-		_param[kp] = 0;
+	//for(int kp = paramSizeC/2; kp < paramSizeC; kp++)
+	//	_param[kp] = 0;
 
 }
 
@@ -1690,13 +1728,12 @@ debug_count++;
 //should make orthognal projection to equal vector(sizeIn)
 
 		double sum_grad = 0;
-		for(int k = 0; k < NSTORE; k++)
+		for(int k = 0; k < _nstore; k++)
 		{
-			sum_grad += _grad_store[k][kp]*_grad_store[k][kp];
+			sum_grad += _grad_store[k*_param.size() + kp]*_grad_store[k*_param.size() + kp];
 		}
 
-		_grad_store[_nstore_count[kp]][kp] = grad;
-		_nstore_count[kp] = (_nstore_count[kp]+1)%NSTORE;
+		_grad_store[_nstore_count*_param.size() + kp] = grad;
 
 		if(sum_grad > 0)
 			grad = grad*sqrt(NSTORE)/sqrt(sum_grad);
@@ -1710,6 +1747,8 @@ debug_count++;
 		if(kp != paramSize-2)
 			_param[kp] += _param_inc[kp];
 	}
+
+	_nstore_count = (_nstore_count+1)%_nstore;
 
 #ifdef EL_SWITCH
 	int paramSwSectionLen = (paramSize-2)/EL_SWITCH;

@@ -657,12 +657,14 @@ class EltwiseFuncParser(LayerWithInputParser):
         dic['epsP'] = mcp.safe_get_float(name, 'epsP')      
         dic['wc'] = mcp.safe_get_float(name, 'wc')    
         dic['mom'] = mcp.safe_get_float(name, 'mom')     
+
         
     def parse(self, name, mcp, prev_layers, model):
         dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
         if len(set(dic['numInputs'])) != 1:
             raise LayerParsingError("Layer '%s': all inputs must have the same dimensionality. Got dimensionalities: %s" % (name, ", ".join(str(s) for s in dic['numInputs'])))
-        
+            
+        dic['nstore'] = mcp.safe_get_int(name, 'nstore')             
         dic['size_in'] = mcp.safe_get_int(name, 'size_in')
         dic['size_out'] = mcp.safe_get_int(name, 'size_out') 
         dic['channels'] = mcp.safe_get_int(name, 'channels')
@@ -714,9 +716,12 @@ class EltwiseFuncParser(LayerWithInputParser):
 
             
         meta_param_inc = [0.]*size_param
+        
+        meta_param_nstore = [0.]*size_param*dic['nstore']
 
         dic['meta_param'] = meta_param    
         dic['meta_param_inc'] = meta_param_inc 
+        dic['meta_param_nstore'] = meta_param_nstore
 
         print "Initialized elementwise func layer '%s', producing %d outputs" % (name, dic['outputs'])
         return dic 

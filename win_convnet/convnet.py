@@ -40,6 +40,7 @@ class ConvNet(IGPUModel):
         filename_options = []
         dp_params['multiview_test'] = op.get_value('multiview_test')
         dp_params['crop_border'] = op.get_value('crop_border')
+        #dp_params['mod_border'] = op.get_value('mod_border')
         dp_params['param schedule'] = op.get_value('param_sched')
         IGPUModel.__init__(self, "ConvNet", op, load_dic, filename_options, dp_params=dp_params)
         
@@ -178,9 +179,10 @@ class ConvNet(IGPUModel):
         op.add_option("layer-params", "layer_params", StringOptionParser, "Layer parameter file")
         op.add_option("param-sched", "param_sched", StringOptionParser, "Parameters schedule file", set_once=True)
         op.add_option("check-grads", "check_grads", BooleanOptionParser, "Check gradients and quit?", default=0, excuses=['data_path','save_path','train_batch_range','test_batch_range'])
-        op.add_option("multiview-test", "multiview_test", BooleanOptionParser, "Cropped DP: test on multiple patches?", default=0, requires=['logreg_name'])
+        op.add_option("multiview-test", "multiview_test", BooleanOptionParser, "Cropped/shifted DP: test on multiple patches?", default=0, requires=['logreg_name'])
         op.add_option("crop-border", "crop_border", IntegerOptionParser, "Cropped DP: crop border size", default=4, set_once=True)
-        op.add_option("logreg-name", "logreg_name", StringOptionParser, "Cropped DP: logreg layer name (for --multiview-test)", default="")
+        op.add_option("mod-border", "mod_border", IntegerOptionParser, "Mod DP: shifted size", default=4, set_once=True)
+        op.add_option("logreg-name", "logreg_name", StringOptionParser, "Cropped/shifted DP: logreg layer name (for --multiview-test)", default="")
         op.add_option("conv-to-local", "conv_to_local", ListOptionParser(StringOptionParser), "Convert given conv layers to unshared local", default=[])
         op.add_option("unshare-weights", "unshare_weights", ListOptionParser(StringOptionParser), "Unshare weight matrices in given layers", default=[])
         op.add_option("conserve-mem", "conserve_mem", BooleanOptionParser, "Conserve GPU memory (slower)?", default=0)
@@ -194,6 +196,7 @@ class ConvNet(IGPUModel):
         DataProvider.register_data_provider('cifar', 'CIFAR', CIFARDataProvider)
         DataProvider.register_data_provider('dummy-cn-n', 'Dummy ConvNet', DummyConvNetDataProvider)
         DataProvider.register_data_provider('cifar-cropped', 'Cropped CIFAR', CroppedCIFARDataProvider)
+        DataProvider.register_data_provider('cifar-mod', 'Shaffled CIFAR', ModCIFARDataProvider)
         
         return op        
    

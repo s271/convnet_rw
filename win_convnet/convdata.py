@@ -142,7 +142,91 @@ class CroppedCIFARDataProvider(LabeledMemoryDataProvider):
                 if nr.randint(2) == 0: # also flip the image with 50% probability
                     pic = pic[:,:,::-1]
                 target[:,c] = pic.reshape((self.get_data_dims(),))
+  
+class ModCIFARDataProvider(LabeledMemoryDataProvider):
+    def __init__(self, data_dir, batch_range=None, init_epoch=1, init_batchnum=None, dp_params=None, test=False):
+        LabeledMemoryDataProvider.__init__(self, data_dir, batch_range, init_epoch, init_batchnum, dp_params, test)
+
+        self.img_size = 32
+        self.multiview = dp_params['multiview_test'] and test
+        self.num_views = 5*2
+        self.data_mult = self.num_views if self.multiview else 1
+        self.num_colors = 3
+        self.offset = dp_params['mod_border']
+        
+        for d in self.data_dic:
+            d['data'] = n.require(d['data'], requirements='C')
+            d['labels'] = n.require(n.tile(d['labels'].reshape((1, d['data'].shape[1])), (1, self.data_mult)), requirements='C')
+        
+        self.img_data = [n.zeros((self.get_data_dims(), self.data_dic[0]['data'].shape[1]*self.data_mult), dtype=n.single) for x in xrange(2)]
+        self.batches_generated = 0
+        self.data_mean = self.batch_meta['data_mean'].reshape((3,32,32)).reshape((self.get_data_dims(), 1))
+
+    def get_next_batch(self):
+        epoch, batchnum, datadic = LabeledMemoryDataProvider.get_next_batch(self)
+
+        img = self.img_data[self.batches_generated % 2]
+
+        self.__shaffle(datadic['data'], img)
+        img -= self.data_mean
+        self.batches_generated += 1
+        return epoch, batchnum, [img, datadic['labels']]
+        
+    def set_batch(self, idx):
+        epoch, batchnum, datadic = LabeledMemoryDataProvider.set_batch(self, idx) 
+
+        img = self.img_data[self.batches_generated % 2]
+
+        self.__shaffle(datadic['data'], cropped)
+        img -= self.data_mean
+        self.batches_generated += 1
+
+        return epoch, batchnum, [img, datadic['labels']]         
+        
+    def get_filenames(self):
+        epoch, batchnum, datadic = LabeledMemoryDataProvider.get_next_batch(self)
+        return datadic['filenames']         
+        
+    def get_data_dims(self, idx=0):
+        return self.img_size**2 * 3 if idx == 0 else 1
+
+    # Takes as input an array returned by get_next_batch
+    # Returns a (numCases, imgSize, imgSize, 3) array which can be
+    # fed to pylab for plotting.
+    # This is used by shownet.py to plot test case predictions.
+    def get_plottable_data(self, data):
+        return n.require((data + self.data_mean).T.reshape(data.shape[1], 3, self.img_size, self.img_size).swapaxes(1,3).swapaxes(1,2) / 255.0, dtype=n.single)
     
+    def __shaffle(self, x, target):
+        y = x.reshape(3, 32, 32, x.shape[1])
+
+        if self.test: # don't need to loop over cases
+            if self.multiview:
+                start_positions = [(0,0),  (0, self.offset*2),
+                                   (self.offset, self.offset),
+                                  (self.offset*2, 0), (self.offset*2, self.offset*2)]
+
+                for i in xrange(self.num_views/2):
+                    pic = y[:,:,:,:]
+                    pic = nr.roll(pic, start_positions[i][0], 1)
+                    pic = nr.roll(pic, start_positions[i][1], 2) 
+                    target[:,i * x.shape[1]:(i+1)* x.shape[1]] = pic.reshape((self.get_data_dims(),x.shape[1]))
+                    target[:,(self.num_views/2 + i) * x.shape[1]:(self.num_views/2 +i+1)* x.shape[1]] = pic[:,:,::-1,:].reshape((self.get_data_dims(),x.shape[1]))
+            else:
+                target[:,:] = y.reshape((self.get_data_dims(), x.shape[1]))
+        else:
+            for c in xrange(x.shape[1]): # loop over cases
+                startY, startX = nr.randint(0,self.offset*2 + 1), nr.randint(0,self.offset*2 + 1)                
+
+                pic = y[:,:,:, c]
+                pic = nr.roll(pic, startX, 1)
+                pic = nr.roll(pic, startY, 2)
+                
+                if nr.randint(2) == 0: # also flip the image with 50% probability
+                    pic = pic[:,:,::-1]
+                target[:,c] = pic.reshape((self.get_data_dims(),))
+    
+  
 class DummyConvNetDataProvider(LabeledDummyDataProvider):
     def __init__(self, data_dim):
         LabeledDummyDataProvider.__init__(self, data_dim)

@@ -166,16 +166,16 @@ class IGPUModel:
         self.epoch, self.batchnum = next_data[0], next_data[1]                                     
 #
         #next_data = self.get_next_batch()
+        eps_scale = 0        
+        
         while self.epoch <= self.num_epochs:
             self.epoch, self.batchnum = next_data[0], next_data[1]
             self.print_iteration()
             
-            eps_scale = 0
             for nepoch in self.param_schedule:
-                if self.epoch >= nepoch :
+                if self.epoch >= nepoch and self.param_schedule[nepoch]['new'] == 1:
                     eps_scale = self.param_schedule[nepoch]['eps_scale']
-                if self.epoch< nepoch :
-                    break             
+                    self.param_schedule[nepoch]['new'] = 0          
             
             sys.stdout.flush()
             
@@ -399,6 +399,7 @@ class IGPUModel:
                 dic_sect[item[0]] = item[1]
                 if item[0] != 'epoch':
                     dic_val[item[0]] = item[1]
+            dic_val['new'] = 1
             dic_ep[int(dic_sect['epoch'])] = dic_val
         self.param_schedule = dic_ep
         
