@@ -28,8 +28,8 @@ __device__ __constant__ float const_area[CONST_AREA_SIZE];
 
 __device__ inline float Switch(float s, float C) 
 {
-	return fminf(fmaxf(s*C, -.5), .5);
-	//return (s>0)*.5 - (s<0)*.5;
+	//return fminf(fmaxf(s*C, -.5), .5);
+	return (s>0)*.5 - (s<0)*.5;
 }
 
 __device__ inline float Median3(float a, float b, float c) 

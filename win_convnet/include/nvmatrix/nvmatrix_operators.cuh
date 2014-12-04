@@ -295,6 +295,21 @@ public:
         }
     };
 
+	class AddSignReg {
+    private:
+        const float scaleB;
+    public:
+        AddSignReg(const float _scaleB) : scaleB(_scaleB) {
+        }
+        __device__ inline float operator()(const float a, const float b) const {
+			float res = a  + b * scaleB;
+			if(a*res >= 0)
+				return res;
+			else
+				return a;
+        }
+	};
+
     class SoftGradAdd {
     private:
         const float scaleL2, scaleL1, scaleB;

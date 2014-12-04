@@ -376,7 +376,7 @@ void WeightLayer::setCommon(float eps_scale) {
 			//dm *= eps_scale*MOM_MULTIPLYER;
 			//_weights[i].setMom(min(1 - dm, .9999));
 		}
-		//_biases->setEps(_biases->getEpsInit()*eps_scale);
+		_biases->setEps(_biases->getEpsInit()*eps_scale);
 
 	}
 }
@@ -1514,6 +1514,15 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	for(int kp = 0; kp < paramSize-2; kp++)//paramSize-2, B, C off
 	{
 
+		int out_len = EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn;
+		int k_out = kp/out_len;
+		int sw_len = ELWISE_FUNC_SEC*_sizeIn;
+		int k_ws = (kp - k_out*out_len)/sw_len;
+		int k_v = kp - k_out*out_len - k_ws*sw_len;
+
+		//if(k_v > 2*_sizeIn)
+		//	continue;
+
 		double grad = 0;
 		if(kp < paramSize-2)
 			 grad = _tempMatrixArray[kp].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
@@ -1545,7 +1554,10 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 		double eps = _epsP;
 		double wc = _wc;
 
-		_param_inc[kp] = _mom*_param_inc[kp] + eps*grad - wc*_param[kp];
+		_param_inc[kp] = _mom*_param_inc[kp] + eps*grad;
+		float r =_param_inc[kp] - wc*_param[kp];
+		if(_param_inc[kp]*r >= 0)
+			_param_inc[kp] = r;
 			
 //debug
 		if(kp != paramSize-2)

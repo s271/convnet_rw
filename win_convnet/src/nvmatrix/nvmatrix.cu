@@ -637,6 +637,11 @@ void NVMatrix::add(NVMatrix& b, float scaleA, float scaleB, NVMatrix& target) {
     }
 }
 
+void NVMatrix::addSignReg(NVMatrix& b, float scaleB, NVMatrix& target) {
+	applyBinary(NVMatrixBinaryOps::AddSignReg(scaleB), b, target);
+}
+
+
 void NVMatrix::softGradAdd(NVMatrix& b, float scaleL2, float scaleL1, float scaleB, NVMatrix& target) {
         applyBinary(NVMatrixBinaryOps::SoftGradAdd(scaleL2, scaleL1, scaleB), b, target);
 }
@@ -655,6 +660,10 @@ void NVMatrix::add(NVMatrix& b, NVMatrix& target) {
 
 void NVMatrix::add(NVMatrix& b, float scaleB) {
     add(b, scaleB, *this);
+}
+
+void NVMatrix::addSignReg(NVMatrix& b, float scaleB) {
+    addSignReg(b, scaleB, *this);
 }
 
 void NVMatrix::add(NVMatrix& b, float scaleA, float scaleB) {

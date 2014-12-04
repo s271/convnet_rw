@@ -425,6 +425,8 @@ public:
 	void softGradAdd(NVMatrix& b, float scaleL2, float scaleL1, float scaleB);
 	void invSVM(float invCp1, float eta, NVMatrix& target);
 	void invSVM(float invCp1, float eta);
+	void addSignReg(NVMatrix& b, float scaleB, NVMatrix& target);
+	void addSignReg(NVMatrix& b, float scaleB);
 
     float dotProduct(NVMatrix& b);
 
