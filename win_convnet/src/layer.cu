@@ -1556,6 +1556,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 		_param_inc[kp] = _mom*_param_inc[kp] + eps*grad;
 		float r =_param_inc[kp] - wc*_param[kp];
+
 		if(_param_inc[kp]*r >= 0)
 			_param_inc[kp] = r;
 			
@@ -1601,22 +1602,6 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	double sumScale = _sizeIn*_sizeOut;
 	int vect_len = _sizeIn*ELWISE_FUNC_SEC;
 	int vnorm_len = _sizeIn*2;
-
-	////size_param = EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn*_sizeOut
-//positive inv_lambda for srink
-	//for(int k_sw = 0; k_sw < EL_SWITCH; k_sw++)
-	//{
-	//	double l1sum = 0;
-	//	for(int k_out = 0; k_out < _sizeOut; k_out++)
-	//	{
-	//		for(int kinp = _sizeIn*3; kinp < _sizeIn*4; kinp++)
-	//		{
-	//			_param[k_out*EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn + k_sw*ELWISE_FUNC_SEC*_sizeIn + kinp] =
-	//				fmax(_param[k_out*EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn + k_sw*ELWISE_FUNC_SEC*_sizeIn + kinp],0);
-	//		}
-	//	}
-	//}
-
 
 	for(int k_sw = 0; k_sw < EL_SWITCH; k_sw++)
 	{

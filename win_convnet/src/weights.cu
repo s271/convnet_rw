@@ -45,7 +45,8 @@ void Weights::update(bool use_inc_drop) {
         }
 
         if (_wc > 0) {
-            _weightsInc->addSignReg(*_weights, -_wc * _epsW);			
+            _weightsInc->addSignReg(*_weights, -_wc * _epsW);	
+			//_weightsInc->add(*_weights, -_wc * _epsW);				
         }
 
 		if(use_inc_drop)

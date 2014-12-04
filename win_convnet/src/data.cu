@@ -168,7 +168,6 @@ GPUData& DataProvider::getDataSlice(int startCase, int endCase) {
     for (int i = 0; i < _hData->getData().size(); i++) {
         miniData.push_back(new NVMatrix());
         if (_dataSize < MAX_DATA_ON_GPU) {
-			//printf(" data on GPU \n");
             if (_data[i]->isTrans()) {
                 _data[i]->sliceRows(startCase, min(_hData->getNumCases(), endCase), *miniData[i]);
             } else {
@@ -176,7 +175,6 @@ GPUData& DataProvider::getDataSlice(int startCase, int endCase) {
             }
         } else {
             Matrix tmp;
-			//printf(" data on CPU \n");
             if ((*_hData)[i].isTrans()) {
                 (*_hData)[i].sliceRows(startCase, min(_hData->getNumCases(), endCase), tmp);
             } else {
