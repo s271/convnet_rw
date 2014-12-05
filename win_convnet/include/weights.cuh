@@ -38,18 +38,21 @@
 
 using namespace std;
 
+
 class Weights {
 private:
     Matrix* _hWeights, *_hWeightsInc;
 
     NVMatrix* _weights, *_weightsInc, *_weightsGrad;
 
-//debug wdrop
-	 NVMatrix* _inc_drop;
-
 //bregman
-	Matrix *_hBregman_b_weights;
-	NVMatrix *_bregman_b_weights;
+	Matrix *_hAux_weights;
+	vector<NVMatrix> _aux_weights;
+
+	int _aux_use;
+	int _aux_update;
+	int _aux_store_size;
+	bool _active_aux;
 
     float _epsW, _epsWinit, _wc, _wc_init, _mom, _mom_init;
 
@@ -63,6 +66,8 @@ private:
     
     // Non-NULL if these weights are really shared from some other layer
     Weights* _srcWeights;
+
+	void initAux();
  
 public:
     NVMatrix& operator*() {
@@ -70,7 +75,7 @@ public:
     }
     
     Weights(Weights& srcWeights, float epsW) : _srcWeights(&srcWeights), _epsW(epsW), _epsWinit(epsW), _wc(0), _wc_init(0), _muL1(0), _renorm(0), _onGPU(false), _numUpdates(0),
-                                               _weights(NULL), _weightsInc(NULL), _weightsGrad(NULL) {
+                                               _weights(NULL), _weightsInc(NULL), _weightsGrad(NULL), _active_aux(false) {
         _hWeights = &srcWeights.getCPUW();
         _hWeightsInc = &srcWeights.getCPUWInc();
 //bregman
@@ -87,9 +92,10 @@ public:
     Weights(Matrix& hWeights, Matrix& hWeightsInc,
 		float epsW, float wc, float mom, float muL1, float renorm, bool useGrad)
         : _srcWeights(NULL), _hWeights(&hWeights), _hWeightsInc(&hWeightsInc),
-		_hBregman_b_weights(NULL),
+		_hAux_weights(NULL),
 			_numUpdates(0),
-          _epsW(epsW), _epsWinit(epsW),_wc(wc), _wc_init(wc), _mom(mom), _mom_init(mom), _muL1(muL1), _renorm(renorm), _useGrad(useGrad), _onGPU(false), _weights(NULL),
+          _epsW(epsW), _epsWinit(epsW),_wc(wc), _wc_init(wc), _mom(mom), _mom_init(mom), _muL1(muL1),
+		  _renorm(renorm), _useGrad(useGrad), _onGPU(false), _weights(NULL), _active_aux(false), _aux_use(0), _aux_update(0),
           _weightsInc(NULL), _weightsGrad(NULL) {
         if (_autoCopyToGPU) {
             copyToGPU();
@@ -99,14 +105,16 @@ public:
     
     Weights(Matrix& hWeights, Matrix& hWeightsInc,
 //bregman
-		Matrix& hBregman_b_weights,
+		Matrix& hAux_weights, bool active_aux, int aux_current,
 		float epsW, float wc, float mom, float muL1, float renorm, bool useGrad)
         : _srcWeights(NULL), _hWeights(&hWeights), _hWeightsInc(&hWeightsInc), 
 //bregman
-	_hBregman_b_weights(&hBregman_b_weights),		
+	_hAux_weights(&hAux_weights),
+	_active_aux(active_aux),
+	_aux_use(aux_current),
 
 		_numUpdates(0), _epsW(epsW), _epsWinit(epsW),_wc(wc), _wc_init(wc), _mom(mom), _mom_init(mom), _muL1(muL1), _renorm(renorm),
-		_useGrad(useGrad), _onGPU(false), _weights(NULL),
+		_useGrad(useGrad), _onGPU(false), _weights(NULL), 
         _weightsInc(NULL), _weightsGrad(NULL) {
         if (_autoCopyToGPU) {
             copyToGPU();
@@ -131,6 +139,16 @@ public:
         assert(_onGPU);
         return *_weights;
     }
+
+    NVMatrix& getAuxUpdate() {
+        assert(_onGPU);
+        return *(&_aux_weights[_aux_update]);
+    }
+
+    NVMatrix& getAuxUse() {
+        assert(_onGPU);
+        return *(&_aux_weights[_aux_use]);
+    }
     
     NVMatrix& getInc() {
         assert(_onGPU);
@@ -141,6 +159,16 @@ public:
         assert(_onGPU);
         return _useGrad ? *_weightsGrad : *_weightsInc;
     }
+
+	void setAuxUseInd(int useInd);
+
+	void setAuxUpdateInd(int updInd);
+
+	int getAuxUseInd();
+
+	int getAuxUpdateInd();
+
+	void stepAuxInd();
     
     Matrix& getCPUW() {
         return *_hWeights;
@@ -158,51 +186,18 @@ public:
         return _hWeights->getNumCols();
     }
     
-    void copyToCPU() {
-        if (_srcWeights == NULL) {
-            assert(_onGPU);
-            _weights->copyToHost(*_hWeights);
-            _weightsInc->copyToHost(*_hWeightsInc);
-//bregman
-			if(_hBregman_b_weights)
-			{
-            _bregman_b_weights->copyToHost(*_hBregman_b_weights);
-			}
-        }
-    }
+    void copyToCPU(); 
     
     // This function is assumed to be called in the order in which the layers
     // were defined
-    void copyToGPU() {
-        if (_srcWeights == NULL) {
-            _weights = new NVMatrix();
-			_inc_drop = new NVMatrix();//debug wdrop
-            _weightsInc = new NVMatrix();
-            _weights->copyFromHost(*_hWeights, true);
-            _weightsInc->copyFromHost(*_hWeightsInc, true);
-            _weightsGrad = _useGrad ? new NVMatrix() : NULL;
-			
-			//bregman
-			if(_hBregman_b_weights)
-			{
-				_bregman_b_weights = new NVMatrix();
-				_bregman_b_weights->copyFromHost(*_hBregman_b_weights, true);
-			}
+    void copyToGPU();
 
-        } else {
-            _weights = _srcWeights->_weights;
-            _weightsInc = _srcWeights->_weightsInc;
-            _weightsGrad = _srcWeights->_weightsGrad;
-
-			//bregman
-			_bregman_b_weights = _srcWeights->_bregman_b_weights;
-        }
-
-        _onGPU = true;
-    }
-    
     // Scale your gradient by epsW / numCases!
-    void update(bool use_inc_drop);
+    void update(bool useAux);
+
+	void procAux(float scale);
+
+	void zeroAux();
 
 	void shrink(float lambda);
     
@@ -309,9 +304,21 @@ public:
 //        }
 //    }
     
-    void update(bool use_inc_drop) {
+    void update(bool useAux) {
         for (int i = 0; i < getSize(); i++) {
-            _weightList[i]->update(use_inc_drop);
+            _weightList[i]->update(useAux);
+        }
+    }
+
+    void procAux(float scale) {
+        for (int i = 0; i < getSize(); i++) {
+            _weightList[i]->procAux(scale);
+        }
+    }
+
+    void zeroAux() {
+        for (int i = 0; i < getSize(); i++) {
+            _weightList[i]->zeroAux();
         }
     }
 

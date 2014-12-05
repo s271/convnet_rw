@@ -40,7 +40,7 @@
  * The types of passes that the convnet supports. Used in the fprop and bprop functions in
  * ConvNet class. Most of the layers ignore the pass type, but some make use of it.
  */
-enum PASS_TYPE {PASS_TRAIN, PASS_TEST, PASS_GC};
+enum PASS_TYPE {PASS_TRAIN, PASS_TEST, PASS_GC, PASS_AUX};
 
 // For gradient checking
 #define GC_SUPPRESS_PASSES          true

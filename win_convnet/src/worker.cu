@@ -95,12 +95,72 @@ void TrainingWorker::run() {
 
 //debug
 	gepoch = _epoch;
-	size_t free_mem;
-	size_t total_mem;
-	cudaError_t  err = cudaMemGetInfo(&free_mem, &total_mem);
+//	size_t free_mem;
+//	size_t total_mem;
+//	cudaError_t  err = cudaMemGetInfo(&free_mem, &total_mem);
 //	printf(" free memory  %f \n", free_mem/1e6);
 
+	auxPass();
+
     Cost& batchCost = *new Cost(0);
+
+	trainingPass(batchCost);
+
+    cudaThreadSynchronize();
+    _convNet->getResultQueue().enqueue(new WorkResult(WorkResult::BATCH_DONE, batchCost));
+}
+
+void TrainingWorker::auxPass() {
+//choose subset 
+	int subset_size = .3*_dp->getNumMinibatches();
+	vector<int> subset;
+	vector<int> mask;
+
+	for (int i = 0; i < _dp->getNumMinibatches(); i++)
+		mask.push_back(0);
+
+	for (int i=0; i< subset_size; i++)
+	{
+		int r = rand()%(_dp->getNumMinibatches()-i);
+		int count = 0;
+		for (int j = 0; j < _dp->getNumMinibatches(); j++)
+		{
+			if(mask[j] == 0)
+			{
+				if(count == r)
+				{
+					mask[j] = 1;
+					subset.push_back(j);
+					break;
+				}
+				count++;
+			}
+		}
+	}
+
+	assert(subset.size() == subset_size);
+	 
+	_convNet->zeroAuxWeights();
+
+	int rndGradInd = rand()%subset_size;
+
+	for (int ki = 0; ki < subset_size; ki++) {
+
+		int mb_ind=subset[ki];
+
+		float scale = 1./subset_size;
+		if(ki == rndGradInd)
+			scale = 1./subset_size - 1;
+
+		_convNet->fpropRnd(mb_ind, _epoch, PASS_AUX);
+        _convNet->bprop(PASS_AUX);
+        _convNet->procAuxWeights(scale);
+    }
+
+}
+
+void TrainingWorker::trainingPass(Cost& batchCost) {
+
 
 	//vector<int> shaffle;
 	//for (int i = 0; i < _dp->getNumMinibatches(); i++)
@@ -122,8 +182,7 @@ void TrainingWorker::run() {
 minibatch=ki;
 //printf("mini_ind %i \n", mini_ind);
 
-		if(_eps_scale > 0)
-			_convNet->setParam(_eps_scale);
+		_convNet->setParam(_eps_scale);
 
        //_convNet->fprop(mini_ind, _test ? PASS_TEST : PASS_TRAIN);
 		//_convNet->fprop(ki, _test ? PASS_TEST : PASS_TRAIN);
@@ -132,11 +191,9 @@ minibatch=ki;
         
         if (!_test) {
             _convNet->bprop(PASS_TRAIN);
-            _convNet->updateWeights();
+            _convNet->updateWeights(false);
         }
     }
-    cudaThreadSynchronize();
-    _convNet->getResultQueue().enqueue(new WorkResult(WorkResult::BATCH_DONE, batchCost));
 }
 
 /*

@@ -1131,15 +1131,15 @@ class WeightLayerParser(LayerWithInputParser):
                     dic['weightsInc'] += [n.zeros_like(dic['weights'][i])]
  
 
-    def make_bregman_weight(self, rows, cols, order='C'):
+    def make_aux_weight(self, rows, cols, order='C'):
         dic = self.dic
-        dic['b_weight_bregman'] = []
+        dic['aux_weight'] = []
         for i in xrange(len(dic['inputs'])):
-            dic['b_weight_bregman'] += [n.zeros((rows[i], cols[i]), dtype=n.single, order=order)]
+            dic['aux_weight'] += [n.zeros((rows[i], cols[i]), dtype=n.single, order=order)]
   
-    def make_bregman_bias(self, rows, cols, order='C'):
+    def make_aux_bias(self, rows, cols, order='C'):
         dic = self.dic
-        dic['b_bias_bregman'] = n.zeros((rows, cols), order='C', dtype=n.single)
+        dic['aux_bias'] = n.zeros((rows, cols), order='C', dtype=n.single)
          
     def make_biases(self, rows, cols, order='C'):
         dic = self.dic
@@ -1166,6 +1166,7 @@ class WeightLayerParser(LayerWithInputParser):
         dic['initB'] = mcp.safe_get_float(name, 'initB', default=0)
         dic['initWFunc'] = mcp.safe_get(name, 'initWFunc', default="")
         dic['initBFunc'] = mcp.safe_get(name, 'initBFunc', default="")
+        dic['svrg'] = mcp.safe_get_int(name, 'svrg', default=0)
         # Find shared weight matrices
         
         dic['weightSource'] = mcp.safe_get_list(name, 'weightSource', default=[''] * len(dic['inputs']))
@@ -1215,9 +1216,10 @@ class FCLayerParser(WeightLayerParser):
         self.make_weights(dic['initW'], dic['numInputs'], [dic['outputs']] * len(dic['numInputs']), order='F')
         self.make_biases(1, dic['outputs'], order='F')
         
-        self.make_bregman_weight(dic['numInputs'], [dic['outputs']] * len(dic['numInputs']), order='F')
-        self.make_bregman_bias(1, dic['outputs'], order='F')
-        
+        if dic['svrg'] > 0 :
+            self.make_aux_weight(dic['numInputs'], [dic['outputs']] * len(dic['numInputs']), order='F')
+            self.make_aux_bias(1, dic['outputs'], order='F')
+            
         print "Initialized fully-connected layer '%s', producing %d outputs" % (name, dic['outputs'])
         return dic
 
@@ -1373,8 +1375,10 @@ class ConvLayerParser(LocalLayerParser):
         eltmult = lambda list1, list2: [l1 * l2 for l1,l2 in zip(list1, list2)]
         self.make_weights(dic['initW'], eltmult(dic['filterPixels'], dic['filterChannels']), [dic['filters']] * len(dic['inputs']), order='C')
         self.make_biases(num_biases, 1, order='C')
-        
-        #self.make_bregman(eltmult(dic['filterPixels'], dic['filterChannels']), [dic['filters']] * len(dic['inputs']), order='C')
+                    
+        if dic['svrg'] > 0 : 
+            self.make_aux_weight(eltmult(dic['filterPixels'], dic['filterChannels']), [dic['filters']] * len(dic['inputs']), order='C')
+            self.make_aux_bias(num_biases, 1, order='C')
 
         print "Initialized convolutional layer '%s', producing %dx%d %d-channel output" % (name, dic['modulesX'], dic['modulesX'], dic['filters'])
         return dic    

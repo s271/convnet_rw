@@ -56,9 +56,9 @@ Layer::Layer(ConvNet* convNet, PyObject* paramsDict, bool trans) :
     _actsGrad = _actsGradTarget < 0 ? new NVMatrix() : NULL;
 
     _dropout = pyDictGetFloat(paramsDict, "dropout");
-    //_dropout_mask = new NVMatrix(); error?
 
 	_nan2Zero = false;
+	_no_update = false;
 }
 
 void Layer::fpropNext(PASS_TYPE passType) {
@@ -96,7 +96,8 @@ void Layer::fprop(PASS_TYPE passType) {
 void Layer::setParam(float eps_scale)
 {
 
-	setCommon(eps_scale);
+	if(eps_scale > 0)
+		setCommon(eps_scale);
 
 	setParamNext(eps_scale);
 }
@@ -128,7 +129,7 @@ void Layer::fprop(NVMatrixV& v, PASS_TYPE passType) {
         }
     }
 
-    if (passType != PASS_TEST && _dropout > 0.0) {
+    if (passType != PASS_TEST && passType != PASS_AUX && _dropout > 0.0) {
         _dropout_mask.resize(getActs().getNumRows(), getActs().getNumCols());
         _dropout_mask.randomizeUniform();
         _dropout_mask.biggerThanScalar(_dropout);
@@ -158,7 +159,7 @@ void Layer::bprop(NVMatrix& v, PASS_TYPE passType) {
     }
     getActs().transpose(_trans);
     
-    if (_dropout > 0.0) {
+    if (_dropout > 0.0 && passType != PASS_AUX) {
       v.eltwiseMult(_dropout_mask);
     }
 
@@ -298,15 +299,16 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
     Matrix& hBiasesInc = *pyDictGetMatrix(paramsDict, "biasesInc");
 
 	string layerType = pyDictGetString(paramsDict, "type");
+	_svrg =  pyDictGetInt(paramsDict, "svrg");
 
-	MatrixV *phBregman_b_weights = NULL;
-	Matrix *phBregman_b_bias = NULL;
+	MatrixV *phAux_weights = NULL;
+	Matrix *phAux_bias = NULL;
 
 //bregman
-	if(layerType == "fc")
+	if(_svrg)
 	{
-		phBregman_b_weights = pyDictGetMatrixV(paramsDict, "b_weight_bregman");
-	    phBregman_b_bias = pyDictGetMatrix(paramsDict, "b_bias_bregman");
+		phAux_weights = pyDictGetMatrixV(paramsDict, "aux_weight");
+	    phAux_bias = pyDictGetMatrix(paramsDict, "aux_bias");
 	}
     
     floatv& momW = *pyDictGetFloatV(paramsDict, "momW");
@@ -323,10 +325,16 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
     intv& weightSourceLayerIndices = *pyDictGetIntV(paramsDict, "weightSourceLayerIndices");
     // Weight matrix indices (inside the above source layers) for shared weights
     intv& weightSourceMatrixIndices = *pyDictGetIntV(paramsDict, "weightSourceMatrixIndices");
+
+
+	//debug aux
+	printf(" name %s  weightSourceLayerIndices size %i \n", _name.c_str(), weightSourceLayerIndices.size());
     
     for (int i = 0; i < weightSourceLayerIndices.size(); i++) {
+
         int srcLayerIdx = weightSourceLayerIndices[i];
         int matrixIdx = weightSourceMatrixIndices[i];
+
         if (srcLayerIdx == convNet->getNumLayers()) { // Current layer
             _weights.addWeights(*new Weights(_weights[matrixIdx], epsW[i]));
         } else if (srcLayerIdx >= 0) {
@@ -334,19 +342,19 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
             Weights* srcWeights = &srcLayer.getWeights(matrixIdx);
             _weights.addWeights(*new Weights(*srcWeights, epsW[i]));
 
-        } else if(layerType != "fc"){
+        } else if(_svrg == 0){
             _weights.addWeights(*new Weights(*hWeights[i], *hWeightsInc[i], epsW[i], wc[i], momW[i], muL1, _renorm, useGrad));
         } else
 			_weights.addWeights(*new Weights(*hWeights[i], *hWeightsInc[i],
-			*((*phBregman_b_weights)[i]),
+			*((*phAux_weights)[i]), true, 0,
 			epsW[i], wc[i], momW[i], muL1, _renorm, useGrad));
 
     }
-    if(layerType != "fc")
+    if(_svrg == 0)
 		_biases = new Weights(hBiases, hBiasesInc, epsB, 0, momB, 0, 0, true);
 	else
 		_biases = new Weights(hBiases, hBiasesInc,
-		*phBregman_b_bias,
+		*phAux_bias, true, 0,
 		epsB, 0, momB, 0, 0, true);
 
     // Epsilons for finite-difference gradient checking operation
@@ -394,15 +402,21 @@ void WeightLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType) {
     }
 }
 
-void WeightLayer::updateWeights() {
+void WeightLayer::updateWeights(bool useAux) {
 
-	bool use_inc_drop = false;
-	//if(_type == "conv")
-	//	use_inc_drop = true;
-
-    _weights.update(use_inc_drop);
+    _weights.update(useAux);
 	_biases->update(false);
     
+}
+
+void WeightLayer::procAuxWeights(float scale) {
+    _weights.procAux(scale);
+	_biases->procAux(scale);   
+}
+
+void WeightLayer::zeroAuxWeights() {
+    _weights.zeroAux();
+	_biases->zeroAux();   
 }
 
 void WeightLayer::copyToCPU() {
@@ -481,6 +495,8 @@ void BiasLayer::setCommon(float eps_scale) {
 void BiasLayer::updateBiases() {
     _biases->update(false);    
 }
+
+//procAux here?
 
 void BiasLayer::copyToCPU() {
     _biases->copyToCPU();
@@ -1511,162 +1527,141 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 	//_tempB.ResizeAggStorage(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);B, C off
 
-	for(int kp = 0; kp < paramSize-2; kp++)//paramSize-2, B, C off
+	if(passType == PASS_TRAIN)
 	{
-
-		int out_len = EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn;
-		int k_out = kp/out_len;
-		int sw_len = ELWISE_FUNC_SEC*_sizeIn;
-		int k_ws = (kp - k_out*out_len)/sw_len;
-		int k_v = kp - k_out*out_len - k_ws*sw_len;
-
-		//if(k_v > 2*_sizeIn)
-		//	continue;
-
-		double grad = 0;
-		if(kp < paramSize-2)
-			 grad = _tempMatrixArray[kp].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
-		else if(kp == paramSize-2)
-			grad =0;// _tempC.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
-		else if(kp == paramSize-1)
-			_tempB.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
-			//grad = -6*(*_inputs[inpIdx]).sum()/(*_inputs[inpIdx]).getNumElements() - _param[paramSize-1];
-		
-//should make orthognal projection to equal vector(sizeIn)
-
-		double sum_grad = 0;
-		int nsum = 0;
-		for(int k = 0; k < _nstore; k++)
+		for(int kp = 0; kp < paramSize-2; kp++)//paramSize-2, B, C off
 		{
-			double g_stored = _grad_store[k*_param.size() + kp];
 
-			if(g_stored > 0)
-				nsum++;
+			int out_len = EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn;
+			int k_out = kp/out_len;
+			int sw_len = ELWISE_FUNC_SEC*_sizeIn;
+			int k_ws = (kp - k_out*out_len)/sw_len;
+			int k_v = kp - k_out*out_len - k_ws*sw_len;
 
-			sum_grad += g_stored*g_stored;
+			//if(k_v > 2*_sizeIn)
+			//	continue;
+
+			double grad = 0;
+			if(kp < paramSize-2)
+				 grad = _tempMatrixArray[kp].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+			else if(kp == paramSize-2)
+				grad =0;// _tempC.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
+			else if(kp == paramSize-1)
+				_tempB.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
+				//grad = -6*(*_inputs[inpIdx]).sum()/(*_inputs[inpIdx]).getNumElements() - _param[paramSize-1];
+			
+	//should make orthognal projection to equal vector(sizeIn)
+
+			double sum_grad = 0;
+			int nsum = 0;
+			for(int k = 0; k < _nstore; k++)
+			{
+				double g_stored = _grad_store[k*_param.size() + kp];
+
+				if(g_stored > 0)
+					nsum++;
+
+				sum_grad += g_stored*g_stored;
+			}
+
+			_grad_store[_nstore_count*_param.size() + kp] = grad;
+
+			if(sum_grad > 0)
+				grad = grad*sqrt(nsum)/sqrt(sum_grad);
+		
+			double eps = _epsP;
+			double wc = _wc;
+
+			_param_inc[kp] = _mom*_param_inc[kp] + eps*grad;
+			float r =_param_inc[kp] - wc*_param[kp];
+
+			if(_param_inc[kp]*r >= 0)
+				_param_inc[kp] = r;
+				
+	//debug
+			if(kp != paramSize-2)
+				_param[kp] += _param_inc[kp];
 		}
 
-		_grad_store[_nstore_count*_param.size() + kp] = grad;
-
-		if(sum_grad > 0)
-			grad = grad*sqrt(nsum)/sqrt(sum_grad);
-	
-		double eps = _epsP;
-		double wc = _wc;
-
-		_param_inc[kp] = _mom*_param_inc[kp] + eps*grad;
-		float r =_param_inc[kp] - wc*_param[kp];
-
-		if(_param_inc[kp]*r >= 0)
-			_param_inc[kp] = r;
-			
-//debug
-		if(kp != paramSize-2)
-			_param[kp] += _param_inc[kp];
-	}
-
-	_nstore_count = (_nstore_count+1)%_nstore;
+		_nstore_count = (_nstore_count+1)%_nstore;
 
 
+	//normalize
+	#ifdef EL_SWITCH
+		int paramSwSectionLen = (paramSize-2)/EL_SWITCH;
+	#else
+		int paramSwSectionLen = paramSize;
+	#endif
 
+		double sumScale = _sizeIn*_sizeOut;
+		int vect_len = _sizeIn*ELWISE_FUNC_SEC;
+		int vnorm_len = _sizeIn*2;
 
-//project on subspace
-	//int lsum = _sizeIn*2;
-	//int pcurrent = 0;
-	//for(int k = 1; k < numv; k++)
-	//{
-	//	double l2 = 0;
-	//	for(int p =0; p < lsum; p++)
-	//		l2 += _param[pcurrent*vlen + p]*_param[pcurrent*vlen + p];
-
-	//	for(int i = k; i < numv; i++)
-	//	{
-	//		double dot = 0;
-	//		for(int p =0; p < lsum; p++)
-	//			dot += _param[pcurrent*vlen + p]*_param[i*vlen + p];
-
-	//		for(int p =0; p < lsum; p++)
-	//			_param[i*vlen + p] -= dot/l2*_param[pcurrent*vlen + p];
-	//	}
-
-	//	pcurrent++;
-	//}
-
-//normalize
-#ifdef EL_SWITCH
-	int paramSwSectionLen = (paramSize-2)/EL_SWITCH;
-#else
-	int paramSwSectionLen = paramSize;
-#endif
-
-	double sumScale = _sizeIn*_sizeOut;
-	int vect_len = _sizeIn*ELWISE_FUNC_SEC;
-	int vnorm_len = _sizeIn*2;
-
-	for(int k_sw = 0; k_sw < EL_SWITCH; k_sw++)
-	{
-		double l1sum = 0;
-		for(int k_out = 0; k_out < _sizeOut; k_out++)
+		for(int k_sw = 0; k_sw < EL_SWITCH; k_sw++)
 		{
-			for(int kinp = 0; kinp < vnorm_len; kinp++)
+			double l1sum = 0;
+			for(int k_out = 0; k_out < _sizeOut; k_out++)
 			{
-				double pv = _param[k_out*EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn + k_sw*ELWISE_FUNC_SEC*_sizeIn + kinp];
-				l1sum += fabs(pv);
+				for(int kinp = 0; kinp < vnorm_len; kinp++)
+				{
+					double pv = _param[k_out*EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn + k_sw*ELWISE_FUNC_SEC*_sizeIn + kinp];
+					l1sum += fabs(pv);
+				}
+			}
+			
+			assert(l1sum>0);
+
+			for(int k_out = 0; k_out < _sizeOut; k_out++)
+			{
+				for(int kinp = 0; kinp < vnorm_len; kinp++)
+					_param[k_out*EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn + k_sw*ELWISE_FUNC_SEC*_sizeIn + kinp] *= sumScale/l1sum;
 			}
 		}
-		
-		assert(l1sum>0);
 
-		for(int k_out = 0; k_out < _sizeOut; k_out++)
+
+		if(minibatch == 0)
 		{
-			for(int kinp = 0; kinp < vnorm_len; kinp++)
-				_param[k_out*EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn + k_sw*ELWISE_FUNC_SEC*_sizeIn + kinp] *= sumScale/l1sum;
+			int nump = _sizeIn*ELWISE_FUNC_SEC;
+			int numl = (_param.size()+nump-1)/nump;
+			printf("** params *** \n");
+			for (int nk = 0; nk < numl; nk++)
+			{
+				for (int k = 0; k < nump; k++)
+					if(k + nk*nump < _param.size())
+					printf("%f ", _param[k + nk*nump]);
+				printf("\n");
+			}
 		}
-	}
 
-
-	if(minibatch == 0)
-	{
-		int nump = _sizeIn*ELWISE_FUNC_SEC;
-		int numl = (_param.size()+nump-1)/nump;
-		printf("** params *** \n");
-		for (int nk = 0; nk < numl; nk++)
+	//test
+		//if(0)
+		if(minibatch == 0)
 		{
-			for (int k = 0; k < nump; k++)
-				if(k + nk*nump < _param.size())
-				printf("%f ", _param[k + nk*nump]);
-			printf("\n");
+
+		//debug
+	//printf(" meta name %s \n", _name.c_str());
+	//NVMatrix temp;
+	//_inputs[inpIdx]->apply(NVMatrixOps::Abs(), temp);
+	//float favg = temp.sum()/(*_inputs[inpIdx]).getNumElements();
+	//printf("inp avg %f \n", favg);
+
+			int numPixelPerGroup =  v.getNumElements()/_sizeOut;
+
+			testGroupsEltwiseFunc(v, *_inputs[inpIdx],
+									 _arrayPtr, _tempMatrixArray, _param,
+									 _sizeIn, _sizeOut, _channels, 0);
+			double gr0 = _tempMatrixArray[0].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+			double diff1 = _tempMatrixArray[1].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+			double diff2 = _tempMatrixArray[2].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+			printf("***EltwiseFunc %s group test gr0 %f diff1_rel %f diff2_rel %f \n",_name.c_str(), gr0/numPixelPerGroup, diff1/gr0, diff2/gr0);
+
+			//double gr_s0 = _tempMatrixArray[3].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU)/numPixelPerGroup;
+			//double gr_s1 = _tempMatrixArray[4].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU)/numPixelPerGroup;
+			//double gr_s2 = _tempMatrixArray[5].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU)/numPixelPerGroup;
+			//printf("gr_s0 %f gr_s1 %f gr_s2 %f\n", gr_s0, gr_s1, gr_s2);
+
+	//end test
 		}
-	}
-
-//test
-	//if(0)
-	if(minibatch == 0)
-	{
-
-	//debug
-//printf(" meta name %s \n", _name.c_str());
-//NVMatrix temp;
-//_inputs[inpIdx]->apply(NVMatrixOps::Abs(), temp);
-//float favg = temp.sum()/(*_inputs[inpIdx]).getNumElements();
-//printf("inp avg %f \n", favg);
-
-		int numPixelPerGroup =  v.getNumElements()/_sizeOut;
-
-		testGroupsEltwiseFunc(v, *_inputs[inpIdx],
-								 _arrayPtr, _tempMatrixArray, _param,
-								 _sizeIn, _sizeOut, _channels, 0);
-		double gr0 = _tempMatrixArray[0].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
-		double diff1 = _tempMatrixArray[1].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
-		double diff2 = _tempMatrixArray[2].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
-		printf("***EltwiseFunc %s group test gr0 %f diff1_rel %f diff2_rel %f \n",_name.c_str(), gr0/numPixelPerGroup, diff1/gr0, diff2/gr0);
-
-		//double gr_s0 = _tempMatrixArray[3].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU)/numPixelPerGroup;
-		//double gr_s1 = _tempMatrixArray[4].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU)/numPixelPerGroup;
-		//double gr_s2 = _tempMatrixArray[5].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU)/numPixelPerGroup;
-		//printf("gr_s0 %f gr_s1 %f gr_s2 %f\n", gr_s0, gr_s1, gr_s2);
-
-//end test
 	}
 
 	computeEltwiseFuncGrad(v, *_inputs[inpIdx], _prev[inpIdx]->getActsGrad(), _param, _channels, _sizeIn, _sizeOut);
@@ -1692,11 +1687,11 @@ void EltwiseDFuncLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE pass
 	computeEltwiseDFuncAct(*_inputs[inpIdx],  getActs(), _param, _channels, _sizeIn, _sizeOut);
 }
 
-static int debug_count = 0;
+//static int debug_count = 0;
 
 void EltwiseDFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
 //debug
-debug_count++;
+//debug_count++;
 
 	int paramSize = _param.size();
 
@@ -1711,110 +1706,93 @@ debug_count++;
 
 	//_tempB.ResizeAggStorage(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);B, C off
 
-	for(int kp = 0; kp < paramSize-2; kp++)//paramSize-2, B, C off
+	if(passType == PASS_TRAIN)
 	{
-
-		double grad = 0;
-		if(kp < paramSize-2)
-			 grad = _tempMatrixArray[kp].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
-		else if(kp == paramSize-2)
-			grad =0;// _tempC.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
-		else if(kp == paramSize-1)
-			_tempB.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
-		
-//should make orthognal projection to equal vector(sizeIn)
-
-		double sum_grad = 0;
-		for(int k = 0; k < _nstore; k++)
+		for(int kp = 0; kp < paramSize-2; kp++)//paramSize-2, B, C off
 		{
-			sum_grad += _grad_store[k*_param.size() + kp]*_grad_store[k*_param.size() + kp];
+
+			double grad = 0;
+			if(kp < paramSize-2)
+				 grad = _tempMatrixArray[kp].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
+			else if(kp == paramSize-2)
+				grad =0;// _tempC.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
+			else if(kp == paramSize-1)
+				_tempB.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
+			
+	//should make orthognal projection to equal vector(sizeIn)
+
+			double sum_grad = 0;
+			for(int k = 0; k < _nstore; k++)
+			{
+				sum_grad += _grad_store[k*_param.size() + kp]*_grad_store[k*_param.size() + kp];
+			}
+
+			_grad_store[_nstore_count*_param.size() + kp] = grad;
+
+			if(sum_grad > 0)
+				grad = grad*sqrt(NSTORE)/sqrt(sum_grad);
+		
+			double eps = _epsP;
+			double wc = _wc;
+
+			_param_inc[kp] = _mom*_param_inc[kp] + eps*grad - wc*_param[kp];
+				
+	//debug
+			if(kp != paramSize-2)
+				_param[kp] += _param_inc[kp];
 		}
 
-		_grad_store[_nstore_count*_param.size() + kp] = grad;
+		_nstore_count = (_nstore_count+1)%_nstore;
 
-		if(sum_grad > 0)
-			grad = grad*sqrt(NSTORE)/sqrt(sum_grad);
-	
-		double eps = _epsP;
-		double wc = _wc;
+	#ifdef EL_SWITCH
+		int paramSwSectionLen = (paramSize-2)/EL_SWITCH;
+	#else
+		int paramSwSectionLen = paramSize;
+	#endif
 
-		_param_inc[kp] = _mom*_param_inc[kp] + eps*grad - wc*_param[kp];
-			
-//debug
-		if(kp != paramSize-2)
-			_param[kp] += _param_inc[kp];
-	}
-
-	_nstore_count = (_nstore_count+1)%_nstore;
-
-#ifdef EL_SWITCH
-	int paramSwSectionLen = (paramSize-2)/EL_SWITCH;
-#else
-	int paramSwSectionLen = paramSize;
-#endif
-
-	double sumScale = .5*_sizeIn*_sizeOut;
-	int vect_len = _sizeIn*ELWISE_DFUNC_SEC;
-	int vnorm_len = _sizeIn*3;
+		double sumScale = .5*_sizeIn*_sizeOut;
+		int vect_len = _sizeIn*ELWISE_DFUNC_SEC;
+		int vnorm_len = _sizeIn*3;
 
 
-	//for(int k_sw = 0; k_sw < EL_SWITCH; k_sw++)
-	 int k_sw = 0; 
-	{
-		double l1sum = 0;
-		for(int k_out = 0; k_out < _sizeOut; k_out++)
+		//for(int k_sw = 0; k_sw < EL_SWITCH; k_sw++)
+		 int k_sw = 0; 
 		{
-			for(int kinp = 0; kinp < vnorm_len; kinp++)
+			double l1sum = 0;
+			for(int k_out = 0; k_out < _sizeOut; k_out++)
 			{
-				double pv = _param[k_out*EL_SWITCH*ELWISE_DFUNC_SEC*_sizeIn + k_sw*ELWISE_DFUNC_SEC*_sizeIn + kinp];
-				l1sum += fabs(pv);
+				for(int kinp = 0; kinp < vnorm_len; kinp++)
+				{
+					double pv = _param[k_out*EL_SWITCH*ELWISE_DFUNC_SEC*_sizeIn + k_sw*ELWISE_DFUNC_SEC*_sizeIn + kinp];
+					l1sum += fabs(pv);
+				}
+			}
+
+		
+			assert(l1sum>0);
+
+			for(int k_out = 0; k_out < _sizeOut; k_out++)
+			{
+				for(int kinp = 0; kinp < vnorm_len; kinp++)
+					_param[k_out*EL_SWITCH*ELWISE_DFUNC_SEC*_sizeIn + k_sw*ELWISE_DFUNC_SEC*_sizeIn + kinp] *= sumScale/l1sum;
 			}
 		}
 
 
-//if(l1sum <= 0 || debug_count==35)
-//if(0)
-//{
-//	{
-//		int nump = _sizeIn*ELWISE_DFUNC_SEC;
-//		int numl = (_param.size()+nump-1)/nump;
-//		printf("** params *** \n");
-//		for (int nk = 0; nk < numl; nk++)
-//		{
-//			for (int k = 0; k < nump; k++)
-//				if(k + nk*nump < _param.size())
-//				printf("%f ", _param[k + nk*nump]);
-//			printf("\n");
-//		}
-//	}
-//
-//	printf(" dcount %i, l1sum %f \n", debug_count, l1sum);
-//	//exit(-1);
-//}
-
-		
-		assert(l1sum>0);
-
-		for(int k_out = 0; k_out < _sizeOut; k_out++)
+		if(minibatch == 0)
 		{
-			for(int kinp = 0; kinp < vnorm_len; kinp++)
-				_param[k_out*EL_SWITCH*ELWISE_DFUNC_SEC*_sizeIn + k_sw*ELWISE_DFUNC_SEC*_sizeIn + kinp] *= sumScale/l1sum;
+			int nump = _sizeIn*ELWISE_DFUNC_SEC;
+			int numl = (_param.size()+nump-1)/nump;
+			printf("** params *** \n");
+			for (int nk = 0; nk < numl; nk++)
+			{
+				for (int k = 0; k < nump; k++)
+					if(k + nk*nump < _param.size())
+					printf("%f ", _param[k + nk*nump]);
+				printf("\n");
+			}
 		}
-	}
 
-
-	if(minibatch == 0)
-	{
-		int nump = _sizeIn*ELWISE_DFUNC_SEC;
-		int numl = (_param.size()+nump-1)/nump;
-		printf("** params *** \n");
-		for (int nk = 0; nk < numl; nk++)
-		{
-			for (int k = 0; k < nump; k++)
-				if(k + nk*nump < _param.size())
-				printf("%f ", _param[k + nk*nump]);
-			printf("\n");
-		}
 	}
 
 
@@ -1823,7 +1801,7 @@ debug_count++;
 
 //		printf("EltwiseFuncLayer bpropActs end\n");
 
-	if(minibatch == 0)
+	if(_epsP >0 && minibatch == 0)
 	{
 
 		int numPixelPerGroup =  v.getNumElements()/_sizeOut;

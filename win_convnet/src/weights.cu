@@ -35,27 +35,33 @@ void Weights::shrink(float lambda)
 	}
 };
 
+void Weights::procAux(float scale) {
+    assert(_onGPU);
+    if (_active_aux && _useGrad)
+		getAuxUse().add(*_weightsGrad, scale);
+}
+
+void Weights::zeroAux() {
+	if(_active_aux)
+		getAuxUse().apply(NVMatrixOps::Zero());
+}
+
 // Scale your gradient by epsW / numCases!
-void Weights::update(bool use_inc_drop) {
+void Weights::update(bool useAux) {
     // Only true owner of weights updates
     if (_srcWeights == NULL && _epsW > 0) {
         assert(_onGPU);
         if (_useGrad) {
             _weightsInc->add(*_weightsGrad, _mom, 1);
+
+			if(_active_aux)
+				_weightsInc->add(getAuxUse(), _mom, 1);
         }
 
         if (_wc > 0) {
             _weightsInc->addSignReg(*_weights, -_wc * _epsW);	
 			//_weightsInc->add(*_weights, -_wc * _epsW);				
         }
-
-		if(use_inc_drop)
-		{
-		    _inc_drop->resize(_weightsInc->getNumRows(), _weightsInc->getNumCols());
-			_inc_drop->randomizeUniform();
-			_inc_drop->biggerThanScalar(.1);
-		   _weightsInc->eltwiseMult(*_inc_drop);
-		}
 
         _weights->add(*_weightsInc);
 		_numUpdates = 0;
@@ -77,3 +83,91 @@ void Weights::update(bool use_inc_drop) {
 
     }
 }
+
+void Weights::copyToCPU() {
+    if (_srcWeights == NULL) {
+        assert(_onGPU);
+        _weights->copyToHost(*_hWeights);
+        _weightsInc->copyToHost(*_hWeightsInc);
+//bregman
+		if(_active_aux && _hAux_weights)
+		{
+			_aux_weights[_aux_update].copyToHost(*_hAux_weights);
+		}
+    }
+}
+
+void Weights::initAux()
+{
+	_aux_store_size = 1;
+	_aux_use = 0;
+	_aux_update = (_aux_use+1)%_aux_store_size;
+
+	for(int i = 0; i < _aux_store_size; i++)
+		_aux_weights.push_back(NVMatrix());
+
+	_aux_weights[_aux_use].copyFromHost(*_hAux_weights, true);
+
+	for(int i = 0; i < _aux_store_size; i++)
+	{
+		if (i == _aux_use)
+			continue;
+		_aux_weights[i].resize(_aux_weights[_aux_use]);
+		_aux_weights[i].apply(NVMatrixOps::Zero());
+	}
+
+}
+
+void Weights::stepAuxInd()
+{
+	_aux_use = (_aux_use+1)%_aux_store_size;
+	_aux_update = (_aux_update+1)%_aux_store_size;
+}
+
+
+void Weights::setAuxUseInd(int useInd)
+{
+	_aux_use = useInd;
+}
+
+void Weights::setAuxUpdateInd(int updInd)
+{
+	_aux_update = updInd;
+}
+
+int Weights::getAuxUseInd()
+{
+	return _aux_use;
+}
+
+int Weights::getAuxUpdateInd()
+{
+	return _aux_update;
+}
+
+void Weights::copyToGPU() {
+    if (_srcWeights == NULL) {
+		//bregman
+		if(_active_aux)
+			initAux();
+
+        _weights = new NVMatrix();
+        _weightsInc = new NVMatrix();
+        _weights->copyFromHost(*_hWeights, true);
+        _weightsInc->copyFromHost(*_hWeightsInc, true);
+        _weightsGrad = _useGrad ? new NVMatrix() : NULL;
+		
+
+    } else {
+        _weights = _srcWeights->_weights;
+        _weightsInc = _srcWeights->_weightsInc;
+        _weightsGrad = _srcWeights->_weightsGrad;
+
+		//bregman
+		if(_active_aux)
+			initAux();
+    }
+
+    _onGPU = true;
+}
+    

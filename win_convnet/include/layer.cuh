@@ -73,6 +73,7 @@ protected:
 	//move to weights
     NVMatrix _dropout_mask;
     float _dropout;
+	bool _no_update;
   
     void fpropNext(PASS_TYPE passType);
     virtual void truncBwdActs(); 
@@ -117,8 +118,15 @@ public:
     virtual void postInit();
     
     // Do nothing if this layer has no weights
-    virtual void updateWeights() {
+    virtual void updateWeights(bool useAux) {
     }
+
+	virtual void procAuxWeights(float scale) {
+    }
+
+	virtual void zeroAuxWeights() {
+    }
+
     virtual void checkGradients() {
     }
     virtual void copyToCPU() {
@@ -148,6 +156,7 @@ protected:
     float _wStep, _bStep;
 	float _renorm;
 	bool _notUseBias;
+	bool _svrg;
    
     void bpropCommon(NVMatrix& v, PASS_TYPE passType);
 	virtual void setCommon(float eps_scale);
@@ -158,7 +167,9 @@ protected:
 
 public:
     WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, bool useGrad);
-    virtual void updateWeights();
+    virtual void updateWeights(bool useAux);
+	virtual void procAuxWeights(float scale);
+	virtual void zeroAuxWeights();
     virtual void copyToCPU();
     virtual void copyToGPU();
     void checkGradients();

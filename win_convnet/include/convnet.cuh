@@ -81,7 +81,9 @@ public:
     Layer& getLayer(int idx);
     void copyToCPU();
     void copyToGPU();
-    void updateWeights();
+    void updateWeights(bool useAux);
+	void procAuxWeights(float scale);
+	void zeroAuxWeights();
     void reset();
     int getNumLayers();
 

@@ -219,9 +219,21 @@ void ConvNet::copyToGPU() {
     }
 }
 
-void ConvNet::updateWeights() {
+void ConvNet::updateWeights(bool useAux) {
     for (int i = 0; i < _layers.size(); i++) {
-        _layers[i]->updateWeights();
+        _layers[i]->updateWeights(useAux);
+    }
+}
+
+void ConvNet::procAuxWeights(float scale) {
+    for (int i = 0; i < _layers.size(); i++) {
+        _layers[i]->procAuxWeights(scale);
+    }
+}
+
+void ConvNet::zeroAuxWeights() {
+    for (int i = 0; i < _layers.size(); i++) {
+        _layers[i]->zeroAuxWeights();
     }
 }
 

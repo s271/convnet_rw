@@ -73,6 +73,8 @@ protected:
 public:
     TrainingWorker(ConvNet& convNet, CPUData& data, bool test, int epoch, float eps_scale);
     void run();
+	void trainingPass(Cost& batchCost);
+	void auxPass();
 };
 
 class SyncWorker : public Worker {
