@@ -100,7 +100,7 @@ void TrainingWorker::run() {
 //	cudaError_t  err = cudaMemGetInfo(&free_mem, &total_mem);
 //	printf(" free memory  %f \n", free_mem/1e6);
 
-	auxPass();
+//	auxPass();
 
     Cost& batchCost = *new Cost(0);
 
@@ -112,69 +112,57 @@ void TrainingWorker::run() {
 
 void TrainingWorker::auxPass() {
 //choose subset 
-	int subset_size = .3*_dp->getNumMinibatches();
-	vector<int> subset;
-	vector<int> mask;
+	//int subset_size = .3*_dp->getNumMinibatches();
+	//vector<int> subset;
+	//vector<int> mask;
 
-	for (int i = 0; i < _dp->getNumMinibatches(); i++)
-		mask.push_back(0);
+	//for (int i = 0; i < _dp->getNumMinibatches(); i++)
+	//	mask.push_back(0);
 
-	for (int i=0; i< subset_size; i++)
-	{
-		int r = rand()%(_dp->getNumMinibatches()-i);
-		int count = 0;
-		for (int j = 0; j < _dp->getNumMinibatches(); j++)
-		{
-			if(mask[j] == 0)
-			{
-				if(count == r)
-				{
-					mask[j] = 1;
-					subset.push_back(j);
-					break;
-				}
-				count++;
-			}
-		}
-	}
+	//for (int i=0; i< subset_size; i++)
+	//{
+	//	int r = rand()%(_dp->getNumMinibatches()-i);
+	//	int count = 0;
+	//	for (int j = 0; j < _dp->getNumMinibatches(); j++)
+	//	{
+	//		if(mask[j] == 0)
+	//		{
+	//			if(count == r)
+	//			{
+	//				mask[j] = 1;
+	//				subset.push_back(j);
+	//				break;
+	//			}
+	//			count++;
+	//		}
+	//	}
+	//}
 
-	assert(subset.size() == subset_size);
-	 
-	_convNet->zeroAuxWeights();
+	//assert(subset.size() == subset_size);
+	// 
+	//_convNet->zeroAuxWeights();
 
-	int rndGradInd = rand()%subset_size;
+	//int rndGradInd = rand()%subset_size;
 
-	for (int ki = 0; ki < subset_size; ki++) {
+	//for (int ki = 0; ki < subset_size; ki++) {
 
-		int mb_ind=subset[ki];
+	//	int mb_ind=subset[ki];
 
-		float scale = 1./subset_size;
-		if(ki == rndGradInd)
-			scale = 1./subset_size - 1;
+	//	float scale = 1./subset_size;
+	//	if(ki == rndGradInd)
+	//		scale = 1./subset_size - 1;
 
-		_convNet->fpropRnd(mb_ind, _epoch, PASS_AUX);
-        _convNet->bprop(PASS_AUX);
-		_convNet->procAuxWeights(scale);
-    }
+	//	_convNet->fpropRnd(mb_ind, _epoch, PASS_AUX);
+ //       _convNet->bprop(PASS_AUX);
+	//	_convNet->procAuxWeights(scale);
+ //   }
 
 }
 
 void TrainingWorker::trainingPass(Cost& batchCost) {
 
 bool useAux  = true;
-	//vector<int> shaffle;
-	//for (int i = 0; i < _dp->getNumMinibatches(); i++)
-	//	shaffle.push_back(i);
 
- //   for (int i=0; i<_dp->getNumMinibatches(); i++) {
- //       int r = rand()%_dp->getNumMinibatches();  
- //       int temp = shaffle[i];
-	//	shaffle[i] = shaffle[r];
-	//	shaffle[r] = temp;
- //   }
-//if (!_test)
-//printf(" eps %f \n", _eps_scale);
-//debug
 	//for (int ki = 0; ki < 1; ki++) {
 	for (int ki = 0; ki < _dp->getNumMinibatches(); ki++) {
 //		int mini_ind = shaffle[ki];
@@ -185,13 +173,14 @@ minibatch=ki;
 		_convNet->setParam(_eps_scale);
 
        //_convNet->fprop(mini_ind, _test ? PASS_TEST : PASS_TRAIN);
-		//_convNet->fprop(ki, _test ? PASS_TEST : PASS_TRAIN);
 		_convNet->fpropRnd(ki, _epoch, _test ? PASS_TEST : PASS_TRAIN);
         _convNet->getCost(batchCost);
         
         if (!_test) {
             _convNet->bprop(PASS_TRAIN);
             _convNet->updateWeights(useAux);
+			if(useAux)
+				_convNet->procAuxWeights();
         }
     }
 }

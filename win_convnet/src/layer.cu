@@ -327,14 +327,12 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
     intv& weightSourceMatrixIndices = *pyDictGetIntV(paramsDict, "weightSourceMatrixIndices");
 
 
-	int aux_store_szie = 0;
+	int aux_store_size = 0;
 	bool activeAux = false;
 	if(_svrg)
 	{
 		activeAux = true;
-		aux_store_szie = 1;
-		if(!useGrad)
-			aux_store_szie = 2;
+		aux_store_size = 8;
 	}
    
     for (int i = 0; i < weightSourceLayerIndices.size(); i++) {
@@ -353,7 +351,7 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
             _weights.addWeights(*new Weights(*hWeights[i], *hWeightsInc[i], epsW[i], wc[i], momW[i], muL1, _renorm, useGrad));
         } else
 			_weights.addWeights(*new Weights(*hWeights[i], *hWeightsInc[i],
-			*((*phAux_weights)[i]), activeAux, aux_store_szie,
+			*((*phAux_weights)[i]), activeAux, aux_store_size,
 			epsW[i], wc[i], momW[i], muL1, _renorm, useGrad));
 
     }
@@ -361,7 +359,7 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
 		_biases = new Weights(hBiases, hBiasesInc, epsB, 0, momB, 0, 0, true);
 	else
 		_biases = new Weights(hBiases, hBiasesInc,
-		*phAux_bias, activeAux, aux_store_szie,
+		*phAux_bias, activeAux, aux_store_size,
 		epsB, 0, momB, 0, 0, true);
 
 
@@ -418,9 +416,9 @@ void WeightLayer::updateWeights(bool useAux) {
     
 }
 
-void WeightLayer::procAuxWeights(float scale) {
-    _weights.procAux(scale);
-	_biases->procAux(scale);   
+void WeightLayer::procAuxWeights() {
+    _weights.procAux();
+	_biases->procAux();   
 }
 
 void WeightLayer::zeroAuxWeights() {
@@ -683,7 +681,7 @@ void DShrinkLayer::bpropBiases(NVMatrix& v, PASS_TYPE passType)
  * =======================
  */
 
-FCLayer::FCLayer(ConvNet* convNet, PyObject* paramsDict) : WeightLayer(convNet, paramsDict, true, false) {
+FCLayer::FCLayer(ConvNet* convNet, PyObject* paramsDict) : WeightLayer(convNet, paramsDict, true, true) {
     _wStep = 0.1;
     _bStep = 0.01;
 }
@@ -718,16 +716,9 @@ void FCLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType) {
     NVMatrix& prevActs_T = _prev[inpIdx]->getActs().getTranspose();
     float scaleInc = (_weights[inpIdx].getNumUpdates() == 0 && passType != PASS_GC) * _weights[inpIdx].getMom();
     float scaleGrad = passType == PASS_GC ? 1 : _weights[inpIdx].getEps() / numCases;
-    
-	// Df_next(sum f_prew_k*w_k)/Dw_i = (Df_next(x)/Dx)*f_prev_i
-	if(passType != PASS_AUX)
-	{
-		_weights[inpIdx].getInc().addProduct(prevActs_T, v, scaleInc, scaleGrad);
-	}
-	else if(_weights[inpIdx]._active_aux)
-	{
-		prevActs_T.rightMult(v, scaleGrad, _weights[inpIdx].getAuxUpdate());
-	}
+  
+//  _weights[inpIdx].getInc().addProduct(prevActs_T, v, scaleInc, scaleGrad);
+	prevActs_T.rightMult(v, scaleGrad, _weights[inpIdx].getGrad());
     
     delete &prevActs_T;
 }

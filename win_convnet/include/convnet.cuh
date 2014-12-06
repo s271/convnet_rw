@@ -82,7 +82,7 @@ public:
     void copyToCPU();
     void copyToGPU();
     void updateWeights(bool useAux);
-	void procAuxWeights(float scale);
+	void procAuxWeights();
 	void zeroAuxWeights();
     void reset();
     int getNumLayers();

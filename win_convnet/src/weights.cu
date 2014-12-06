@@ -35,19 +35,35 @@ void Weights::shrink(float lambda)
 	}
 };
 
-void Weights::procAux(float scale) {
+void Weights::procAux() {
+
+	if(!_active_aux)
+		return;
+
     assert(_onGPU);
-    if (_active_aux)
-		if(_useGrad)
-			getAuxUse().add(*_weightsGrad, scale);
-		else
-			getAuxUse().add(getAuxUpdate(), scale);
-	_numUpdates = 0;
+
+	if(_aux_filled >= _aux_store_size)
+	{
+		getAuxSum().add(getAuxUpdate(), -1);//remove
+	}
+
+	stepAuxInd();
+	CopyGradToAux();
+
+	getAuxSum().add(getAuxUpdate(), 1.);//add
+
 }
+
+void Weights::stepAuxInd()
+{
+	_aux_update = (_aux_update+1)%_aux_store_size;
+	_aux_filled = min(_aux_filled+1, _aux_store_size);
+}
+
 
 void Weights::zeroAux() {
 	if(_active_aux)
-		getAuxUse().apply(NVMatrixOps::Zero());
+		getAuxSum().apply(NVMatrixOps::Zero());
 }
 
 // Scale your gradient by epsW / numCases!
@@ -59,8 +75,13 @@ void Weights::update(bool useAux) {
 				_weightsInc->add(*_weightsGrad, _mom, 1);
         }
 
-		if(_active_aux && useAux)
-			_weightsInc->add(getAuxUse(), 1, 1);
+		if(_active_aux && useAux && _aux_filled >= 3)
+		{
+			_weightsInc->add(getAuxSum(), 1, 1./_aux_filled);
+			int rnd = rand()%_aux_filled;
+			_weightsInc->add(getAux(rnd), 1, -1.);
+
+		}
 
         if (_wc > 0) {
             _weightsInc->addSignReg(*_weights, -_wc * _epsW);	
@@ -104,44 +125,33 @@ void Weights::copyToCPU() {
 
 void Weights::initAux()
 {
-	_aux_use = 0;
-	_aux_update = (_aux_use+1)%_aux_store_size;
+	_aux_filled = 0;
+	_aux_update = 0;
 
-	for(int i = 0; i < _aux_store_size; i++)
+	for(int i = 0; i < _full_store_size; i++)
 		_aux_weights.push_back(NVMatrix());
 
-	_aux_weights[_aux_use].copyFromHost(*_hAux_weights, true);
+	_aux_weights[0].copyFromHost(*_hAux_weights, true);
 
-	for(int i = 0; i < _aux_store_size; i++)
+	for(int i = 1; i < _full_store_size; i++)
 	{
-		if (i == _aux_use)
-			continue;
-		_aux_weights[i].resize(_aux_weights[_aux_use]);
+
+		_aux_weights[i].resize(_aux_weights[0]);
 		_aux_weights[i].apply(NVMatrixOps::Zero());
 	}
 
 }
 
-void Weights::stepAuxInd()
+void Weights::CopyGradToAux()
 {
-	_aux_use = (_aux_use+1)%_aux_store_size;
-	_aux_update = (_aux_update+1)%_aux_store_size;
-}
+	assert(_useGrad);
+	_aux_weights[_aux_update].copy(*_weightsGrad);
 
-
-void Weights::setAuxUseInd(int useInd)
-{
-	_aux_use = useInd;
-}
+};
 
 void Weights::setAuxUpdateInd(int updInd)
 {
 	_aux_update = updInd;
-}
-
-int Weights::getAuxUseInd()
-{
-	return _aux_use;
 }
 
 int Weights::getAuxUpdateInd()

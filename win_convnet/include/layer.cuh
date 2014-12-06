@@ -121,7 +121,7 @@ public:
     virtual void updateWeights(bool useAux) {
     }
 
-	virtual void procAuxWeights(float scale) {
+	virtual void procAuxWeights() {
     }
 
 	virtual void zeroAuxWeights() {
@@ -168,7 +168,7 @@ protected:
 public:
     WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, bool useGrad);
     virtual void updateWeights(bool useAux);
-	virtual void procAuxWeights(float scale);
+	virtual void procAuxWeights();
 	virtual void zeroAuxWeights();
     virtual void copyToCPU();
     virtual void copyToGPU();

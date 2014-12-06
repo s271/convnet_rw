@@ -49,9 +49,11 @@ private:
 	Matrix *_hAux_weights;
 	vector<NVMatrix> _aux_weights;
 
-	int _aux_use;
+	int _aux_filled;
 	int _aux_update;
-
+	int _aux_store_size;
+	int _full_store_size;
+	bool _active_aux;
 
     float _epsW, _epsWinit, _wc, _wc_init, _mom, _mom_init;
 
@@ -69,16 +71,15 @@ private:
 	void initAux();
  
 public:
-//debug aux moved
-	int _aux_store_size;
-	bool _active_aux;
 
     NVMatrix& operator*() {
         return getW();
     }
     
     Weights(Weights& srcWeights, float epsW) : _srcWeights(&srcWeights), _epsW(epsW), _epsWinit(epsW), _wc(0), _wc_init(0), _muL1(0), _renorm(0), _onGPU(false), _numUpdates(0),
-                                               _weights(NULL), _weightsInc(NULL), _weightsGrad(NULL), _active_aux(false), _aux_store_size(0) {
+                                               _weights(NULL), _weightsInc(NULL), _weightsGrad(NULL),
+											   _active_aux(false), _aux_store_size(0), _aux_filled(0),
+											   _aux_update(0), _full_store_size(0) {
         _hWeights = &srcWeights.getCPUW();
         _hWeightsInc = &srcWeights.getCPUWInc();
 //bregman
@@ -98,7 +99,8 @@ public:
 		_hAux_weights(NULL),
 			_numUpdates(0),
           _epsW(epsW), _epsWinit(epsW),_wc(wc), _wc_init(wc), _mom(mom), _mom_init(mom), _muL1(muL1),
-		  _renorm(renorm), _useGrad(useGrad), _onGPU(false), _weights(NULL), _active_aux(false), _aux_store_size(0), _aux_use(0), _aux_update(0),
+		  _renorm(renorm), _useGrad(useGrad), _onGPU(false), _weights(NULL), _active_aux(false),
+		  _aux_store_size(0), _aux_filled(0), _aux_update(0), _full_store_size(0),
           _weightsInc(NULL), _weightsGrad(NULL) {
         if (_autoCopyToGPU) {
             copyToGPU();
@@ -115,6 +117,9 @@ public:
 	_hAux_weights(&hAux_weights),
 	_active_aux(active_aux),
 	_aux_store_size(aux_store_size),
+	_full_store_size(aux_store_size+1),
+	_aux_filled(0),
+	_aux_update(0),
 
 		_numUpdates(0), _epsW(epsW), _epsWinit(epsW),_wc(wc), _wc_init(wc), _mom(mom), _mom_init(mom), _muL1(muL1), _renorm(renorm),
 		_useGrad(useGrad), _onGPU(false), _weights(NULL), 
@@ -148,10 +153,17 @@ public:
         return *(&_aux_weights[_aux_update]);
     }
 
-    NVMatrix& getAuxUse() {
+    NVMatrix& getAuxSum() {
         assert(_onGPU);
-        return *(&_aux_weights[_aux_use]);
+        return *(&_aux_weights[_aux_store_size]);
     }
+
+    NVMatrix& getAux(int ind) {
+        assert(_onGPU);
+        return *(&_aux_weights[ind]);
+    }
+
+	void CopyGradToAux();
     
     NVMatrix& getInc() {
         assert(_onGPU);
@@ -163,11 +175,7 @@ public:
         return _useGrad ? *_weightsGrad : *_weightsInc;
     }
 
-	void setAuxUseInd(int useInd);
-
 	void setAuxUpdateInd(int updInd);
-
-	int getAuxUseInd();
 
 	int getAuxUpdateInd();
 
@@ -198,7 +206,7 @@ public:
     // Scale your gradient by epsW / numCases!
     void update(bool useAux);
 
-	void procAux(float scale);
+	void procAux();
 
 	void zeroAux();
 
@@ -313,9 +321,9 @@ public:
         }
     }
 
-    void procAux(float scale) {
+    void procAux() {
         for (int i = 0; i < getSize(); i++) {
-            _weightList[i]->procAux(scale);
+            _weightList[i]->procAux();
         }
     }
 

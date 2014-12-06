@@ -225,9 +225,9 @@ void ConvNet::updateWeights(bool useAux) {
     }
 }
 
-void ConvNet::procAuxWeights(float scale) {
+void ConvNet::procAuxWeights() {
     for (int i = 0; i < _layers.size(); i++) {
-        _layers[i]->procAuxWeights(scale);
+        _layers[i]->procAuxWeights();
     }
 }
 
