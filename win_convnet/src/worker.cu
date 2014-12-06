@@ -154,14 +154,14 @@ void TrainingWorker::auxPass() {
 
 		_convNet->fpropRnd(mb_ind, _epoch, PASS_AUX);
         _convNet->bprop(PASS_AUX);
-//		_convNet->procAuxWeights(scale);
+		_convNet->procAuxWeights(scale);
     }
 
 }
 
 void TrainingWorker::trainingPass(Cost& batchCost) {
 
-
+bool useAux  = true;
 	//vector<int> shaffle;
 	//for (int i = 0; i < _dp->getNumMinibatches(); i++)
 	//	shaffle.push_back(i);
@@ -191,7 +191,7 @@ minibatch=ki;
         
         if (!_test) {
             _convNet->bprop(PASS_TRAIN);
-            _convNet->updateWeights(true);
+            _convNet->updateWeights(useAux);
         }
     }
 }

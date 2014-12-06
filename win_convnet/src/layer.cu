@@ -327,9 +327,16 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
     intv& weightSourceMatrixIndices = *pyDictGetIntV(paramsDict, "weightSourceMatrixIndices");
 
 
-	//debug aux
-	printf(" name %s  weightSourceLayerIndices size %i \n", _name.c_str(), weightSourceLayerIndices.size());
-    
+	int aux_store_szie = 0;
+	bool activeAux = false;
+	if(_svrg)
+	{
+		activeAux = true;
+		aux_store_szie = 1;
+		if(!useGrad)
+			aux_store_szie = 2;
+	}
+   
     for (int i = 0; i < weightSourceLayerIndices.size(); i++) {
 
         int srcLayerIdx = weightSourceLayerIndices[i];
@@ -346,7 +353,7 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
             _weights.addWeights(*new Weights(*hWeights[i], *hWeightsInc[i], epsW[i], wc[i], momW[i], muL1, _renorm, useGrad));
         } else
 			_weights.addWeights(*new Weights(*hWeights[i], *hWeightsInc[i],
-			*((*phAux_weights)[i]), true, 0,
+			*((*phAux_weights)[i]), activeAux, aux_store_szie,
 			epsW[i], wc[i], momW[i], muL1, _renorm, useGrad));
 
     }
@@ -354,8 +361,9 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
 		_biases = new Weights(hBiases, hBiasesInc, epsB, 0, momB, 0, 0, true);
 	else
 		_biases = new Weights(hBiases, hBiasesInc,
-		*phAux_bias, true, 0,
+		*phAux_bias, activeAux, aux_store_szie,
 		epsB, 0, momB, 0, 0, true);
+
 
     // Epsilons for finite-difference gradient checking operation
     _wStep = 0.001;
@@ -391,6 +399,7 @@ void WeightLayer::setCommon(float eps_scale) {
 
 void WeightLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType) {
     if (_biases->getEps() > 0 && !_notUseBias) {
+
         bpropBiases(v, passType);
     }
     for (int i = 0; i < _weights.getSize(); i++) {
@@ -697,6 +706,7 @@ void FCLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE p
 void FCLayer::bpropBiases(NVMatrix& v, PASS_TYPE passType) {
     int numCases = v.getNumRows();
     float scaleBGrad = passType == PASS_GC ? 1 : _biases->getEps() / numCases;
+
     _biases->getGrad().addSum(v, 0, 0, scaleBGrad);
 }
 
@@ -710,7 +720,14 @@ void FCLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType) {
     float scaleGrad = passType == PASS_GC ? 1 : _weights[inpIdx].getEps() / numCases;
     
 	// Df_next(sum f_prew_k*w_k)/Dw_i = (Df_next(x)/Dx)*f_prev_i
-    _weights[inpIdx].getInc().addProduct(prevActs_T, v, scaleInc, scaleGrad);
+	if(passType != PASS_AUX)
+	{
+		_weights[inpIdx].getInc().addProduct(prevActs_T, v, scaleInc, scaleGrad);
+	}
+	else if(_weights[inpIdx]._active_aux)
+	{
+		prevActs_T.rightMult(v, scaleGrad, _weights[inpIdx].getAuxUpdate());
+	}
     
     delete &prevActs_T;
 }
@@ -837,6 +854,7 @@ void ConvLayer::bpropWeights(NVMatrix& v, int inpIdx, PASS_TYPE passType) {
         convWeightActs(_prev[inpIdx]->getActs(), v, tgt, _imgSize->at(inpIdx), _modulesX, _modulesX, _filterSize->at(inpIdx), _padding->at(inpIdx),
                        _stride->at(inpIdx), _channels->at(inpIdx), _groups->at(inpIdx), _partialSum, scaleTargets, scaleWGrad);
     }
+
     if (_partialSum > 0) {
         scaleTargets = _weights[inpIdx].getNumUpdates() > 0;
         _weightGradTmp.reshape(_modules / _partialSum, _filterChannels->at(inpIdx) * _filterPixels->at(inpIdx) * _numFilters);

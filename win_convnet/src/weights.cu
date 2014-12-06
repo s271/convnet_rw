@@ -37,8 +37,12 @@ void Weights::shrink(float lambda)
 
 void Weights::procAux(float scale) {
     assert(_onGPU);
-    if (_active_aux && _useGrad)
-		getAuxUse().add(*_weightsGrad, scale);
+    if (_active_aux)
+		if(_useGrad)
+			getAuxUse().add(*_weightsGrad, scale);
+		else
+			getAuxUse().add(getAuxUpdate(), scale);
+	_numUpdates = 0;
 }
 
 void Weights::zeroAux() {
@@ -52,11 +56,11 @@ void Weights::update(bool useAux) {
     if (_srcWeights == NULL && _epsW > 0) {
         assert(_onGPU);
         if (_useGrad) {
-            _weightsInc->add(*_weightsGrad, _mom, 1);
-
-//			if(_active_aux && useAux)
-//				_weightsInc->add(getAuxUse(), _mom, 1);
+				_weightsInc->add(*_weightsGrad, _mom, 1);
         }
+
+		if(_active_aux && useAux)
+			_weightsInc->add(getAuxUse(), 1, 1);
 
         if (_wc > 0) {
             _weightsInc->addSignReg(*_weights, -_wc * _epsW);	
@@ -85,6 +89,7 @@ void Weights::update(bool useAux) {
 }
 
 void Weights::copyToCPU() {
+
     if (_srcWeights == NULL) {
         assert(_onGPU);
         _weights->copyToHost(*_hWeights);
@@ -99,7 +104,6 @@ void Weights::copyToCPU() {
 
 void Weights::initAux()
 {
-	_aux_store_size = 1;
 	_aux_use = 0;
 	_aux_update = (_aux_use+1)%_aux_store_size;
 
@@ -146,6 +150,7 @@ int Weights::getAuxUpdateInd()
 }
 
 void Weights::copyToGPU() {
+
     if (_srcWeights == NULL) {
 		//bregman
 		if(_active_aux)
@@ -167,7 +172,6 @@ void Weights::copyToGPU() {
 		if(_active_aux)
 			initAux();
     }
-
     _onGPU = true;
 }
     
