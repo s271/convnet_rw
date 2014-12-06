@@ -54,8 +54,8 @@ void Weights::update(bool useAux) {
         if (_useGrad) {
             _weightsInc->add(*_weightsGrad, _mom, 1);
 
-			if(_active_aux)
-				_weightsInc->add(getAuxUse(), _mom, 1);
+//			if(_active_aux && useAux)
+//				_weightsInc->add(getAuxUse(), _mom, 1);
         }
 
         if (_wc > 0) {
