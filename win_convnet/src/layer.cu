@@ -35,6 +35,8 @@
 
 using namespace std;
 
+#define AUX_STORAGE 16
+
 /* 
  * =======================
  * Layer
@@ -332,7 +334,8 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
 	if(_svrg)
 	{
 		activeAux = true;
-		aux_store_size = 8;
+		aux_store_size = AUX_STORAGE;
+		printf("layer %s use _svrg \n", _name.c_str());
 	}
    
     for (int i = 0; i < weightSourceLayerIndices.size(); i++) {
@@ -1467,6 +1470,22 @@ EltwiseFuncLayer::EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict) : Lay
 	size_arr *= 8;
 	cudaMalloc(&_arrayPtr, sizeof(float*)*size_arr);
 
+	_aux_store_size = AUX_STORAGE;
+	_aux_filled = 0;
+	_aux_update = 0;
+	for (int i =0; i < _param.size(); i++)
+	{
+		_aux_sum.push_back(0);
+		_aux_corr.push_back(0);
+		_grad.push_back(0);
+
+		for (int k =0; k < _aux_store_size; k++)
+		for (int j =0; j < _param.size(); j++)
+		{
+			_aux_storage.push_back(0);
+		}
+	}
+
 }
 
 EltwiseFuncLayer::~EltwiseFuncLayer()
@@ -1493,6 +1512,40 @@ void EltwiseFuncLayer::copyToCPU()
 	}
 
 
+};
+
+void EltwiseFuncLayer::MakeAuxParams()
+{
+
+	if(_aux_filled > 3)
+	{
+
+//make sum
+		for (int i =0; i < _param.size(); i++)
+		{
+			_aux_sum[i] = 0;
+			for (int k =0; k < _aux_store_size; k++)
+				_aux_sum[i] += _aux_storage[i + k*_aux_store_size];			
+		}
+
+		int rnd = rand()%_aux_filled;	
+
+		for (int i =0; i < _param.size(); i++)
+			_aux_corr[i] = 1./_aux_filled*_aux_sum[i] -  _aux_storage[i + rnd*_aux_store_size];
+	}
+
+//fill new
+	for (int i =0; i < _param.size(); i++)
+		_aux_storage[i + _aux_update*_aux_store_size] = _grad[i];
+
+	if(_aux_filled > 3)
+	{
+		for (int i =0; i < _param.size(); i++)
+			_grad[i] = _aux_corr[i];
+	}
+
+	_aux_update = (_aux_update+1)%_aux_store_size;
+	_aux_filled = min(_aux_filled+1, _aux_store_size);
 };
 
 
@@ -1556,8 +1609,26 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 			else if(kp == paramSize-2)
 				grad =0;// _tempC.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
 			else if(kp == paramSize-1)
-				_tempB.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
+				grad = _tempB.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
 				//grad = -6*(*_inputs[inpIdx]).sum()/(*_inputs[inpIdx]).getNumElements() - _param[paramSize-1];
+			_grad[kp] = grad;
+		}
+
+		MakeAuxParams();
+
+		for(int kp = 0; kp < paramSize-2; kp++)//paramSize-2, B, C off
+		{
+
+			int out_len = EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn;
+			int k_out = kp/out_len;
+			int sw_len = ELWISE_FUNC_SEC*_sizeIn;
+			int k_ws = (kp - k_out*out_len)/sw_len;
+			int k_v = kp - k_out*out_len - k_ws*sw_len;
+
+			//if(k_v > 2*_sizeIn)
+			//	continue;
+
+			double grad = _grad[kp];
 			
 	//should make orthognal projection to equal vector(sizeIn)
 

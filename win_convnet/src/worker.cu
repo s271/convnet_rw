@@ -95,10 +95,10 @@ void TrainingWorker::run() {
 
 //debug
 	gepoch = _epoch;
-//	size_t free_mem;
-//	size_t total_mem;
-//	cudaError_t  err = cudaMemGetInfo(&free_mem, &total_mem);
-//	printf(" free memory  %f \n", free_mem/1e6);
+	size_t free_mem;
+	size_t total_mem;
+	cudaError_t  err = cudaMemGetInfo(&free_mem, &total_mem);
+	printf(" free memory  %f \n", free_mem/1e6);
 
 //	auxPass();
 

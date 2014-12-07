@@ -261,6 +261,16 @@ class EltwiseFuncLayer : public Layer {
 protected:
 	vector<double> _param;
 	vector<double> _param_inc;
+
+	vector<double> _aux_storage;
+	vector<double> _grad;
+	vector<double> _aux_sum;
+	vector<double> _aux_corr;
+
+	int _aux_update;
+	int _aux_store_size;
+	int _aux_filled;
+
 	PyObject* hParamList;
 	PyObject* hParamListInc;
 	PyObject* hParamListGrad;
@@ -283,6 +293,8 @@ protected:
 
     virtual void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     virtual void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
+	void MakeAuxParams();
+	void GetAuxParam(int paramInd);
     void copyToCPU();
 public:
 	virtual void setCommon(float eps_scale);
