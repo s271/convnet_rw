@@ -163,6 +163,7 @@ void TrainingWorker::trainingPass(Cost& batchCost) {
 
 bool useAux  = true;
 
+
 	//for (int ki = 0; ki < 1; ki++) {
 	for (int ki = 0; ki < _dp->getNumMinibatches(); ki++) {
 //		int mini_ind = shaffle[ki];

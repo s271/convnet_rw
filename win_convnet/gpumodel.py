@@ -157,18 +157,22 @@ class IGPUModel:
         print "Current time: %s" % asctime(localtime())
         print "Saving checkpoints to %s" % os.path.join(self.save_path, self.save_file)
         print "========================="
-#
+
+		#
         dp = self.train_data_provider     
         idx=0;
         idx_range = len(dp.batch_range)
         count = 0
         next_data = self.set_batch(idx) 
-        self.epoch, self.batchnum = next_data[0], next_data[1]                                     
-#
+        self.epoch, self.batchnum = next_data[0], next_data[1] 
+		#                                    
+
         #next_data = self.get_next_batch()
         eps_scale = 0        
         
         while self.epoch <= self.num_epochs:
+            #data = next_data
+            #self.epoch, self.batchnum = data[0], data[1]
             self.epoch, self.batchnum = next_data[0], next_data[1]
             self.print_iteration()
             
@@ -180,10 +184,11 @@ class IGPUModel:
             sys.stdout.flush()
             
             compute_time_py = time()
+            #self.start_batch(data, self.epoch, True, eps_scale)
             self.start_batch(next_data, self.epoch, True, eps_scale)
             
             #load the next batch while the current one is computing
-            #next_data = self.get_next_batch() #
+            #next_data = self.get_next_batch() 
          
             count += 1  
             idx, dp.curr_epoch = self.batch_script(count, idx_range, self.epoch)          
@@ -193,7 +198,7 @@ class IGPUModel:
             self.train_outputs += [batch_output]
             self.print_train_results()
 
-            #if self.get_num_batches_done() % self.testing_freq == 0: #
+            #if self.get_num_batches_done() % self.testing_freq == 0: 
             if self.get_num_batches_done_nodr(count%idx_range) % self.testing_freq == 0:
                 self.sync_with_host()
                 self.test_outputs += [self.get_test_error()]

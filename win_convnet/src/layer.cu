@@ -1478,14 +1478,13 @@ EltwiseFuncLayer::EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict) : Lay
 		_aux_sum.push_back(0);
 		_aux_corr.push_back(0);
 		_grad.push_back(0);
-
-		for (int k =0; k < _aux_store_size; k++)
-		for (int j =0; j < _param.size(); j++)
-		{
-			_aux_storage.push_back(0);
-		}
 	}
 
+	for (int k =0; k < _aux_store_size; k++)
+	for (int j =0; j < _param.size(); j++)
+	{
+		_aux_storage.push_back(0);
+	}
 }
 
 EltwiseFuncLayer::~EltwiseFuncLayer()
@@ -1525,18 +1524,18 @@ void EltwiseFuncLayer::MakeAuxParams()
 		{
 			_aux_sum[i] = 0;
 			for (int k =0; k < _aux_store_size; k++)
-				_aux_sum[i] += _aux_storage[i + k*_aux_store_size];			
+				_aux_sum[i] += _aux_storage[i + k*_param.size()];			
 		}
 
 		int rnd = rand()%_aux_filled;	
 
 		for (int i =0; i < _param.size(); i++)
-			_aux_corr[i] = 1./_aux_filled*_aux_sum[i] -  _aux_storage[i + rnd*_aux_store_size];
+			_aux_corr[i] = 1./_aux_filled*_aux_sum[i] -  _aux_storage[i + rnd*_param.size()];
 	}
 
 //fill new
 	for (int i =0; i < _param.size(); i++)
-		_aux_storage[i + _aux_update*_aux_store_size] = _grad[i];
+		_aux_storage[i + _aux_update*_param.size()] = _grad[i];
 
 	if(_aux_filled > 3)
 	{
@@ -1625,8 +1624,6 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 			int k_ws = (kp - k_out*out_len)/sw_len;
 			int k_v = kp - k_out*out_len - k_ws*sw_len;
 
-			//if(k_v > 2*_sizeIn)
-			//	continue;
 
 			double grad = _grad[kp];
 			

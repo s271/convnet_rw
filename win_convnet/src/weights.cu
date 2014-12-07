@@ -42,16 +42,22 @@ void Weights::procAux() {
 
     assert(_onGPU);
 
-	if(_aux_filled >= _aux_store_size)
+	getAuxSum().resize(*_weightsGrad);
+
+	if(_aux_filled == 0)
 	{
-		getAuxSum().add(getAuxUpdate(), -1);//remove
+		zeroAux();
 	}
 
-	stepAuxInd();
+	if(_aux_filled >= _aux_store_size)
+	{
+		assert(getAuxSum().isSameDims(getAuxUpdate()));
+		getAuxSum().add(getAuxUpdate(), -1);//remove
+	}
 	CopyGradToAux();
+	getAuxSum().add(*_weightsGrad, 1.);//add
 
-	getAuxSum().add(getAuxUpdate(), 1.);//add
-
+	stepAuxInd();
 }
 
 void Weights::stepAuxInd()
@@ -75,17 +81,18 @@ void Weights::update(bool useAux) {
 				_weightsInc->add(*_weightsGrad, _mom, 1);
         }
 
-		if(_active_aux && useAux && _aux_filled >= 3)
+		if(_active_aux && useAux && _aux_filled >= 3 && _useGrad)
 		{
+			assert(getAuxSum().isSameDims(*_weightsInc));
 			_weightsInc->add(getAuxSum(), 1, 1./_aux_filled);
 			int rnd = rand()%_aux_filled;
+			assert(getAuxSum().isSameDims(getAux(rnd)));
 			_weightsInc->add(getAux(rnd), 1, -1.);
-
 		}
 
         if (_wc > 0) {
-            _weightsInc->addSignReg(*_weights, -_wc * _epsW);	
-			//_weightsInc->add(*_weights, -_wc * _epsW);				
+            //_weightsInc->addSignReg(*_weights, -_wc * _epsW);	
+			_weightsInc->add(*_weights, -_wc * _epsW);				
         }
 
         _weights->add(*_weightsInc);
@@ -131,22 +138,22 @@ void Weights::initAux()
 	for(int i = 0; i < _full_store_size; i++)
 		_aux_weights.push_back(NVMatrix());
 
-	_aux_weights[0].copyFromHost(*_hAux_weights, true);
+	//_aux_weights[0].copyFromHost(*_hAux_weights, true);
 
-	for(int i = 1; i < _full_store_size; i++)
-	{
+	//for(int i = 1; i < _full_store_size; i++)
+	//{
 
-		_aux_weights[i].resize(_aux_weights[0]);
-		_aux_weights[i].apply(NVMatrixOps::Zero());
-	}
+	//	_aux_weights[i].resize(_aux_weights[0]);
+	//	_aux_weights[i].apply(NVMatrixOps::Zero());
+	//}
 
 }
 
 void Weights::CopyGradToAux()
 {
 	assert(_useGrad);
-	_aux_weights[_aux_update].copy(*_weightsGrad);
-
+	getAuxUpdate().resize(*_weightsGrad);
+	_weightsGrad->copy(getAuxUpdate());
 };
 
 void Weights::setAuxUpdateInd(int updInd)
