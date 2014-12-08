@@ -35,7 +35,7 @@
 
 using namespace std;
 
-#define AUX_STORAGE 16
+#define AUX_STORAGE 8
 
 /* 
  * =======================
@@ -1516,7 +1516,7 @@ void EltwiseFuncLayer::copyToCPU()
 void EltwiseFuncLayer::MakeAuxParams()
 {
 
-	if(_aux_filled > 3)
+	if(_aux_filled > 5)
 	{
 
 //make sum
@@ -1537,7 +1537,7 @@ void EltwiseFuncLayer::MakeAuxParams()
 	for (int i =0; i < _param.size(); i++)
 		_aux_storage[i + _aux_update*_param.size()] = _grad[i];
 
-	if(_aux_filled > 3)
+	if(_aux_filled > 5)
 	{
 		for (int i =0; i < _param.size(); i++)
 			_grad[i] = _aux_corr[i];

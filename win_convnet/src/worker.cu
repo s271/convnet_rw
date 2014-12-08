@@ -180,8 +180,8 @@ minibatch=ki;
         if (!_test) {
             _convNet->bprop(PASS_TRAIN);
             _convNet->updateWeights(useAux);
-			if(useAux)
-				_convNet->procAuxWeights();
+			//if(useAux)
+			//	_convNet->procAuxWeights();
         }
     }
 }

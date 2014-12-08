@@ -54,10 +54,21 @@ void Weights::procAux() {
 		assert(getAuxSum().isSameDims(getAuxUpdate()));
 		getAuxSum().add(getAuxUpdate(), -1);//remove
 	}
-	CopyGradToAux();
+
+	getAux(_aux_update).resize(*_weightsGrad);
+	_weightsGrad->copy(getAuxUpdate());
+
 	getAuxSum().add(*_weightsGrad, 1.);//add
 
-	stepAuxInd();
+	//zeroAux();
+	//for(int i = 0; i < _aux_filled; i++)
+	//{
+	//	getAuxSum().add(getAux(i), 1.);//add
+	//}
+
+	_aux_filled = min(_aux_filled+1, _aux_store_size);
+	_aux_update = (_aux_update+1)%_aux_store_size;
+
 }
 
 void Weights::stepAuxInd()
@@ -81,18 +92,19 @@ void Weights::update(bool useAux) {
 				_weightsInc->add(*_weightsGrad, _mom, 1);
         }
 
-		if(_active_aux && useAux && _aux_filled >= 3 && _useGrad)
+		if(_active_aux && useAux && _aux_filled > 5 && _useGrad)
 		{
 			assert(getAuxSum().isSameDims(*_weightsInc));
 			_weightsInc->add(getAuxSum(), 1, 1./_aux_filled);
 			int rnd = rand()%_aux_filled;
 			assert(getAuxSum().isSameDims(getAux(rnd)));
 			_weightsInc->add(getAux(rnd), 1, -1.);
+
 		}
 
         if (_wc > 0) {
-            //_weightsInc->addSignReg(*_weights, -_wc * _epsW);	
-			_weightsInc->add(*_weights, -_wc * _epsW);				
+            _weightsInc->addSignReg(*_weights, -_wc * _epsW);	
+			//_weightsInc->add(*_weights, -_wc * _epsW);				
         }
 
         _weights->add(*_weightsInc);
@@ -123,10 +135,10 @@ void Weights::copyToCPU() {
         _weights->copyToHost(*_hWeights);
         _weightsInc->copyToHost(*_hWeightsInc);
 //bregman
-		if(_active_aux && _hAux_weights)
-		{
-			_aux_weights[_aux_update].copyToHost(*_hAux_weights);
-		}
+		//if(_active_aux && _hAux_weights)
+		//{
+		//	_aux_weights[_aux_update].copyToHost(*_hAux_weights);
+		//}
     }
 }
 
