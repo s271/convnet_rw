@@ -36,6 +36,7 @@
 using namespace std;
 
 #define AUX_STORAGE 8
+extern int rnd_aux;
 
 /* 
  * =======================
@@ -1527,21 +1528,17 @@ void EltwiseFuncLayer::MakeAuxParams()
 				_aux_sum[i] += _aux_storage[i + k*_param.size()];			
 		}
 
-		//int rnd = rand()%_aux_filled;	
+		for (int i =0; i < _param.size(); i++)
+			_aux_corr[i] = 1./_aux_filled*_aux_sum[i] -  _aux_storage[i + rnd_aux*_param.size()];
 
 		for (int i =0; i < _param.size(); i++)
-			_aux_corr[i] = 1./_aux_filled*_aux_sum[i];// -  _aux_storage[i + rnd*_param.size()];
+			_grad[i] = _aux_corr[i];
 	}
 
 //fill new
 	for (int i =0; i < _param.size(); i++)
 		_aux_storage[i + _aux_update*_param.size()] = _grad[i];
 
-	if(_aux_filled > 5)
-	{
-		for (int i =0; i < _param.size(); i++)
-			_grad[i] = _aux_corr[i];
-	}
 
 	_aux_update = (_aux_update+1)%_aux_store_size;
 	_aux_filled = min(_aux_filled+1, _aux_store_size);

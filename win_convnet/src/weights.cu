@@ -35,6 +35,8 @@ void Weights::shrink(float lambda)
 	}
 };
 
+extern int rnd_aux;
+
 void Weights::procAux() {
 
 	if(!_active_aux)
@@ -42,23 +44,22 @@ void Weights::procAux() {
 
     assert(_onGPU);
 
-	//getAuxSum().resize(*_weightsGrad);
+	if(!_weightsGrad->isSameDims(getAuxSum()));
+		getAuxSum().resize(*_weightsGrad);
 
-	//if(_aux_filled == 0)
-	//{
-	//	zeroAux();
-	//}
+	if(_aux_filled == 0)
+	{
+		zeroAux();
+	}
 
-	//if(_aux_filled >= _aux_store_size)
-	//{
-	//	assert(getAuxSum().isSameDims(getAuxUpdate()));
-	//	getAuxSum().add(getAuxUpdate(), -1);//remove
-	//}
+	if(_aux_filled >= 0)
+		getAuxSum().add(*_weightsGrad, 1.);
 
-	//getAux(_aux_update).resize(*_weightsGrad);
-	//_weightsGrad->copy(getAuxUpdate());
-
-	//getAuxSum().add(*_weightsGrad, 1.);//add
+	if(_aux_filled >= _aux_store_size)
+	{
+		assert(getAuxSum().isSameDims(getAuxUpdate()));
+		getAuxSum().add(getAuxUpdate(), -1.);//remove
+	}
 
 	//zeroAux();
 	//for(int i = 0; i < _aux_filled; i++)
@@ -96,24 +97,20 @@ void Weights::update(bool useAux) {
         assert(_onGPU);
         if (_useGrad) {
 
-			float mom = 1;//_mom;
-
+			float mom = .8;//_mom;
 				_weightsInc->add(*_weightsGrad, mom, 1);
 
-			if(_active_aux && useAux && _aux_filled >= _aux_store_size && _useGrad)
-				_weightsInc->add(getAuxUpdate(), mom, -1);
-		
+			if(_active_aux && useAux && _aux_filled >= _aux_store_size)
+			{
+				assert(getAuxSum().isSameDims(*_weightsInc));
+				_weightsInc->add(getAuxSum(), 1, 1./_aux_filled);
+
+				assert(getAuxSum().isSameDims(getAux(rnd_aux)));
+				_weightsInc->add(getAux(rnd_aux), 1, -1.);
+
+			}
+	
         }
-
-		//if(_active_aux && useAux && _aux_filled > 5 && _useGrad)
-		//{
-		//	assert(getAuxSum().isSameDims(*_weightsInc));
-		//	_weightsInc->add(getAuxSum(), 1, 1./_aux_filled);
-		//	int rnd = rand()%_aux_filled;
-		//	assert(getAuxSum().isSameDims(getAux(rnd)));
-		//	_weightsInc->add(getAux(rnd), 1, -1.);
-
-		//}
 
         if (_wc > 0) {
             _weightsInc->addSignReg(*_weights, -_wc * _epsW);	
