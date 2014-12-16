@@ -169,7 +169,7 @@ bool useAux  = true;
 //		int mini_ind = shaffle[ki];
 //debug
 minibatch=ki;
-//printf("mini_ind %i \n", mini_ind);
+printf("minibatch %i \n", ki);
 
 		_convNet->setParam(_eps_scale);
 
@@ -180,9 +180,13 @@ minibatch=ki;
         if (!_test) {
             _convNet->bprop(PASS_TRAIN);
             _convNet->updateWeights(useAux);
-			//if(useAux)
-			//	_convNet->procAuxWeights();
+			if(useAux)
+				_convNet->procAuxWeights();
         }
+
+//debug aux
+		if(ki > 30)
+			exit(-1);
     }
 }
 

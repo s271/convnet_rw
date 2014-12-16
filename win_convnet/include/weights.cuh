@@ -150,17 +150,17 @@ public:
 
     NVMatrix& getAuxUpdate() {
         assert(_onGPU);
-        return *(&_aux_weights[_aux_update]);
+        return  _aux_weights[_aux_update];
     }
 
     NVMatrix& getAuxSum() {
         assert(_onGPU);
-        return *(&_aux_weights[_aux_store_size]);
+        return _aux_weights[_aux_store_size];
     }
 
     NVMatrix& getAux(int ind) {
         assert(_onGPU);
-        return *(&_aux_weights[ind]);
+        return  _aux_weights[ind];
     }
 
 	void CopyGradToAux();
@@ -172,6 +172,8 @@ public:
         
     NVMatrix& getGrad() {
         assert(_onGPU);
+		//debug aux
+		assert(_useGrad);
         return _useGrad ? *_weightsGrad : *_weightsInc;
     }
 

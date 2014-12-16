@@ -415,7 +415,7 @@ void WeightLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType) {
 void WeightLayer::updateWeights(bool useAux) {
 
     _weights.update(useAux);
-	_biases->update(false);
+	_biases->update(useAux);
     
 }
 
@@ -1712,7 +1712,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 	//test
 		//if(0)
-		if(minibatch == 0)
+		//if(minibatch == 0)
 		{
 
 		//debug
