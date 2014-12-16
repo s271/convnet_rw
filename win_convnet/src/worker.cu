@@ -169,7 +169,7 @@ bool useAux  = true;
 //		int mini_ind = shaffle[ki];
 //debug
 minibatch=ki;
-printf("minibatch %i \n", ki);
+//printf("minibatch %i \n", ki);
 
 		_convNet->setParam(_eps_scale);
 
@@ -185,8 +185,8 @@ printf("minibatch %i \n", ki);
         }
 
 //debug aux
-		if(ki > 30)
-			exit(-1);
+		//if(ki > 30)
+		//	exit(-1);
     }
 }
 

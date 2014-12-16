@@ -1516,7 +1516,7 @@ void EltwiseFuncLayer::copyToCPU()
 void EltwiseFuncLayer::MakeAuxParams()
 {
 
-	if(_aux_filled > 5)
+	if(_aux_filled >= _aux_store_size)
 	{
 
 //make sum
@@ -1527,10 +1527,10 @@ void EltwiseFuncLayer::MakeAuxParams()
 				_aux_sum[i] += _aux_storage[i + k*_param.size()];			
 		}
 
-		int rnd = rand()%_aux_filled;	
+		//int rnd = rand()%_aux_filled;	
 
 		for (int i =0; i < _param.size(); i++)
-			_aux_corr[i] = 1./_aux_filled*_aux_sum[i] -  _aux_storage[i + rnd*_param.size()];
+			_aux_corr[i] = 1./_aux_filled*_aux_sum[i];// -  _aux_storage[i + rnd*_param.size()];
 	}
 
 //fill new
@@ -1712,7 +1712,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 	//test
 		//if(0)
-		//if(minibatch == 0)
+		if(minibatch == 0)
 		{
 
 		//debug
