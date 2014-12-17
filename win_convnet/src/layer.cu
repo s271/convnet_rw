@@ -35,9 +35,6 @@
 
 using namespace std;
 
-#define AUX_STORAGE 8
-extern int rnd_aux;
-
 /* 
  * =======================
  * Layer
@@ -1528,6 +1525,8 @@ void EltwiseFuncLayer::MakeAuxParams()
 				_aux_sum[i] += _aux_storage[i + k*_param.size()];			
 		}
 
+		int rnd_aux = rand()%AUX_STORAGE;
+
 		for (int i =0; i < _param.size(); i++)
 			_aux_corr[i] = 1./_aux_filled*_aux_sum[i] -  _aux_storage[i + rnd_aux*_param.size()];
 
@@ -1610,7 +1609,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 			_grad[kp] = grad;
 		}
 
-		MakeAuxParams();
+		//MakeAuxParams();
 
 		for(int kp = 0; kp < paramSize-2; kp++)//paramSize-2, B, C off
 		{

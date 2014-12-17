@@ -28,6 +28,8 @@
 
 bool Weights::_autoCopyToGPU = false;
 
+int AUX_STORAGE = 32;
+
 void Weights::shrink(float lambda)
 {
 	if (_wc > 0) {
@@ -97,13 +99,15 @@ void Weights::update(bool useAux) {
         assert(_onGPU);
         if (_useGrad) {
 
-			float mom = .8;//_mom;
+			float mom = _mom;
 				_weightsInc->add(*_weightsGrad, mom, 1);
 
 			if(_active_aux && useAux && _aux_filled >= _aux_store_size)
 			{
 				assert(getAuxSum().isSameDims(*_weightsInc));
 				_weightsInc->add(getAuxSum(), 1, 1./_aux_filled);
+
+				int rnd_aux = rand()%AUX_STORAGE;
 
 				assert(getAuxSum().isSameDims(getAux(rnd_aux)));
 				_weightsInc->add(getAux(rnd_aux), 1, -1.);
@@ -113,8 +117,8 @@ void Weights::update(bool useAux) {
         }
 
         if (_wc > 0) {
-            _weightsInc->addSignReg(*_weights, -_wc * _epsW);	
-			//_weightsInc->add(*_weights, -_wc * _epsW);				
+            //_weightsInc->addSignReg(*_weights, -_wc * _epsW);	
+			_weightsInc->add(*_weights, -_wc * _epsW);				
         }
 
         _weights->add(*_weightsInc);

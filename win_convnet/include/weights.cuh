@@ -359,4 +359,7 @@ public:
     }
 };
 
+//debug aux
+extern int AUX_STORAGE;
+
 #endif	/* WEIGHTS_CUH */

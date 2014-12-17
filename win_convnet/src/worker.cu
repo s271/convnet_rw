@@ -159,9 +159,6 @@ void TrainingWorker::auxPass() {
 
 }
 
-#define AUX_STORAGE 8
-int rnd_aux=0;
-
 void TrainingWorker::trainingPass(Cost& batchCost) {
 
 bool useAux  = true;
@@ -172,7 +169,6 @@ bool useAux  = true;
 //		int mini_ind = shaffle[ki];
 //debug
 minibatch=ki;
-rnd_aux = rand()%AUX_STORAGE;
 //printf("minibatch %i \n", ki);
 
 		_convNet->setParam(_eps_scale);
@@ -190,7 +186,7 @@ rnd_aux = rand()%AUX_STORAGE;
 
 //debug aux
 		//if(ki > 60)
-		//	exit(-1);
+		//	exit(0);
     }
 }
 
