@@ -161,7 +161,11 @@ void TrainingWorker::auxPass() {
 
 void TrainingWorker::trainingPass(Cost& batchCost) {
 
-bool useAux  = true;
+bool useAux  = false;
+
+	if(_epoch >= 60)
+		useAux  = true;
+
 
 
 	//for (int ki = 0; ki < 1; ki++) {
@@ -186,7 +190,7 @@ minibatch=ki;
 
 //debug aux
 		//if(ki > 60)
-		//	exit(0);
+		//	exit(-1);
     }
 }
 

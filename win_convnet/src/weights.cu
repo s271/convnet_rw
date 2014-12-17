@@ -100,7 +100,11 @@ void Weights::update(bool useAux) {
         if (_useGrad) {
 
 			float mom = _mom;
-				_weightsInc->add(*_weightsGrad, mom, 1);
+
+			if(_active_aux && useAux && _aux_filled >= _aux_store_size)
+				mom = 0;
+
+			_weightsInc->add(*_weightsGrad, mom, 1);
 
 			if(_active_aux && useAux && _aux_filled >= _aux_store_size)
 			{
