@@ -424,27 +424,27 @@ void WeightLayer::updateWeights(bool useAux) {
 
     _weights.update(useAux);
 	_biases->update(useAux);
-
+//rprop
 //debug
-	//if(gepoch%5==1 && minibatch==0)
-	//{
-	//	if(deb_out_start == 0)
-	//	{
-	//		deb_file = fopen("deb_output.txt", "wt");
-	//		deb_out_start++;
-	//	}
-	//	else
-	//	{
-	//		deb_file = fopen("deb_output.txt", "at");
-	//	}
+if(gepoch%5==1 && minibatch==0)
+{
+	if(deb_out_start == 0)
+	{
+		deb_file = fopen("deb_output.txt", "wt");
+		deb_out_start++;
+	}
+	else
+	{
+		deb_file = fopen("deb_output.txt", "at");
+	}
 
-	//	fprintf(deb_file, " layer %s avg_grad %f bias%f \n", _name.c_str(),  _weights[0].getNormL2Avg(), _biases->getNormL2Avg());
-	//printf(" layer %s avg_grad %f bias%f \n", _name.c_str(),  _weights[0].getNormL2Avg(), _biases->getNormL2Avg());
+	fprintf(deb_file, " layer %s avg_grad %f bias%f \n", _name.c_str(),  _weights[0].getNormVL2Avg(), _biases->getNormVL2Avg());
+	printf(" layer %s avg_grad %f bias%f \n", _name.c_str(),  _weights[0].getNormVL2Avg(), _biases->getNormVL2Avg());
 
 
-	//	fclose(deb_file);
-	//}	
-	//    
+	fclose(deb_file);
+}	
+    
 }
 
 void WeightLayer::procAuxWeights() {

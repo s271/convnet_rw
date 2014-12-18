@@ -55,6 +55,13 @@ private:
 	int _full_store_size;
 	bool _active_aux;
 
+//rmsprop
+	int _norms_size;
+	int _norms_filled;
+	int _norms_update;
+	vector<float> _norms2;
+	float _rmsW;
+
     float _epsW, _epsWinit, _wc, _wc_init, _mom, _mom_init;
 
 	float _muL1;
@@ -76,8 +83,8 @@ public:
         return getW();
     }
     
-    Weights(Weights& srcWeights, float epsW) : _srcWeights(&srcWeights), _epsW(epsW), _epsWinit(epsW), _wc(0), _wc_init(0), _muL1(0), _renorm(0), _onGPU(false), _numUpdates(0),
-                                               _weights(NULL), _weightsInc(NULL), _weightsGrad(NULL),
+    Weights(Weights& srcWeights, float epsW, float rmsW) : _srcWeights(&srcWeights), _epsW(epsW), _epsWinit(epsW), _wc(0), _wc_init(0), _muL1(0), _renorm(0), _onGPU(false), _numUpdates(0),
+                                               _weights(NULL), _weightsInc(NULL), _weightsGrad(NULL), _rmsW(rmsW),
 											   _active_aux(false), _aux_store_size(0), _aux_filled(0),
 											   _aux_update(0), _full_store_size(0) {
         _hWeights = &srcWeights.getCPUW();
@@ -87,6 +94,10 @@ public:
         _mom = srcWeights.getMom();
 		_mom_init = _mom;
         _useGrad = srcWeights.isUseGrad();  
+//rmsprop
+	 _norms_size = 0;
+	 _norms_filled = 0;
+	 _norms_update = 0;
 
         if (_autoCopyToGPU) {
             copyToGPU();
@@ -94,14 +105,19 @@ public:
     }
 
     Weights(Matrix& hWeights, Matrix& hWeightsInc,
-		float epsW, float wc, float mom, float muL1, float renorm, bool useGrad)
-        : _srcWeights(NULL), _hWeights(&hWeights), _hWeightsInc(&hWeightsInc),
+		float epsW, float rmsW, float wc, float mom, float muL1, float renorm, bool useGrad)
+        : _srcWeights(NULL), _hWeights(&hWeights), _hWeightsInc(&hWeightsInc), _rmsW(rmsW),
 		_hAux_weights(NULL),
 			_numUpdates(0),
           _epsW(epsW), _epsWinit(epsW),_wc(wc), _wc_init(wc), _mom(mom), _mom_init(mom), _muL1(muL1),
 		  _renorm(renorm), _useGrad(useGrad), _onGPU(false), _weights(NULL), _active_aux(false),
 		  _aux_store_size(0), _aux_filled(0), _aux_update(0), _full_store_size(0),
           _weightsInc(NULL), _weightsGrad(NULL) {
+//rmsprop
+	 _norms_size = 0;
+	 _norms_filled = 0;
+	 _norms_update = 0;
+
         if (_autoCopyToGPU) {
             copyToGPU();
         }
@@ -111,8 +127,8 @@ public:
     Weights(Matrix& hWeights, Matrix& hWeightsInc,
 //bregman
 		Matrix& hAux_weights, bool active_aux, int aux_store_size,
-		float epsW, float wc, float mom, float muL1, float renorm, bool useGrad)
-        : _srcWeights(NULL), _hWeights(&hWeights), _hWeightsInc(&hWeightsInc), 
+		float epsW, float rmsW, float wc, float mom, float muL1, float renorm, bool useGrad)
+        : _srcWeights(NULL), _hWeights(&hWeights), _hWeightsInc(&hWeightsInc), _rmsW(rmsW),
 //bregman
 	_hAux_weights(&hAux_weights),
 	_active_aux(active_aux),
@@ -124,6 +140,12 @@ public:
 		_numUpdates(0), _epsW(epsW), _epsWinit(epsW),_wc(wc), _wc_init(wc), _mom(mom), _mom_init(mom), _muL1(muL1), _renorm(renorm),
 		_useGrad(useGrad), _onGPU(false), _weights(NULL), 
         _weightsInc(NULL), _weightsGrad(NULL) {
+
+//rmsprop
+	 _norms_size = 0;
+	 _norms_filled = 0;
+	 _norms_update = 0;
+
         if (_autoCopyToGPU) {
             copyToGPU();
         }
@@ -162,6 +184,18 @@ public:
         assert(_onGPU);
         return  _aux_weights[ind];
     }
+
+	float& getNorm2(int ind)
+	{
+		return _norms2[ind];
+	}
+
+	float& getNorm2Update()
+	{
+		return _norms2[_norms_update];
+	}
+
+	float getNormL2Avg();
 
 	void CopyGradToAux();
     
@@ -211,6 +245,8 @@ public:
 	void procAux();
 
 	void zeroAux();
+
+	void zeroAux(int ind);
 
 	void shrink(float lambda);
     

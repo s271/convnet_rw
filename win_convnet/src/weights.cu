@@ -63,13 +63,6 @@ void Weights::procAux() {
 		getAuxSum().add(getAuxUpdate(), -1.);//remove
 	}
 
-	//zeroAux();
-	//for(int i = 0; i < _aux_filled; i++)
-	//{
-	//	getAuxSum().add(getAux(i), 1.);//add
-	//}
-
-
 	if(!_weightsGrad->isSameDims(getAuxUpdate()));
 		getAuxUpdate().resize(*_weightsGrad);
 
@@ -92,31 +85,60 @@ void Weights::zeroAux() {
 		getAuxSum().apply(NVMatrixOps::Zero());
 }
 
+void Weights::zeroAux(int ind) {
+	if(_active_aux)
+		getAux(ind).apply(NVMatrixOps::Zero());
+}
+
 // Scale your gradient by epsW / numCases!
 void Weights::update(bool useAux) {
     // Only true owner of weights updates
     if (_srcWeights == NULL && _epsW > 0) {
         assert(_onGPU);
         if (_useGrad) {
-
-			float mom = _mom;
-
-			if(_active_aux && useAux && _aux_filled >= _aux_store_size)
-				mom = 0;
-
-			_weightsInc->add(*_weightsGrad, mom, 1);
-
-			if(_active_aux && useAux && _aux_filled >= _aux_store_size)
+//rmsprop
+			float scaleGrad = 1;
 			{
-				assert(getAuxSum().isSameDims(*_weightsInc));
-				_weightsInc->add(getAuxSum(), 1, 1./_aux_filled);
+				float norm2 =  _weightsGrad->norm2();
+				int size = _weightsGrad->getNumElements();	
+				
+				_norms_size = 32;
+				while(_norms2.size() < _norms_size)
+					_norms2.push_back(0);
+				
+				if(_norms_filled == _norms_size)
+				{
+					assert(_rmsW > 0 && _rmsW < .01);
+					scaleGrad = _rmsW/getNormL2Avg();
+				}
 
-				int rnd_aux = rand()%AUX_STORAGE;
+				getNorm2Update() = norm2;
 
-				assert(getAuxSum().isSameDims(getAux(rnd_aux)));
-				_weightsInc->add(getAux(rnd_aux), 1, -1.);
-
+				_norms_filled = min(_norms_filled+1, _norms_size);
+				_norms_update = (_norms_update+1)%_norms_size;
 			}
+//rmsprop end
+
+			//float mom = _mom;
+
+			//if(_active_aux && useAux && _aux_filled >= _aux_store_size)
+			//	mom = 0;
+
+			//_weightsInc->add(*_weightsGrad, mom, 1);
+
+			//if(_active_aux && useAux && _aux_filled >= _aux_store_size)
+			//{
+			//	assert(getAuxSum().isSameDims(*_weightsInc));
+			//	_weightsInc->add(getAuxSum(), 1, 1./_aux_filled);
+
+			//	int rnd_aux = rand()%AUX_STORAGE;
+
+			//	assert(getAuxSum().isSameDims(getAux(rnd_aux)));
+			//	_weightsInc->add(getAux(rnd_aux), 1, -1.);
+
+			//}
+
+			_weightsInc->add(*_weightsGrad, _mom, scaleGrad);
 	
         }
 
@@ -125,15 +147,22 @@ void Weights::update(bool useAux) {
 			_weightsInc->add(*_weights, -_wc * _epsW);				
         }
 
-        _weights->add(*_weightsInc);
+		//if(_active_aux && useAux )
+		//{
+		//	getAux(0).add(*_weightsInc);
+		//	getAux(0).add(*_weightsInc, 1, _mom, *_weights);
+		//}
+		//else
+	        
+		_weights->add(*_weightsInc);
+
 		_numUpdates = 0;
 
 		if(_renorm > 0)
 		{
 
 			float norm2 =  _weights->norm2();
-			int size = _weights->getNumElements();
-		
+			int size = _weights->getNumElements();	
 			float layerNorm = sqrtf(norm2/size);
 
 			if(layerNorm > _renorm)
@@ -145,6 +174,19 @@ void Weights::update(bool useAux) {
 
     }
 }
+
+float Weights::getNormL2Avg()
+{
+
+	float l2 = 0;
+	for(int i = 0; i < _norms_filled; i++)
+		l2 += _norms2[i];
+
+	float ninv = 0;
+	if(_norms_filled > 0)ninv = 1./_norms_filled;
+	return sqrt(l2*ninv);
+}
+
 
 void Weights::copyToCPU() {
 
@@ -167,6 +209,11 @@ void Weights::initAux()
 
 	for(int i = 0; i < _full_store_size; i++)
 		_aux_weights.push_back(NVMatrix());
+
+	if(!_weights->isSameDims(getAux(0)))
+		getAux(0).resize(*_weights);
+
+	_weights->copy(getAux(0));
 
 	//_aux_weights[0].copyFromHost(*_hAux_weights, true);
 
@@ -199,26 +246,29 @@ int Weights::getAuxUpdateInd()
 void Weights::copyToGPU() {
 
     if (_srcWeights == NULL) {
-		//bregman
-		if(_active_aux)
-			initAux();
 
         _weights = new NVMatrix();
         _weightsInc = new NVMatrix();
         _weights->copyFromHost(*_hWeights, true);
         _weightsInc->copyFromHost(*_hWeightsInc, true);
         _weightsGrad = _useGrad ? new NVMatrix() : NULL;
-		
+
+	    _onGPU = true;
+
+		//bregman
+		if(_active_aux)
+			initAux();
 
     } else {
         _weights = _srcWeights->_weights;
         _weightsInc = _srcWeights->_weightsInc;
         _weightsGrad = _srcWeights->_weightsGrad;
 
+	    _onGPU = true;
+
 		//bregman
 		if(_active_aux)
 			initAux();
     }
-    _onGPU = true;
 }
     

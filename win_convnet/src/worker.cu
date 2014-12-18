@@ -163,8 +163,8 @@ void TrainingWorker::trainingPass(Cost& batchCost) {
 
 bool useAux  = false;
 
-	if(_epoch >= 60)
-		useAux  = true;
+	//if(_epoch >= 60)
+	//	useAux  = true;
 
 
 
@@ -184,8 +184,8 @@ minibatch=ki;
         if (!_test) {
             _convNet->bprop(PASS_TRAIN);
             _convNet->updateWeights(useAux);
-			if(useAux)
-				_convNet->procAuxWeights();
+			//if(useAux)
+			//	_convNet->procAuxWeights();
         }
 
 //debug aux

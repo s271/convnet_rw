@@ -23,10 +23,10 @@ with open('nbe_base.pickle', 'rb') as f:
 
 #with open('test_base.pickle', 'rb') as f: 
 #with open('test128s.pickle', 'rb') as f: 
-with open('test_84.pickle', 'rb') as f: 
+with open('test_r.pickle', 'rb') as f: 
      test_errors_base = pickle.load(f)   
 
-with open('train_84.pickle', 'rb') as f: 
+with open('train_r.pickle', 'rb') as f: 
     train_errors_base = pickle.load(f)
     
 with open('test_824.pickle', 'rb') as f: 
@@ -49,8 +49,8 @@ x1 = range(0, len(train_errors))
 x2 = range(0, len(train_errors1))
 pl.plot(x, train_errors_base, 'k-', label='Baseline training set ')
 pl.plot(x, test_errors_base, 'grey', label='Baseline test set ')
-pl.plot(x1, train_errors, 'g-', label='Training set')
-pl.plot(x1, test_errors, 'b-', label='Test set')
+pl.plot(x1, train_errors, 'g-', label='8.2 Training set')
+pl.plot(x1, test_errors, 'b-', label='8.2 Test set')
 pl.plot(x2, train_errors1, 'violet', label='Training set1')
 pl.plot(x2, test_errors1, 'red', label='Test set1')
 pl.legend()
