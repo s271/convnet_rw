@@ -420,6 +420,11 @@ void WeightLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType) {
     }
 }
 
+void WeightLayer::rollbackWeights() {
+    _weights.rollback();
+	_biases->rollback();
+}
+
 void WeightLayer::updateWeights(bool useAux) {
 
     _weights.update(useAux);
@@ -1610,12 +1615,15 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 	//_tempB.ResizeAggStorage(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);B, C off
 
+	int out_len = EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn;
+	int vect_len = _sizeIn*ELWISE_FUNC_SEC;
+	int vnorm_len = _sizeIn*2;
+
 	if(passType == PASS_TRAIN)
 	{
 		for(int kp = 0; kp < paramSize-2; kp++)//paramSize-2, B, C off
 		{
 
-			int out_len = EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn;
 			int k_out = kp/out_len;
 			int sw_len = ELWISE_FUNC_SEC*_sizeIn;
 			int k_ws = (kp - k_out*out_len)/sw_len;
@@ -1684,6 +1692,27 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 		_nstore_count = (_nstore_count+1)%_nstore;
 
+//antisparcity
+		//double lambda = .001;
+		//for(int k_out = 0; k_out < _sizeOut; k_out++)
+		//{
+
+		//	for(int k_sw = 0; k_sw < EL_SWITCH; k_sw++)
+		//	{
+		//		double famax = 0;
+		//		for(int kinp = 0; kinp < vnorm_len; kinp++)
+		//		{
+		//			double pv = _param[k_out*out_len + k_sw*vect_len + kinp];
+		//			famax = fmax(famax, fabs(pv));
+		//		}
+
+		//		for(int kinp = 0; kinp < vnorm_len; kinp++)
+		//		{
+		//			double& pv = _param[k_out*out_len + k_sw*vect_len + kinp];
+		//			pv = ((pv>0)-(pv<0))*fmin(fabs(pv), (1 - lambda)*famax);
+		//		}
+		//	}
+		//}
 
 	//normalize
 	#ifdef EL_SWITCH
@@ -1693,8 +1722,6 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 	#endif
 
 		double sumScale = _sizeIn*_sizeOut;
-		int vect_len = _sizeIn*ELWISE_FUNC_SEC;
-		int vnorm_len = _sizeIn*2;
 
 		for(int k_sw = 0; k_sw < EL_SWITCH; k_sw++)
 		{
@@ -1703,7 +1730,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 			{
 				for(int kinp = 0; kinp < vnorm_len; kinp++)
 				{
-					double pv = _param[k_out*EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn + k_sw*ELWISE_FUNC_SEC*_sizeIn + kinp];
+					double pv = _param[k_out*out_len + k_sw*vect_len + kinp];
 					l1sum += fabs(pv);
 				}
 			}
@@ -1713,7 +1740,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 			for(int k_out = 0; k_out < _sizeOut; k_out++)
 			{
 				for(int kinp = 0; kinp < vnorm_len; kinp++)
-					_param[k_out*EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn + k_sw*ELWISE_FUNC_SEC*_sizeIn + kinp] *= sumScale/l1sum;
+					_param[k_out*out_len + k_sw*vect_len + kinp] *= sumScale/l1sum;
 			}
 		}
 
@@ -2225,6 +2252,10 @@ doublev& CostLayer::getCost() {
     doublev& v = *new doublev();
     v.insert(v.begin(), _costv.begin(), _costv.end());
     return v;
+}
+
+double CostLayer::getErrorNum() {
+    return _costv[1];
 }
 
 CostLayer& CostLayer::makeCostLayer(ConvNet* convNet, string& type, PyObject* paramsDict) {

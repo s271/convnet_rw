@@ -458,6 +458,78 @@ __global__ void kEltwiseFuncGroupTest(float* actGrad, float* input, float** targ
 	}
 }
 
+
+template <int B_X, int B_Y, int sizeIn>
+__global__ void kNormalizeParam(float* input, float** target,
+								const uint imgInPixels, const uint numCases,
+								const uint stride, const uint strideTag,
+								const uint numPixelsPerChannel)
+{
+	const int numPixelsPerGroup = imgInPixels/sizeIn;
+#ifdef MIX_F
+	const int groupStride  = numPixelsPerChannel*stride;
+#else
+	const int groupStride  = numPixelsPerGroup*stride;
+#endif
+    const uint idxX = blockIdx.x * B_X + threadIdx.x;
+    const uint idxY = blockIdx.y * B_Y + threadIdx.y;
+	const int tagOffset = (threadIdx.x + blockIdx.x*blockDim.x) +  (threadIdx.y + blockIdx.y*blockDim.y)*strideTag;
+
+	float sum2[sizeIn];
+	memset(sum2, 0, sizeof(sum2));
+	float sum_pair[(sizeIn-1)*sizeIn/2];
+	memset(sum_pair, 0, sizeof(sum_pair));
+
+
+	for (uint y = idxY; y < numPixelsPerGroup; y += gridDim.y * B_Y) {
+#ifdef MIX_F
+		const int hiID = y/numPixelsPerChannel;
+		const int pixelChannelID = idxY%numPixelsPerChannel;
+#endif
+		for (uint x = idxX; x < numCases; x += gridDim.x * B_X) {
+			
+#ifdef MIX_F
+			int offset_in = hiID*sizeIn*groupStride
+					+ pixelChannelID*stride + x;
+#else
+			int offset_in = y * stride + x;
+#endif
+
+			float inp[sizeIn];
+			for(int pin_i = 0; pin_i < sizeIn; pin_i++)
+			{
+				inp[pin_i] = input[offset_in + pin_i*groupStride];
+				sum2[pin_i] += inp[pin_i]*inp[pin_i];
+			}
+
+			int ks =0;
+			for(int pin_i = 0; pin_i < sizeIn; pin_i++)
+			{
+				for(int pin_j = 0; pin_j < sizeIn; pin_j++)
+				{
+					if(pin_i == pin_j)
+						continue;
+
+					sum_pair[ks] += inp[pin_i]*inp[pin_j];
+
+					ks++;
+				}
+			}
+
+		}
+	}
+
+	for(int pin = 0; pin < sizeIn; pin++)
+	{
+		target[pin][tagOffset] = sum2[pin];
+	}
+
+	for(int ks = 0; ks < sizeIn*(sizeIn-1)/2; ks++)
+	{
+		target[sizeIn+ks][tagOffset] = sum_pair[ks];
+	}
+}
+
 template <int B_X, int B_Y, int sizeIn>
 __global__ void kEltwiseFuncGroupTestS(float* actGrad, float* input, float** target,
 								const uint imgInPixels, const uint numCases,
@@ -1561,6 +1633,57 @@ void testGroupsEltwiseFunc(NVMatrix& actGrad, NVMatrix& input,
 		//inp_height, inp_width,\
 		//input.getStride(), tempMatrix[0].getStride(),\
 		//numPixelsPerChannel, cnttest);
+
+}
+
+void normalizeGroups(NVMatrix& input,
+					 void* arrayPtr, vector<NVMatrix>& tempMatrix,
+					 int size_in, int size_out, int channels)
+{
+
+	assert(size_in <= 4);// || size_out == 12 || size_out == 16);
+
+    int inp_width = input.getNumCols(); 
+    int inp_height = input.getNumRows();
+
+	int numPixelsPerGroup = inp_height/size_in;
+//	printf("inp_height %i numPixelsPerGroup %i \n", inp_height, numPixelsPerGroup);
+#define N_SUM 1
+    dim3 threads(min(ELTWISE_THREADS_X, inp_width), ELTWISE_THREADS_Y);
+    dim3 blocks(std::min(NUM_BLOCKS_MAX, (int)DIVUP(inp_width, threads.x)),
+                std::min(NUM_BLOCKS_MAX, (int)DIVUP(numPixelsPerGroup/N_SUM, ELTWISE_THREADS_Y)));
+#undef N_SUM
+
+	int tag_width = blocks.x*threads.x;
+	int tag_height = blocks.y*threads.y;
+	int tag_size = tag_width*tag_height;
+	int numPixelsPerChannel = inp_height/channels;
+
+	float* tempMatrixPtr[CONST_AREA_SIZE];
+	for(int i =0; i < tempMatrix.size(); i++)
+	{
+		if (tempMatrix[i].getNumCols() != tag_width || tempMatrix[i].getNumRows() != tag_height) {
+			tempMatrix[i].resize(tag_height, tag_width);
+			cudaMemset(tempMatrix[i].getDevData(), 0, tag_size*sizeof(float));
+		}
+
+		tempMatrixPtr[i] = tempMatrix[i].getDevData();
+	}
+
+	cudaMemcpy(arrayPtr, tempMatrixPtr, sizeof(float*)*tempMatrix.size(), cudaMemcpyHostToDevice);
+
+#define NORM_GROUP(SIZE_ARR) \
+		if(size_in == SIZE_ARR){\
+		kNormalizeParam<ELTWISE_THREADS_X, ELTWISE_THREADS_Y, SIZE_ARR><<<blocks, threads>>>(\
+		input.getDevData(), (float**)arrayPtr,\
+		inp_height, inp_width,\
+		input.getStride(), tempMatrix[0].getStride(),\
+		numPixelsPerChannel);};
+		NORM_GROUP(2)
+		NORM_GROUP(3)
+		NORM_GROUP(4)
+#undef ELT_T_GRAD
+
 
 }
 

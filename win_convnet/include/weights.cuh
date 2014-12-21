@@ -62,7 +62,7 @@ private:
 	vector<float> _norms2;
 	float _rmsW;
 
-    float _epsW, _epsWinit, _wc, _wc_init, _mom, _mom_init;
+    float _epsW, _epsWinit, _epsWprev, _wc, _wc_init, _mom, _mom_init;
 
 	float _muL1;
 
@@ -83,7 +83,8 @@ public:
         return getW();
     }
     
-    Weights(Weights& srcWeights, float epsW, float rmsW) : _srcWeights(&srcWeights), _epsW(epsW), _epsWinit(epsW), _wc(0), _wc_init(0), _muL1(0), _renorm(0), _onGPU(false), _numUpdates(0),
+    Weights(Weights& srcWeights, float epsW, float rmsW) : _srcWeights(&srcWeights), _epsW(epsW), _epsWinit(epsW), _epsWprev(epsW),
+											    _wc(0), _wc_init(0), _muL1(0), _renorm(0), _onGPU(false), _numUpdates(0),
                                                _weights(NULL), _weightsInc(NULL), _weightsGrad(NULL), _rmsW(rmsW),
 											   _active_aux(false), _aux_store_size(0), _aux_filled(0),
 											   _aux_update(0), _full_store_size(0) {
@@ -109,7 +110,7 @@ public:
         : _srcWeights(NULL), _hWeights(&hWeights), _hWeightsInc(&hWeightsInc), _rmsW(rmsW),
 		_hAux_weights(NULL),
 			_numUpdates(0),
-          _epsW(epsW), _epsWinit(epsW),_wc(wc), _wc_init(wc), _mom(mom), _mom_init(mom), _muL1(muL1),
+          _epsW(epsW), _epsWinit(epsW), _epsWprev(epsW), _wc(wc), _wc_init(wc), _mom(mom), _mom_init(mom), _muL1(muL1),
 		  _renorm(renorm), _useGrad(useGrad), _onGPU(false), _weights(NULL), _active_aux(false),
 		  _aux_store_size(0), _aux_filled(0), _aux_update(0), _full_store_size(0),
           _weightsInc(NULL), _weightsGrad(NULL) {
@@ -137,7 +138,8 @@ public:
 	_aux_filled(0),
 	_aux_update(0),
 
-		_numUpdates(0), _epsW(epsW), _epsWinit(epsW),_wc(wc), _wc_init(wc), _mom(mom), _mom_init(mom), _muL1(muL1), _renorm(renorm),
+		_numUpdates(0), _epsW(epsW), _epsWinit(epsW), _epsWprev(epsW),
+		_wc(wc), _wc_init(wc), _mom(mom), _mom_init(mom), _muL1(muL1), _renorm(renorm),
 		_useGrad(useGrad), _onGPU(false), _weights(NULL), 
         _weightsInc(NULL), _weightsGrad(NULL) {
 
@@ -241,6 +243,7 @@ public:
 
     // Scale your gradient by epsW / numCases!
     void update(bool useAux);
+	void rollback();
 
 	void procAux();
 
@@ -356,6 +359,12 @@ public:
     void update(bool useAux) {
         for (int i = 0; i < getSize(); i++) {
             _weightList[i]->update(useAux);
+        }
+    }
+
+    void rollback() {
+        for (int i = 0; i < getSize(); i++) {
+            _weightList[i]->rollback();
         }
     }
 

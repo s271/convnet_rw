@@ -82,6 +82,9 @@ void testGroupsEltwiseFunc(NVMatrix& actGrad, NVMatrix& input,
 								 void* arrayPtr, vector<NVMatrix>& tempMatrix,
 								 vector<double>& param,
 								 int size_in, int size_out, int channels, int kcenter);
+void normalizeGroups(NVMatrix& input,
+					 void* arrayPtr, vector<NVMatrix>& tempMatrix,
+					 int size_in, int size_out, int channels);
 
 void computeMicroConvAct(NVMatrix& input, NVMatrix& target, vector<double>& param, int sizeX, int channels,
 						 int imgSize, int imgPixels, int numFilters);

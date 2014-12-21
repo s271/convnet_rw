@@ -225,6 +225,12 @@ void ConvNet::updateWeights(bool useAux) {
     }
 }
 
+void ConvNet::rollbackWeights() {
+    for (int i = 0; i < _layers.size(); i++) {
+        _layers[i]->rollbackWeights();
+    }
+}
+
 void ConvNet::procAuxWeights() {
     for (int i = 0; i < _layers.size(); i++) {
         _layers[i]->procAuxWeights();
@@ -245,6 +251,16 @@ void ConvNet::reset() {
 
 int ConvNet::getNumLayers() {
     return _layers.size();
+}
+
+double ConvNet::getErrorNum()
+{
+	return _costs[0]->getErrorNum();
+}
+
+int ConvNet::getNumCases()
+{
+	return _data->getNumCases();
 }
 
 void ConvNet::setEpoch(int epoch) {

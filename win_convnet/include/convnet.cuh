@@ -82,10 +82,13 @@ public:
     void copyToCPU();
     void copyToGPU();
     void updateWeights(bool useAux);
+	void rollbackWeights();
 	void procAuxWeights();
 	void zeroAuxWeights();
     void reset();
     int getNumLayers();
+	int getNumCases();
+	double getErrorNum();
 
 	void setParam(float eps_scale);
 	void setEpoch(int epoch);

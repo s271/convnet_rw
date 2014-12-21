@@ -90,10 +90,19 @@ void Weights::zeroAux(int ind) {
 		getAux(ind).apply(NVMatrixOps::Zero());
 }
 
+void Weights::rollback() 
+{
+    assert(_onGPU);
+	assert(_weights->isSameDims(getAux(0)));
+	_weights->add(*_weightsInc, -.5);
+	//getAux(0).copy(*_weights);
+}
+
 // Scale your gradient by epsW / numCases!
 void Weights::update(bool useAux) {
     // Only true owner of weights updates
     if (_srcWeights == NULL && _epsW > 0) {
+
         assert(_onGPU);
         if (_useGrad) {
 //rmsprop
@@ -102,23 +111,29 @@ void Weights::update(bool useAux) {
 				float norm2 =  _weightsGrad->norm2();
 				int size = _weightsGrad->getNumElements();	
 				
-				_norms_size = 32;
+				_norms_size = 128;
 				while(_norms2.size() < _norms_size)
 					_norms2.push_back(0);
+
+				if(_epsW != _epsWprev)
+					_norms_filled = 0;
 				
 				if(_norms_filled == _norms_size)
 				{
 					assert(_rmsW > 0 && _rmsW < .01);
-					scaleGrad = _rmsW/getNormL2Avg();
+					scaleGrad = _epsW/_epsWinit*_rmsW/getNormL2Avg();
 				}
 
 				getNorm2Update() = norm2;
 
 				_norms_filled = min(_norms_filled+1, _norms_size);
 				_norms_update = (_norms_update+1)%_norms_size;
+				_epsWprev = _epsW;
 			}
 //rmsprop end
 
+
+//svrg
 			//float mom = _mom;
 
 			//if(_active_aux && useAux && _aux_filled >= _aux_store_size)
@@ -135,8 +150,8 @@ void Weights::update(bool useAux) {
 
 			//	assert(getAuxSum().isSameDims(getAux(rnd_aux)));
 			//	_weightsInc->add(getAux(rnd_aux), 1, -1.);
-
 			//}
+//svrg end
 
 			_weightsInc->add(*_weightsGrad, _mom, scaleGrad);
 	
@@ -147,13 +162,14 @@ void Weights::update(bool useAux) {
 			_weightsInc->add(*_weights, -_wc * _epsW);				
         }
 
+		//nesterov
 		//if(_active_aux && useAux )
 		//{
 		//	getAux(0).add(*_weightsInc);
 		//	getAux(0).add(*_weightsInc, 1, _mom, *_weights);
 		//}
-		//else
-	        
+		//else	        
+
 		_weights->add(*_weightsInc);
 
 		_numUpdates = 0;
@@ -210,10 +226,16 @@ void Weights::initAux()
 	for(int i = 0; i < _full_store_size; i++)
 		_aux_weights.push_back(NVMatrix());
 
-	if(!_weights->isSameDims(getAux(0)))
-		getAux(0).resize(*_weights);
+	//if(!_weightsInc->isSameDims(getAux(0)))
+	//	getAux(0).resize(*_weightsInc);
 
-	_weights->copy(getAux(0));
+	//_weightsInc->copy(getAux(0));
+
+
+	//if(!_weights->isSameDims(getAux(0)))
+	//	getAux(0).resize(*_weights);
+
+	//_weights->copy(getAux(0));
 
 	//_aux_weights[0].copyFromHost(*_hAux_weights, true);
 

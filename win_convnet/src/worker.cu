@@ -161,14 +161,15 @@ void TrainingWorker::auxPass() {
 
 void TrainingWorker::trainingPass(Cost& batchCost) {
 
-bool useAux  = false;
+bool useAux  = false;//true;
 
-	//if(_epoch >= 60)
-	//	useAux  = true;
-
-
-
+int err_size = 128;
+static int error_upd = 0;
+static vector<float> test_error;
+static float prev_err = 2;
+int failure_num = 0;
 	//for (int ki = 0; ki < 1; ki++) {
+
 	for (int ki = 0; ki < _dp->getNumMinibatches(); ki++) {
 //		int mini_ind = shaffle[ki];
 //debug
@@ -180,9 +181,78 @@ minibatch=ki;
        //_convNet->fprop(mini_ind, _test ? PASS_TEST : PASS_TRAIN);
 		_convNet->fpropRnd(ki, _epoch, _test ? PASS_TEST : PASS_TRAIN);
         _convNet->getCost(batchCost);
-        
+
+		bool successs = true;
+
+//		printf("err %f cases %i \n", _convNet->getErrorNum()/ _convNet->getNumCases(), _convNet->getNumCases());
+
+		float err = _convNet->getErrorNum()/ _convNet->getNumCases();
+
+		float avg_neg_delta  =0;
+		int num_neg = 0;
+		float avg_delta = 0;
+
+		if(test_error.size() >= err_size/2)
+		{
+			for(int i = 0; i<test_error.size() ; i++)
+			{
+				avg_delta += test_error[i];
+				if(test_error[i] < 0)
+				{
+					avg_neg_delta += fabs(test_error[i]);
+					num_neg++;
+				}
+			}
+			avg_delta *= 1./test_error.size();
+			float inv_num_neg = (num_neg)?1./num_neg:0;
+			avg_neg_delta *= inv_num_neg;
+		}
+
+		if(prev_err <= 1)
+		{
+			if(test_error.size() < err_size)
+				test_error.push_back(prev_err - err);
+			else
+				test_error[error_upd] = prev_err - err;		
+		}
+
+		if(err > prev_err && err-prev_err > avg_neg_delta && num_neg > 0)
+		{
+			successs = false;
+			failure_num++;
+		}
+
+	//	printf("*** avg_delta %f avg_neg_delta %f num_neg %i err-prev_err %f \n",avg_delta, avg_neg_delta, num_neg, err-prev_err);
+
+
+		//if(test_error.size() >= err_size/2)
+		//{
+		//	float avg_error = 0;
+		//	for(int i = 0; i<test_error.size() ; i++)
+		//		avg_error += test_error[i];
+		//	avg_error *= 1./test_error.size();
+
+		//	float l1dev = 0;
+		//	for(int i = 0; i<test_error.size() ; i++)
+		//		l1dev += fabs(test_error[i]-avg_error);
+		//	 l1dev *= 1./test_error.size();
+
+		//	if(err > prev_err && err > avg_error+l1dev/2)
+		//	{
+		//		successs = false;
+		//		failure_num++;
+		//	}
+		//}
+
+		error_upd = (error_upd+1)%err_size;
+		prev_err = err;
+      
         if (!_test) {
             _convNet->bprop(PASS_TRAIN);
+
+			if(!successs)
+				_convNet->rollbackWeights();
+
             _convNet->updateWeights(useAux);
 			//if(useAux)
 			//	_convNet->procAuxWeights();
@@ -192,6 +262,7 @@ minibatch=ki;
 		//if(ki > 60)
 		//	exit(-1);
     }
+	printf("*** failures %f \n", 1.*failure_num/ _dp->getNumMinibatches());
 }
 
 /*

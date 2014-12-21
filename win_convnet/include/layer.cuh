@@ -121,6 +121,9 @@ public:
     virtual void updateWeights(bool useAux) {
     }
 
+    virtual void rollbackWeights() {
+    }
+
 	virtual void procAuxWeights() {
     }
 
@@ -168,6 +171,7 @@ protected:
 public:
     WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, bool useGrad);
     virtual void updateWeights(bool useAux);
+	virtual void rollbackWeights();
 	virtual void procAuxWeights();
 	virtual void zeroAuxWeights();
     virtual void copyToCPU();
@@ -570,6 +574,7 @@ public:
     CostLayer(ConvNet* convNet, PyObject* paramsDict, bool trans);
     void bprop(PASS_TYPE passType); 
     virtual doublev& getCost();
+	double getErrorNum();
     float getCoeff();
     bool isGradProducer();
     
