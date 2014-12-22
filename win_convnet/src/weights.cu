@@ -93,8 +93,8 @@ void Weights::zeroAux(int ind) {
 void Weights::rollback() 
 {
     assert(_onGPU);
-	assert(_weights->isSameDims(getAux(0)));
 	_weights->add(*_weightsInc, -.5);
+//assert(_weights->isSameDims(getAux(0)));
 	//getAux(0).copy(*_weights);
 }
 

@@ -222,28 +222,6 @@ minibatch=ki;
 			failure_num++;
 		}
 
-	//	printf("*** avg_delta %f avg_neg_delta %f num_neg %i err-prev_err %f \n",avg_delta, avg_neg_delta, num_neg, err-prev_err);
-
-
-		//if(test_error.size() >= err_size/2)
-		//{
-		//	float avg_error = 0;
-		//	for(int i = 0; i<test_error.size() ; i++)
-		//		avg_error += test_error[i];
-		//	avg_error *= 1./test_error.size();
-
-		//	float l1dev = 0;
-		//	for(int i = 0; i<test_error.size() ; i++)
-		//		l1dev += fabs(test_error[i]-avg_error);
-		//	 l1dev *= 1./test_error.size();
-
-		//	if(err > prev_err && err > avg_error+l1dev/2)
-		//	{
-		//		successs = false;
-		//		failure_num++;
-		//	}
-		//}
-
 		error_upd = (error_upd+1)%err_size;
 		prev_err = err;
       
@@ -257,6 +235,8 @@ minibatch=ki;
 			//if(useAux)
 			//	_convNet->procAuxWeights();
         }
+
+
 
 //debug aux
 		//if(ki > 60)
