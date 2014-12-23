@@ -239,10 +239,10 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 
 		float sum[2*sizeIn];
 		float sum_m[2*sizeIn];
-		float sum_b[2*sizeIn];
+//		float sum_b[2*sizeIn];
 		memset(sum, 0, sizeof(sum));
 		memset(sum_m, 0, sizeof(sum_m));
-		memset(sum_b, 0, sizeof(sum_b));
+//		memset(sum_b, 0, sizeof(sum_b));
 
 		for (uint y = idxY; y < numPixelsPerGroup; y += gridDim.y * B_Y) {
 #ifdef MIX_F
@@ -287,15 +287,13 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 					sum[pin] += (.5+Sw)*grad_next*in_val;
 					sum_m[pin] += (.5+Sw)*grad_next*(val_m_0 > 0)*in_val;
 
-					sum_b[pin] += (.5+Sw)*grad_next*const_area[pout*sizeIn*ELWISE_FUNC_SEC + sizeIn + pin]*(val_m_0 > 0);
-//					sum_b[pin] += (.5+Sw)*grad_next*(val_m_0 > 0);
+//					sum_b[pin] += (.5+Sw)*grad_next*const_area[pout*sizeIn*ELWISE_FUNC_SEC + sizeIn + pin]*(val_m_0 > 0);
 
 					float val_m_1 = in_val + const_area[pout*sizeIn*ELWISE_FUNC_SEC + 2*sizeIn + pin + sw_len];
 					sum[pin + sizeIn] += (.5-Sw)*grad_next*in_val;
 					sum_m[pin + sizeIn] += (.5-Sw)*grad_next*(val_m_1 > 0)*in_val;
 
-					sum_b[pin + sizeIn] += (.5-Sw)*grad_next*const_area[pout*sizeIn*ELWISE_FUNC_SEC + sizeIn + pin + sw_len]*(val_m_1 > 0);
-//					sum_b[pin + sizeIn] += (.5-Sw)*grad_next*(val_m_1 > 0);
+//					sum_b[pin + sizeIn] += (.5-Sw)*grad_next*const_area[pout*sizeIn*ELWISE_FUNC_SEC + sizeIn + pin + sw_len]*(val_m_1 > 0);
 
 				}
 			}
@@ -308,11 +306,11 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 			int out_par = pout*EL_SWITCH*sizeIn*ELWISE_FUNC_SEC;
 			target[out_par + pin][tagOffset] = sum[pin];
 			target[out_par + sizeIn + pin][tagOffset] = sum_m[pin];
-			target[out_par + 2*sizeIn + pin][tagOffset] = sum_b[pin];
+//			target[out_par + 2*sizeIn + pin][tagOffset] = sum_b[pin];
 
 			target[out_par + pin + sw_len][tagOffset] = sum[pin + sizeIn];
 			target[out_par + sizeIn + pin + sw_len][tagOffset] = sum_m[pin + sizeIn];
-			target[out_par + 2*sizeIn + pin + sw_len][tagOffset] = sum_b[pin + sizeIn];
+//			target[out_par + 2*sizeIn + pin + sw_len][tagOffset] = sum_b[pin + sizeIn];
 
 		}
 	}

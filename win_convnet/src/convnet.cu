@@ -225,9 +225,9 @@ void ConvNet::updateWeights(bool useAux) {
     }
 }
 
-void ConvNet::rollbackWeights() {
+void ConvNet::rollbackWeights(float reduceScale) {
     for (int i = 0; i < _layers.size(); i++) {
-        _layers[i]->rollbackWeights();
+        _layers[i]->rollbackWeights(reduceScale);
     }
 }
 

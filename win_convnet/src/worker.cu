@@ -189,10 +189,9 @@ minibatch=ki;
 		float err = _convNet->getErrorNum()/ _convNet->getNumCases();
 
 		float avg_neg_delta  =0;
-		int num_neg = 0;
 		float avg_delta = 0;
 
-		if(test_error.size() >= err_size/2)
+		if(test_error.size() >= err_size)
 		{
 			for(int i = 0; i<test_error.size() ; i++)
 			{
@@ -200,12 +199,10 @@ minibatch=ki;
 				if(test_error[i] < 0)
 				{
 					avg_neg_delta += fabs(test_error[i]);
-					num_neg++;
 				}
 			}
 			avg_delta *= 1./test_error.size();
-			float inv_num_neg = (num_neg)?1./num_neg:0;
-			avg_neg_delta *= inv_num_neg;
+			avg_neg_delta *= 1./test_error.size();
 		}
 
 		if(prev_err <= 1)
@@ -216,27 +213,41 @@ minibatch=ki;
 				test_error[error_upd] = prev_err - err;		
 		}
 
-		if(err > prev_err && err-prev_err > avg_neg_delta && num_neg > 0)
+		if(err > prev_err && err-prev_err > avg_neg_delta/2)
 		{
-			successs = false;
-			failure_num++;
+			if(ki>0)
+			{
+				_convNet->fpropRnd(ki-1, _epoch, _test ? PASS_TEST : PASS_TRAIN);
+				_convNet->getCost(batchCost);
+				float errNew = _convNet->getErrorNum()/ _convNet->getNumCases();
+
+				if(errNew-prev_err > avg_neg_delta/8)
+				{
+					successs = false;		
+					_convNet->rollbackWeights(.1);
+
+				}
+
+				_convNet->fpropRnd(ki, _epoch, _test ? PASS_TEST : PASS_TRAIN);
+				_convNet->getCost(batchCost);
+
+				failure_num++;
+			}			
 		}
 
 		error_upd = (error_upd+1)%err_size;
 		prev_err = err;
-      
+       
         if (!_test) {
             _convNet->bprop(PASS_TRAIN);
 
-			if(!successs)
-				_convNet->rollbackWeights();
+			//if(!successs)
+			//	_convNet->rollbackWeights(.25);
 
             _convNet->updateWeights(useAux);
 			//if(useAux)
 			//	_convNet->procAuxWeights();
         }
-
-
 
 //debug aux
 		//if(ki > 60)

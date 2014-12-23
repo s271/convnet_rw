@@ -82,7 +82,7 @@ public:
     void copyToCPU();
     void copyToGPU();
     void updateWeights(bool useAux);
-	void rollbackWeights();
+	void rollbackWeights(float reduceScale);
 	void procAuxWeights();
 	void zeroAuxWeights();
     void reset();

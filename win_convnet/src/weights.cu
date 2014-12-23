@@ -90,12 +90,10 @@ void Weights::zeroAux(int ind) {
 		getAux(ind).apply(NVMatrixOps::Zero());
 }
 
-void Weights::rollback() 
+void Weights::rollback(float reduceScale) 
 {
     assert(_onGPU);
-	_weights->add(*_weightsInc, -.5);
-//assert(_weights->isSameDims(getAux(0)));
-	//getAux(0).copy(*_weights);
+	_weights->add(*_weightsInc, reduceScale-1);
 }
 
 // Scale your gradient by epsW / numCases!
@@ -132,26 +130,6 @@ void Weights::update(bool useAux) {
 			}
 //rmsprop end
 
-
-//svrg
-			//float mom = _mom;
-
-			//if(_active_aux && useAux && _aux_filled >= _aux_store_size)
-			//	mom = 0;
-
-			//_weightsInc->add(*_weightsGrad, mom, 1);
-
-			//if(_active_aux && useAux && _aux_filled >= _aux_store_size)
-			//{
-			//	assert(getAuxSum().isSameDims(*_weightsInc));
-			//	_weightsInc->add(getAuxSum(), 1, 1./_aux_filled);
-
-			//	int rnd_aux = rand()%AUX_STORAGE;
-
-			//	assert(getAuxSum().isSameDims(getAux(rnd_aux)));
-			//	_weightsInc->add(getAux(rnd_aux), 1, -1.);
-			//}
-//svrg end
 
 			_weightsInc->add(*_weightsGrad, _mom, scaleGrad);
 	

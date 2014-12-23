@@ -243,7 +243,7 @@ public:
 
     // Scale your gradient by epsW / numCases!
     void update(bool useAux);
-	void rollback();
+	void rollback(float reduceScale);
 
 	void procAux();
 
@@ -362,9 +362,9 @@ public:
         }
     }
 
-    void rollback() {
+    void rollback(float reduceScale) {
         for (int i = 0; i < getSize(); i++) {
-            _weightList[i]->rollback();
+            _weightList[i]->rollback(reduceScale);
         }
     }
 

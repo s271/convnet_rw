@@ -420,9 +420,9 @@ void WeightLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType) {
     }
 }
 
-void WeightLayer::rollbackWeights() {
-    _weights.rollback();
-	_biases->rollback();
+void WeightLayer::rollbackWeights(float reduceScale) {
+    _weights.rollback(reduceScale);
+	_biases->rollback(reduceScale);
 }
 
 void WeightLayer::updateWeights(bool useAux) {
@@ -1629,8 +1629,9 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 			int k_ws = (kp - k_out*out_len)/sw_len;
 			int k_v = kp - k_out*out_len - k_ws*sw_len;
 
-			//if(k_v > 2*_sizeIn)
-			//	continue;
+//biases removed
+			if(k_v > 2*_sizeIn)
+				continue;
 
 			double grad = 0;
 			if(kp < paramSize-2)
@@ -1654,6 +1655,9 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 			int k_ws = (kp - k_out*out_len)/sw_len;
 			int k_v = kp - k_out*out_len - k_ws*sw_len;
 
+//biases removed
+			if(k_v > 2*_sizeIn)
+				continue;
 
 			double grad = _grad[kp];
 			
@@ -1692,27 +1696,6 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 		_nstore_count = (_nstore_count+1)%_nstore;
 
-//antisparcity
-		//double lambda = .001;
-		//for(int k_out = 0; k_out < _sizeOut; k_out++)
-		//{
-
-		//	for(int k_sw = 0; k_sw < EL_SWITCH; k_sw++)
-		//	{
-		//		double famax = 0;
-		//		for(int kinp = 0; kinp < vnorm_len; kinp++)
-		//		{
-		//			double pv = _param[k_out*out_len + k_sw*vect_len + kinp];
-		//			famax = fmax(famax, fabs(pv));
-		//		}
-
-		//		for(int kinp = 0; kinp < vnorm_len; kinp++)
-		//		{
-		//			double& pv = _param[k_out*out_len + k_sw*vect_len + kinp];
-		//			pv = ((pv>0)-(pv<0))*fmin(fabs(pv), (1 - lambda)*famax);
-		//		}
-		//	}
-		//}
 
 	//normalize
 	#ifdef EL_SWITCH
