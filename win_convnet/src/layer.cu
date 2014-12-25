@@ -1629,9 +1629,9 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 			int k_ws = (kp - k_out*out_len)/sw_len;
 			int k_v = kp - k_out*out_len - k_ws*sw_len;
 
-//biases removed
-			if(k_v > 2*_sizeIn)
-				continue;
+//biases on
+			//if(k_v > 2*_sizeIn)
+			//	continue;
 
 			double grad = 0;
 			if(kp < paramSize-2)
@@ -1655,9 +1655,9 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 			int k_ws = (kp - k_out*out_len)/sw_len;
 			int k_v = kp - k_out*out_len - k_ws*sw_len;
 
-//biases removed
-			if(k_v > 2*_sizeIn)
-				continue;
+//biases on
+			//if(k_v > 2*_sizeIn)
+			//	continue;
 
 			double grad = _grad[kp];
 			

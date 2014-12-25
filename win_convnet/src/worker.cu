@@ -167,7 +167,10 @@ int err_size = 128;
 static int error_upd = 0;
 static vector<float> test_error;
 static float prev_err = 2;
+int check_num = 0;
 int failure_num = 0;
+
+//int epoch_switch = 90;
 	//for (int ki = 0; ki < 1; ki++) {
 
 	for (int ki = 0; ki < _dp->getNumMinibatches(); ki++) {
@@ -183,8 +186,6 @@ minibatch=ki;
         _convNet->getCost(batchCost);
 
 		bool successs = true;
-
-//		printf("err %f cases %i \n", _convNet->getErrorNum()/ _convNet->getNumCases(), _convNet->getNumCases());
 
 		float err = _convNet->getErrorNum()/ _convNet->getNumCases();
 
@@ -213,27 +214,21 @@ minibatch=ki;
 				test_error[error_upd] = prev_err - err;		
 		}
 
-		if(err > prev_err && err-prev_err > avg_neg_delta/2)
+		float scale_rollback_stage0 = 0;
+		//if( err-prev_err > avg_neg_delta/2)// && gepoch < epoch_switch)
+		//{
+		//	successs = false;		
+		//	scale_rollback_stage0 =  .25 + .5*fmax(1-( err-prev_err)/avg_neg_delta,0);
+		//	failure_num++;
+		//}
+
+		if( err-prev_err > 0)// && gepoch < epoch_switch)
 		{
-			if(ki>0)
-			{
-				_convNet->fpropRnd(ki-1, _epoch, _test ? PASS_TEST : PASS_TRAIN);
-				_convNet->getCost(batchCost);
-				float errNew = _convNet->getErrorNum()/ _convNet->getNumCases();
-
-				if(errNew-prev_err > avg_neg_delta/8)
-				{
-					successs = false;		
-					_convNet->rollbackWeights(.1);
-
-				}
-
-				_convNet->fpropRnd(ki, _epoch, _test ? PASS_TEST : PASS_TRAIN);
-				_convNet->getCost(batchCost);
-
-				failure_num++;
-			}			
+			successs = false;		
+			scale_rollback_stage0 =  .2 + .5*fmax(1-(err-prev_err)/avg_neg_delta,0);
+			failure_num++;
 		}
+
 
 		error_upd = (error_upd+1)%err_size;
 		prev_err = err;
@@ -241,19 +236,35 @@ minibatch=ki;
         if (!_test) {
             _convNet->bprop(PASS_TRAIN);
 
-			//if(!successs)
-			//	_convNet->rollbackWeights(.25);
+			if(!successs)
+				_convNet->rollbackWeights(scale_rollback_stage0);
 
             _convNet->updateWeights(useAux);
+
 			//if(useAux)
 			//	_convNet->procAuxWeights();
+
+			//if(gepoch >= epoch_switch)
+			//{
+			//	_convNet->fpropRnd(ki, _epoch, _test ? PASS_TEST : PASS_TRAIN);
+			//	_convNet->getCost(batchCost);
+			//	float errNew = _convNet->getErrorNum()/ _convNet->getNumCases();
+
+			//	if(errNew-err > 0)
+			//	{
+			//		float scale_rollback = .2 + .8*fmax(1-(errNew-err)/avg_neg_delta,0);
+			//		_convNet->rollbackWeights(scale_rollback);
+			//		failure_num++;
+			//	}
+			//}
+
         }
 
 //debug aux
 		//if(ki > 60)
 		//	exit(-1);
     }
-	printf("*** failures %f \n", 1.*failure_num/ _dp->getNumMinibatches());
+	printf("***failures %f \n", 1.*failure_num/ _dp->getNumMinibatches());
 }
 
 /*
