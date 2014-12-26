@@ -105,29 +105,29 @@ void Weights::update(bool useAux) {
         if (_useGrad) {
 //rmsprop
 			float scaleGrad = 1;
-			{
-				float norm2 =  _weightsGrad->norm2();
-				int size = _weightsGrad->getNumElements();	
-				
-				_norms_size = 128;
-				while(_norms2.size() < _norms_size)
-					_norms2.push_back(0);
+			//{
+			//	float norm2 =  _weightsGrad->norm2();
+			//	int size = _weightsGrad->getNumElements();	
+			//	
+			//	_norms_size = 128;
+			//	while(_norms2.size() < _norms_size)
+			//		_norms2.push_back(0);
 
-				if(_epsW != _epsWprev)
-					_norms_filled = 0;
-				
-				if(_norms_filled == _norms_size)
-				{
-					assert(_rmsW > 0 && _rmsW < .01);
-					scaleGrad = _epsW/_epsWinit*_rmsW/getNormL2Avg();
-				}
+			//	if(_epsW != _epsWprev)
+			//		_norms_filled = 0;
+			//	
+			//	if(_norms_filled == _norms_size)
+			//	{
+			//		assert(_rmsW > 0 && _rmsW < .01);
+			//		scaleGrad = _epsW/_epsWinit*_rmsW/getNormL2Avg();
+			//	}
 
-				getNorm2Update() = norm2;
+			//	getNorm2Update() = norm2;
 
-				_norms_filled = min(_norms_filled+1, _norms_size);
-				_norms_update = (_norms_update+1)%_norms_size;
-				_epsWprev = _epsW;
-			}
+			//	_norms_filled = min(_norms_filled+1, _norms_size);
+			//	_norms_update = (_norms_update+1)%_norms_size;
+			//	_epsWprev = _epsW;
+			//}
 //rmsprop end
 
 
