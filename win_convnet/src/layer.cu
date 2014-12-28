@@ -61,10 +61,21 @@ Layer::Layer(ConvNet* convNet, PyObject* paramsDict, bool trans) :
     _actsGrad = _actsGradTarget < 0 ? new NVMatrix() : NULL;
 
     _dropout = pyDictGetFloat(paramsDict, "dropout");
+	_dropout_init = _dropout;
 
 	_nan2Zero = false;
 	_no_update = false;
 }
+
+void Layer::setDropout(float dropout)
+{
+	_dropout = dropout;
+};
+
+float Layer::getDropoutInit()
+{
+	return _dropout_init;
+}; 
 
 void Layer::fpropNext(PASS_TYPE passType) {
     for (int i = 0; i < _next.size(); i++) {
@@ -1598,9 +1609,48 @@ void EltwiseFuncLayer::setCommon(float eps_scale) {
 	}
 }
 
+void EltwiseFuncLayer::rollbackWeights(float reduceScale) {
 
+	for(int kp = 0; kp < _param.size()-2; kp++)//paramSize-2, B, C off
+	{
+		_param[kp] -= (1-reduceScale)*_param_inc[kp];
+	}
+}
+
+void EltwiseFuncLayer::l1normalize()
+{
+
+	int out_len = EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn;
+	int vect_len = _sizeIn*ELWISE_FUNC_SEC;
+	int vnorm_len = _sizeIn*2;
+
+	double sumScale = _sizeIn*_sizeOut;
+
+	for(int k_sw = 0; k_sw < EL_SWITCH; k_sw++)
+	{
+		double l1sum = 0;
+		for(int k_out = 0; k_out < _sizeOut; k_out++)
+		{
+			for(int kinp = 0; kinp < vnorm_len; kinp++)
+			{
+				double pv = _param[k_out*out_len + k_sw*vect_len + kinp];
+				l1sum += fabs(pv);
+			}
+		}
+		
+		assert(l1sum>0);
+
+		for(int k_out = 0; k_out < _sizeOut; k_out++)
+		{
+			for(int kinp = 0; kinp < vnorm_len; kinp++)
+				_param[k_out*out_len + k_sw*vect_len + kinp] *= sumScale/l1sum;
+		}
+	}
+}
 
 void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
+
+	l1normalize();
 
 	int paramSize = _param.size();
 
@@ -1629,9 +1679,9 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 			int k_ws = (kp - k_out*out_len)/sw_len;
 			int k_v = kp - k_out*out_len - k_ws*sw_len;
 
-//biases on
-			//if(k_v > 2*_sizeIn)
-			//	continue;
+//biases off
+			if(k_v > 2*_sizeIn)
+				continue;
 
 			double grad = 0;
 			if(kp < paramSize-2)
@@ -1655,9 +1705,9 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 			int k_ws = (kp - k_out*out_len)/sw_len;
 			int k_v = kp - k_out*out_len - k_ws*sw_len;
 
-//biases on
-			//if(k_v > 2*_sizeIn)
-			//	continue;
+//biases off
+			if(k_v > 2*_sizeIn)
+				continue;
 
 			double grad = _grad[kp];
 			
@@ -1695,38 +1745,6 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 		}
 
 		_nstore_count = (_nstore_count+1)%_nstore;
-
-
-	//normalize
-	#ifdef EL_SWITCH
-		int paramSwSectionLen = (paramSize-2)/EL_SWITCH;
-	#else
-		int paramSwSectionLen = paramSize;
-	#endif
-
-		double sumScale = _sizeIn*_sizeOut;
-
-		for(int k_sw = 0; k_sw < EL_SWITCH; k_sw++)
-		{
-			double l1sum = 0;
-			for(int k_out = 0; k_out < _sizeOut; k_out++)
-			{
-				for(int kinp = 0; kinp < vnorm_len; kinp++)
-				{
-					double pv = _param[k_out*out_len + k_sw*vect_len + kinp];
-					l1sum += fabs(pv);
-				}
-			}
-			
-			assert(l1sum>0);
-
-			for(int k_out = 0; k_out < _sizeOut; k_out++)
-			{
-				for(int kinp = 0; kinp < vnorm_len; kinp++)
-					_param[k_out*out_len + k_sw*vect_len + kinp] *= sumScale/l1sum;
-			}
-		}
-
 
 		if(minibatch == 0)
 		{
@@ -1964,6 +1982,8 @@ PoolLayer::PoolLayer(ConvNet* convNet, PyObject* paramsDict, bool trans)
     _channels = pyDictGetInt(paramsDict, "channels");
     _sizeX = pyDictGetInt(paramsDict, "sizeX");
     _start = pyDictGetInt(paramsDict, "start");
+	_startX = _start;
+	_startY = _start;
     _stride = pyDictGetInt(paramsDict, "stride");
     _outputsX = pyDictGetInt(paramsDict, "outputsX");
     _imgSize = pyDictGetInt(paramsDict, "imgSize");
@@ -1991,7 +2011,7 @@ AvgPoolLayer::AvgPoolLayer(ConvNet* convNet, PyObject* paramsDict) : PoolLayer(c
 }
 
 void AvgPoolLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
-    convLocalPool(*_inputs[0], getActs(), _channels, _sizeX, _start, _stride, _outputsX, AvgPooler());
+    convLocalPool(*_inputs[0], getActs(), _channels, _sizeX, _start, _start, _stride, _outputsX, AvgPooler());
 }
 
 void AvgPoolLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
@@ -2007,11 +2027,42 @@ MaxPoolLayer::MaxPoolLayer(ConvNet* convNet, PyObject* paramsDict) : PoolLayer(c
 }
 
 void MaxPoolLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
-    convLocalPool(*_inputs[0], getActs(), _channels, _sizeX, _start, _stride, _outputsX, MaxPooler());
+
+	int rndstep = 1;
+	int csize = 2;
+
+	if(_name == "pool3" || _name == "pool2")
+	{
+		rndstep = 2;
+		csize = 4;
+	}
+
+	int rndX = rand()%(2*rndstep+csize);
+
+	if (rndX <  2*rndstep) 
+		_startX = _start + rndX-rndstep;
+	else
+		_startX = _start;
+
+	int rndY = rand()%(2*rndstep+csize);
+
+	if (rndY <  2*rndstep) 
+		_startY = _start + rndY-rndstep;
+	else
+		_startY = _start;
+
+	//if(_name == "pool3" || _name == "pool2")
+	//{
+	//	_startX = _start;
+	//	_startY = _start;
+	//}
+
+    convLocalPool(*_inputs[0], getActs(), _channels, _sizeX, _startX, _startY, _stride, _outputsX, MaxPooler());
 }
 
 void MaxPoolLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
-    convLocalMaxUndo(_prev[0]->getActs(), v, getActs(), _prev[inpIdx]->getActsGrad(), _sizeX, _start, _stride, _outputsX, scaleTargets, 1);
+
+    convLocalMaxUndo(_prev[0]->getActs(), v, getActs(), _prev[inpIdx]->getActsGrad(), _sizeX, _startX, _startY, _stride, _outputsX, scaleTargets, 1);
 }
 
 /* 
@@ -2023,11 +2074,11 @@ MaxAbsPoolLayer::MaxAbsPoolLayer(ConvNet* convNet, PyObject* paramsDict) : PoolL
 }
 
 void MaxAbsPoolLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
-    convLocalPool(*_inputs[0], getActs(), _channels, _sizeX, _start, _stride, _outputsX, MaxAbsPooler());
+    convLocalPool(*_inputs[0], getActs(), _channels, _sizeX, _start, _start, _stride, _outputsX, MaxAbsPooler());
 }
 
 void MaxAbsPoolLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
-    convLocalMaxUndo(_prev[0]->getActs(), v, getActs(), _prev[inpIdx]->getActsGrad(), _sizeX, _start, _stride, _outputsX, scaleTargets, 1);
+    convLocalMaxUndo(_prev[0]->getActs(), v, getActs(), _prev[inpIdx]->getActsGrad(), _sizeX, _start, _start, _stride, _outputsX, scaleTargets, 1);
 }
 
 /* 
@@ -2191,7 +2242,7 @@ ContrastNormLayer::ContrastNormLayer(ConvNet* convNet, PyObject* paramsDict) : R
 
 void ContrastNormLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
     NVMatrix& images = *_inputs[0];
-    convLocalPool(images, _meanDiffs, _channels, _size, -_size/2, 1, _imgSize, AvgPooler());
+    convLocalPool(images, _meanDiffs, _channels, _size, -_size/2, -_size/2, 1, _imgSize, AvgPooler());
     _meanDiffs.add(images, -1, 1);
     convContrastNorm(images, _meanDiffs, _denoms, getActs(), _channels, _size, _scale, _pow);
 }

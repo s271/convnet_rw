@@ -23,10 +23,10 @@ with open('nbe_base.pickle', 'rb') as f:
 
 #with open('test_base.pickle', 'rb') as f: 
 #with open('test128s.pickle', 'rb') as f: 
-with open('test_rms.pickle', 'rb') as f: 
+with open('test_r2.pickle', 'rb') as f: 
      test_errors_base = pickle.load(f)   
 
-with open('train_rms.pickle', 'rb') as f: 
+with open('train_r2.pickle', 'rb') as f: 
     train_errors_base = pickle.load(f)
     
 with open('test_824.pickle', 'rb') as f: 

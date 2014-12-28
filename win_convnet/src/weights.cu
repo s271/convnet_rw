@@ -128,6 +128,19 @@ void Weights::update(bool useAux) {
 			//	_norms_update = (_norms_update+1)%_norms_size;
 			//	_epsWprev = _epsW;
 			//}
+
+//			{
+////debug
+//static float rms_running = _rmsW;
+//
+//				if(_epsW != _epsWprev)
+//					rms_running = _rmsW;
+//
+//				float norm2 =  _weightsGrad->norm2();
+//				rms_running = .9*rms_running + .1*norm2;
+//				scaleGrad = _epsW/_epsWinit*_rmsW/rms_running;
+//
+//			}
 //rmsprop end
 
 

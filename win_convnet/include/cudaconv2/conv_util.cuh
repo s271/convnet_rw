@@ -31,7 +31,7 @@
 #include <nvmatrix.cuh>
 
 void convLocalMaxUndo(NVMatrix& images, NVMatrix& maxGrads, NVMatrix& maxActs, NVMatrix& target,
-                      int subsX, int startX, int strideX, int outputsX);
+                      int subsX, int startX, int startY, int strideX, int outputsX);
 void convLocalAvgUndo(NVMatrix& avgGrads, NVMatrix& target,
                       int subsX, int startX, int strideX, int outputsX, int imgSize);
 
@@ -39,7 +39,7 @@ void convLocalAvgUndo(NVMatrix& avgGrads, NVMatrix& target,
                       int subsX, int startX, int strideX, int outputsX, int imgSize,
                       float scaleTargets, float scaleOutput);
 void convLocalMaxUndo(NVMatrix& images, NVMatrix& maxGrads, NVMatrix& maxActs, NVMatrix& target,
-                      int subsX, int startX, int strideX, int outputsX, float scaleTargets, float scaleOutput);
+                      int subsX, int startX, int startY, int strideX, int outputsX, float scaleTargets, float scaleOutput);
 
 void convResponseNorm(NVMatrix& images, NVMatrix& denoms, NVMatrix& target, int numFilters, int sizeX, float addScale, float powScale);
 void convResponseNormUndo(NVMatrix& outGrads, NVMatrix& denoms, NVMatrix& inputs, NVMatrix& acts, NVMatrix& target, int numFilters,
@@ -126,7 +126,7 @@ public:
 
 template<class Agg, int B_Y, int B_X, int imgsPerThread, int filtersPerThread, bool checkCaseBounds>
 __global__ void kLocalPool(float* imgs, float* target, const int imgSize, const int numFilters,
-                           const int numImages, const int subsX, const int startX, const int strideX,
+                           const int numImages, const int subsX, const int startX, const int startY, const int strideX,
                            const int outputsX, Agg agg) {
     const int numImgBlocks = DIVUP(numImages,B_X*imgsPerThread);
     const int numFilterBlocks = DIVUP(numFilters, B_Y*filtersPerThread);
@@ -144,7 +144,7 @@ __global__ void kLocalPool(float* imgs, float* target, const int imgSize, const 
     const int imgPixels = imgSize * imgSize;
     
     const int startImgPxX = startX + outputIdxX * strideX;
-    const int startImgPxY = startX + outputIdxY * strideX;
+    const int startImgPxY = startY + outputIdxY * strideX;
     const int imgIdx = blockImgIdx + threadIdx.x;
     
     imgs += myFilterIdx * imgPixels * numImages + imgIdx;
@@ -219,7 +219,7 @@ __global__ void kLocalPool(float* imgs, float* target, const int imgSize, const 
  */
 template<class Agg, int B_X, int imgsPerThread, int filtersPerThread, bool checkCaseBounds>
 __global__ void kLocalPool2(float* imgs, float* target, const int imgSize, const int numFilters,
-                           const int numImages, const int subsX, const int startX,
+                           const int numImages, const int subsX, const int startX, const int startY,
                            const int outputsX, Agg agg) {
     __shared__ float shImgs[filtersPerThread][B_X*imgsPerThread];
     const int numImgBlocks = DIVUP(numImages,B_X*imgsPerThread);
@@ -244,7 +244,7 @@ __global__ void kLocalPool2(float* imgs, float* target, const int imgSize, const
     const int myOutputIdx = myOutputIdxY * outputsX + myOutputIdxX;
     
     const int startImgPxX = startX + blockOutputX;
-    const int startImgPxY = startX + blockOutputY;
+    const int startImgPxY = startY + blockOutputY;
     const int endImgPxX = startImgPxX + subsX;
     const int endImgPxY = startImgPxY + subsX;
     
@@ -326,7 +326,7 @@ __global__ void kLocalPool2(float* imgs, float* target, const int imgSize, const
  */
 template<class Pooler>
 void convLocalPool(NVMatrix& images, NVMatrix& target, int numFilters,
-                   int subsX, int startX, int strideX, int outputsX, Pooler pooler) {
+                   int subsX, int startX, int startY, int strideX, int outputsX, Pooler pooler) {
     int numImages = images.getNumCols();
     int imgPixels = images.getNumRows() / numFilters;
     assert(images.getNumRows() == numFilters * imgPixels);
@@ -356,41 +356,41 @@ void convLocalPool(NVMatrix& images, NVMatrix& target, int numFilters,
                  if (checkCaseBounds) {
                     cudaFuncSetCacheConfig(kLocalPool2<Pooler, 8, 8, 1, true>, cudaFuncCachePreferShared);
                     kLocalPool2<Pooler, 8, 8, 1, true><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, outputsX, pooler);
                 } else {
                     cudaFuncSetCacheConfig(kLocalPool2<Pooler, 8, 8, 1, false>, cudaFuncCachePreferShared);
                     kLocalPool2<Pooler, 8, 8, 1, false><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, outputsX, pooler);
                 }
             } else if (filtersPerThread == 2) {
                 if (checkCaseBounds) {
                     cudaFuncSetCacheConfig(kLocalPool2<Pooler, 8, 8, 2, true>, cudaFuncCachePreferShared);
                     kLocalPool2<Pooler, 8, 8, 2, true><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, outputsX, pooler);
                 } else {
                     cudaFuncSetCacheConfig(kLocalPool2<Pooler, 8, 8, 2, false>, cudaFuncCachePreferShared);
                     kLocalPool2<Pooler, 8, 8, 2, false><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, outputsX, pooler);
                 }
             } else if (filtersPerThread == 3) {
                 if (checkCaseBounds) {
                     cudaFuncSetCacheConfig(kLocalPool2<Pooler, 8, 8, 3, true>, cudaFuncCachePreferShared);
                     kLocalPool2<Pooler, 8, 8, 3, true><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, outputsX, pooler);
                 } else {
                     cudaFuncSetCacheConfig(kLocalPool2<Pooler, 8, 8, 3, false>, cudaFuncCachePreferShared);
                     kLocalPool2<Pooler, 8, 8, 3, false><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, outputsX, pooler);
                 }
             } else if (filtersPerThread == 4) {
                 if (checkCaseBounds) {
                     cudaFuncSetCacheConfig(kLocalPool2<Pooler, 8, 8, 4, true>, cudaFuncCachePreferShared);
                     kLocalPool2<Pooler, 8, 8, 4, true><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, outputsX, pooler);
                 } else {
                     cudaFuncSetCacheConfig(kLocalPool2<Pooler, 8, 8, 4, false>, cudaFuncCachePreferShared);
                     kLocalPool2<Pooler, 8, 8, 4, false><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, outputsX, pooler);
                 }
             }
         } else if (imgsPerThread == 4) {
@@ -398,41 +398,41 @@ void convLocalPool(NVMatrix& images, NVMatrix& target, int numFilters,
                  if (checkCaseBounds) {
                     cudaFuncSetCacheConfig(kLocalPool2<Pooler, 8, 4, 1, true>, cudaFuncCachePreferShared);
                     kLocalPool2<Pooler, 8, 4, 1, true><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, outputsX, pooler);
                 } else {
                     cudaFuncSetCacheConfig(kLocalPool2<Pooler, 8, 4, 1, false>, cudaFuncCachePreferShared);
                     kLocalPool2<Pooler, 8, 4, 1, false><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, outputsX, pooler);
                 }
             } else if (filtersPerThread == 2) {
                 if (checkCaseBounds) {
                     cudaFuncSetCacheConfig(kLocalPool2<Pooler, 8, 4, 2, true>, cudaFuncCachePreferShared);
                     kLocalPool2<Pooler, 8, 4, 2, true><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, outputsX, pooler);
                 } else {
                     cudaFuncSetCacheConfig(kLocalPool2<Pooler, 8, 4, 2, false>, cudaFuncCachePreferShared);
                     kLocalPool2<Pooler, 8, 4, 2, false><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, outputsX, pooler);
                 }
             } else if (filtersPerThread == 3) {
                 if (checkCaseBounds) {
                     cudaFuncSetCacheConfig(kLocalPool2<Pooler, 8, 4, 3, true>, cudaFuncCachePreferShared);
                     kLocalPool2<Pooler, 8, 4, 3, true><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, outputsX, pooler);
                 } else {
                     cudaFuncSetCacheConfig(kLocalPool2<Pooler, 8, 4, 3, false>, cudaFuncCachePreferShared);
                     kLocalPool2<Pooler, 8, 4, 3, false><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, outputsX, pooler);
                 }
             } else if (filtersPerThread == 4) {
                 if (checkCaseBounds) {
                     cudaFuncSetCacheConfig(kLocalPool2<Pooler, 8, 4, 4, true>, cudaFuncCachePreferShared);
                     kLocalPool2<Pooler, 8, 4, 4, true><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, outputsX, pooler);
                 } else {
                     cudaFuncSetCacheConfig(kLocalPool2<Pooler, 8, 4, 4, false>, cudaFuncCachePreferShared);
                     kLocalPool2<Pooler, 8, 4, 4, false><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, outputsX, pooler);
                 }
             }
         }
@@ -448,21 +448,21 @@ void convLocalPool(NVMatrix& images, NVMatrix& target, int numFilters,
                 if (checkCaseBounds) {
                     cudaFuncSetCacheConfig(kLocalPool<Pooler, 4, 32, 4, 1, true>, cudaFuncCachePreferL1);
                     kLocalPool<Pooler, 4, 32, 4, 1, true><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, strideX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, strideX, outputsX, pooler);
                 } else {
                     cudaFuncSetCacheConfig(kLocalPool<Pooler, 4, 32, 4, 1, false>, cudaFuncCachePreferL1);
                     kLocalPool<Pooler, 4, 32, 4, 1, false><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, strideX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, strideX, outputsX, pooler);
                 }
             } else {
                 if (checkCaseBounds) {
                     cudaFuncSetCacheConfig(kLocalPool<Pooler, 4, 32, 4, 2, true>, cudaFuncCachePreferL1);
                     kLocalPool<Pooler, 4, 32, 4, 2, true><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, strideX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, strideX, outputsX, pooler);
                 } else {
                     cudaFuncSetCacheConfig(kLocalPool<Pooler, 4, 32, 4, 2, false>, cudaFuncCachePreferL1);
                     kLocalPool<Pooler, 4, 32, 4, 2, false><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, strideX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, strideX, outputsX, pooler);
                 }
             }
         } else if (imgsPerThread == 2) {
@@ -470,21 +470,21 @@ void convLocalPool(NVMatrix& images, NVMatrix& target, int numFilters,
                 if (checkCaseBounds) {
                     cudaFuncSetCacheConfig(kLocalPool<Pooler, 4, 32, 2, 1, true>, cudaFuncCachePreferL1);
                     kLocalPool<Pooler, 4, 32, 2, 1, true><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, strideX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, strideX, outputsX, pooler);
                 } else {
                     cudaFuncSetCacheConfig(kLocalPool<Pooler, 4, 32, 2, 1, false>, cudaFuncCachePreferL1);
                     kLocalPool<Pooler, 4, 32, 2, 1, false><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, strideX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, strideX, outputsX, pooler);
                 }
             } else {
                 if (checkCaseBounds) {
                     cudaFuncSetCacheConfig(kLocalPool<Pooler, 4, 32, 2, 2, true>, cudaFuncCachePreferL1);
                     kLocalPool<Pooler, 4, 32, 2, 2, true><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, strideX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, strideX, outputsX, pooler);
                 } else {
                     cudaFuncSetCacheConfig(kLocalPool<Pooler, 4, 32, 2, 2, false>, cudaFuncCachePreferL1);
                     kLocalPool<Pooler, 4, 32, 2, 2, false><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, strideX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, strideX, outputsX, pooler);
                 }
             }
         } else {
@@ -492,21 +492,21 @@ void convLocalPool(NVMatrix& images, NVMatrix& target, int numFilters,
                 if (checkCaseBounds) {
                     cudaFuncSetCacheConfig(kLocalPool<Pooler, 4, 32, 1, 1, true>, cudaFuncCachePreferL1);
                     kLocalPool<Pooler, 4, 32, 1, 1, true><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, strideX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, strideX, outputsX, pooler);
                 } else {
                     cudaFuncSetCacheConfig(kLocalPool<Pooler, 4, 32, 1, 1, false>, cudaFuncCachePreferL1);
                     kLocalPool<Pooler, 4, 32, 1, 1, false><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, strideX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, strideX, outputsX, pooler);
                 }
             } else {
                 if (checkCaseBounds) {
                     cudaFuncSetCacheConfig(kLocalPool<Pooler, 4, 32, 1, 2, true>, cudaFuncCachePreferL1);
                     kLocalPool<Pooler, 4, 32, 1, 2, true><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, strideX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, strideX, outputsX, pooler);
                 } else {
                     cudaFuncSetCacheConfig(kLocalPool<Pooler, 4, 32, 1, 2, false>, cudaFuncCachePreferL1);
                     kLocalPool<Pooler, 4, 32, 1, 2, false><<<blocks, threads>>>(images.getDevData(), target.getDevData(),
-                                                                      imgSize, numFilters, numImages, subsX, startX, strideX, outputsX, pooler);
+                                                                      imgSize, numFilters, numImages, subsX, startX, startY, strideX, outputsX, pooler);
                 }
             }
         }

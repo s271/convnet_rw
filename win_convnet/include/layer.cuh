@@ -73,11 +73,14 @@ protected:
 	//move to weights
     NVMatrix _dropout_mask;
     float _dropout;
+	float _dropout_init;
 	bool _no_update;
   
     void fpropNext(PASS_TYPE passType);
     virtual void truncBwdActs(); 
     virtual void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) = 0;
+	void setDropout(float dropout); 
+	float getDropoutInit(); 
     
     virtual void setCommon(float eps_scale) {
         // Do nothing by default
@@ -300,7 +303,9 @@ protected:
 	void MakeAuxParams();
 	void GetAuxParam(int paramInd);
     void copyToCPU();
+	void l1normalize();
 public:
+	virtual void rollbackWeights(float reduceScale);
 	virtual void setCommon(float eps_scale);
     EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict);
 	~EltwiseFuncLayer();
@@ -444,7 +449,7 @@ public:
 
 class PoolLayer : public Layer {
 protected:
-    int _channels, _sizeX, _start, _stride, _outputsX;
+    int _channels, _sizeX, _start, _stride, _outputsX, _startX, _startY;
     int _imgSize;
     string _pool;
 public:
