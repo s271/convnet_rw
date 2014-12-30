@@ -28,7 +28,7 @@
 
 bool Weights::_autoCopyToGPU = false;
 
-int AUX_STORAGE = 32;
+int AUX_STORAGE = 1;
 
 void Weights::shrink(float lambda)
 {
@@ -46,30 +46,35 @@ void Weights::procAux() {
 
     assert(_onGPU);
 
-	if(!_weightsGrad->isSameDims(getAuxSum()));
-		getAuxSum().resize(*_weightsGrad);
+	//if(!_weightsGrad->isSameDims(getAuxSum()));
+	//	getAuxSum().resize(*_weightsGrad);
 
-	if(_aux_filled == 0)
-	{
-		zeroAux();
-	}
+	//if(_aux_filled == 0)
+	//{
+	//	zeroAux();
+	//}
 
-	if(_aux_filled >= 0)
-		getAuxSum().add(*_weightsGrad, 1.);
+	//if(_aux_filled >= 0)
+	//	getAuxSum().add(*_weightsGrad, 1.);
 
-	if(_aux_filled >= _aux_store_size)
-	{
-		assert(getAuxSum().isSameDims(getAuxUpdate()));
-		getAuxSum().add(getAuxUpdate(), -1.);//remove
-	}
+	//if(_aux_filled >= _aux_store_size)
+	//{
+	//	assert(getAuxSum().isSameDims(getAuxUpdate()));
+	//	getAuxSum().add(getAuxUpdate(), -1.);//remove
+	//}
 
-	if(!_weightsGrad->isSameDims(getAuxUpdate()));
-		getAuxUpdate().resize(*_weightsGrad);
+	//if(!_weightsGrad->isSameDims(getAuxUpdate()));
+	//	getAuxUpdate().resize(*_weightsGrad);
 
-	_weightsGrad->copy(getAuxUpdate());
+	//_weightsGrad->copy(getAuxUpdate());
 
-	_aux_filled = min(_aux_filled+1, _aux_store_size);
-	_aux_update = (_aux_update+1)%_aux_store_size;
+	//_aux_filled = min(_aux_filled+1, _aux_store_size);
+	//_aux_update = (_aux_update+1)%_aux_store_size;
+
+
+	if(!_weightsGrad->isSameDims(getAux(0)));
+		getAux(0).resize(*_weightsGrad);
+	_weightsGrad->copy(getAux(0));
 
 }
 
@@ -92,7 +97,22 @@ void Weights::zeroAux(int ind) {
 
 void Weights::rollback(float reduceScale) 
 {
-    assert(_onGPU);
+	//if(_aux_filled < _aux_store_size)
+	//	return;
+ //   assert(_onGPU);
+	//int rnd = rand()%(_aux_store_size-1);
+	//rnd = (rnd + _aux_update)%_aux_store_size;
+	//int ind_last = (_aux_update-1+_aux_store_size)%_aux_store_size;
+
+	//float norm2aux = getAux(rnd).norm2();
+	//float norm2g = getAux(ind_last).norm2();
+	//float dot = getAux(ind_last).dotProduct(getAux(rnd));
+
+
+	//getAux(ind_last).add(getAux(rnd), norm2g-1, -norm2g*dot/norm2aux, getAuxSum());
+
+	//_weights->add(getAuxSum());
+
 	_weights->add(*_weightsInc, reduceScale-1);
 }
 
@@ -142,6 +162,11 @@ void Weights::update(bool useAux) {
 //
 //			}
 //rmsprop end
+
+	//float norm2aux = getAux(0).norm2();
+	//float dot = getAux(0).dotProduct(*_weightsGrad);
+	//getAux(0).add(*_weightsGrad, -dot/norm2aux, 1);
+	//_weightsInc->add(getAux(0), _mom, scaleGrad);
 
 
 			_weightsInc->add(*_weightsGrad, _mom, scaleGrad);

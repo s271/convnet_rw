@@ -111,6 +111,12 @@ void computeMAvgAct(NVMatrix& input, NVMatrix& target, int sizeModuleSide, int c
 void computeMAvgGrad(NVMatrix& actGrad,  NVMatrix& target, int sizeModuleSide, int channels,
 						 int imgSize, int imgPixels);
 
+void computeMMaxAct(NVMatrix& input, NVMatrix& target, int sizeModuleSide, int channels,
+						 int imgSize, int imgPixels);
+
+void computeMMaxGrad(NVMatrix& actGrad,  NVMatrix& input, NVMatrix& actMax, NVMatrix& target, int sizeModuleSide, int channels,
+						 int imgSize, int imgPixels);
+
 void dshrinkWeightGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& pos_bias, NVMatrix& neg_bias,
 					   NVMatrix& target_pos, NVMatrix& target_neg);
 

@@ -161,7 +161,7 @@ void TrainingWorker::auxPass() {
 
 void TrainingWorker::trainingPass(Cost& batchCost) {
 
-bool useAux  = false;//true;
+bool useAux  = true;
 
 int err_size = 128;
 static int error_upd = 0;
@@ -241,8 +241,8 @@ minibatch=ki;
 
             _convNet->updateWeights(useAux);
 
-			//if(useAux)
-			//	_convNet->procAuxWeights();
+			if(useAux)
+				_convNet->procAuxWeights();
 
 			//if(gepoch >= epoch_switch)
 			//{

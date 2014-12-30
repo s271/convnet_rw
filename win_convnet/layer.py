@@ -893,6 +893,28 @@ class MAvgParser(LayerWithInputParser):
         dic['outputs'] = dic['imgPixels'] * dic['channels']        
                
         print "Initialized MAvgParser layer '%s', producing %d outputs" % (name, dic['outputs'])
+        return dic   
+        
+class MMaxParser(LayerWithInputParser):        
+    def __init__(self):
+        LayerWithInputParser.__init__(self)
+    def add_params(self, mcp):
+        LayerWithInputParser.add_params(self, mcp)
+        dic, name = self.dic, self.dic['name']
+    def parse(self, name, mcp, prev_layers, model):
+
+        dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
+        if len(set(dic['numInputs'])) != 1:
+            raise LayerParsingError("Layer '%s': all inputs must have the same dimensionality. Got dimensionalities: %s" % (name, ", ".join(str(s) for s in dic['numInputs'])))
+         
+        dic['channels'] = mcp.safe_get_int(name, 'channels')
+        dic['size'] = mcp.safe_get_int(name, 'size')
+        dic['imgPixels'] = dic['numInputs'][0] / dic['channels']
+        dic['imgSize'] = int(n.sqrt(dic['imgPixels']))
+        
+        dic['outputs'] = dic['imgPixels'] * dic['channels']        
+               
+        print "Initialized MMaxParser layer '%s', producing %d outputs" % (name, dic['outputs'])
         return dic         
         
 class MicroConvParser(LayerWithInputParser):        
@@ -1607,6 +1629,7 @@ layer_parsers = {'data': lambda : DataLayerParser(),
                  'eltsum': lambda : EltwiseSumLayerParser(),
                  'mconv': lambda : MicroConvParser(),
                  'mavg': lambda : MAvgParser(),
+                 'mmax': lambda : MMaxParser(),
                  'eltmax': lambda : EltwiseMaxLayerParser(),
                  'eltabsmax': lambda : EltwiseAbsMaxLayerParser(),
                  'eltfunc': lambda : EltwiseFuncParser(),

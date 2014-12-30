@@ -110,6 +110,8 @@ Layer* ConvNet::initLayer(string& layerType, PyObject* paramsDict, bool fix_nan)
         _layers.push_back(new EltwiseAbsMaxLayer(this, paramsDict));
     } else if (layerType == "mavg") {
         _layers.push_back(new MAvgPoolLayer(this, paramsDict));
+    } else if (layerType == "mmax") {
+        _layers.push_back(new MMaxPoolLayer(this, paramsDict));
     } else if (layerType == "mconv") {
         _layers.push_back(new MicroConvLayer(this, paramsDict));
     } else if (layerType == "dshrink") {

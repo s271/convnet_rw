@@ -353,7 +353,7 @@ WeightLayer::WeightLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, boo
 	if(_svrg)
 	{
 		activeAux = true;
-		aux_store_size = 0;//AUX_STORAGE;
+		aux_store_size = AUX_STORAGE;
 		printf("layer %s use _svrg \n", _name.c_str());
 	}
    
@@ -1152,6 +1152,33 @@ void MAvgPoolLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_
 }
 
 /* 
+ * =====================
+ * MMaxPoolLayer
+ * =====================
+ */
+MMaxPoolLayer::MMaxPoolLayer(ConvNet* convNet, PyObject* paramsDict) :Layer(convNet, paramsDict, false) {
+
+    _channels = pyDictGetInt(paramsDict, "channels");
+    _size = pyDictGetInt(paramsDict, "size");
+    _imgSize = pyDictGetInt(paramsDict, "imgSize");
+	_imgPixels = pyDictGetInt(paramsDict, "imgPixels");
+}
+
+void MMaxPoolLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
+
+		computeMMaxAct(*_inputs[inpIdx], getActs(),  _size, _channels, _imgSize, _imgPixels);
+
+}
+
+void MMaxPoolLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
+
+	computeMMaxGrad(v, _prev[0]->getActs(), getActs(), _prev[inpIdx]->getActsGrad(),
+							 _size, _channels,
+							_imgSize, _imgPixels);
+
+}
+
+/* 
  * =======================
  * VectFuncLayer
  * =======================
@@ -1617,9 +1644,78 @@ void EltwiseFuncLayer::rollbackWeights(float reduceScale) {
 	}
 }
 
-void EltwiseFuncLayer::l1normalize()
+void EltwiseFuncLayer::updateWeights(bool useAux)
 {
 
+	int paramSize = _param.size();
+
+	for(int kp = 0; kp < paramSize-2; kp++)//paramSize-2, B, C off
+	{
+
+		int out_len = EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn;
+		int k_out = kp/out_len;
+		int sw_len = ELWISE_FUNC_SEC*_sizeIn;
+		int k_ws = (kp - k_out*out_len)/sw_len;
+		int k_v = kp - k_out*out_len - k_ws*sw_len;
+
+		if(k_v > 2*_sizeIn)
+			continue;
+
+		double grad = _grad[kp];
+		
+//should make orthognal projection to equal vector(sizeIn)
+
+		double sum_grad = 0;
+		int nsum = 0;
+		for(int k = 0; k < _nstore; k++)
+		{
+			double g_stored = _grad_store[k*_param.size() + kp];
+
+			if(g_stored > 0)
+				nsum++;
+
+			sum_grad += g_stored*g_stored;
+		}
+
+		_grad_store[_nstore_count*_param.size() + kp] = grad;
+
+		if(sum_grad > 0)
+			grad = grad*sqrt(nsum)/sqrt(sum_grad);
+	
+		double eps = _epsP;
+		double wc = _wc;
+
+		_param_inc[kp] = _mom*_param_inc[kp] + eps*grad;
+		float r =_param_inc[kp] - wc*_param[kp];
+
+		if(_param_inc[kp]*r >= 0)
+			_param_inc[kp] = r;
+			
+//debug
+		if(kp != paramSize-2)
+			_param[kp] += _param_inc[kp];
+	}
+
+	_nstore_count = (_nstore_count+1)%_nstore;
+
+	if(minibatch == 0)
+	{
+		int nump = _sizeIn*ELWISE_FUNC_SEC;
+		int numl = (_param.size()+nump-1)/nump;
+		printf("** params *** \n");
+		for (int nk = 0; nk < numl; nk++)
+		{
+			for (int k = 0; k < nump; k++)
+				if(k + nk*nump < _param.size())
+				printf("%f ", _param[k + nk*nump]);
+			printf("\n");
+		}
+	}
+
+};
+
+void EltwiseFuncLayer::l1normalize()
+{
 	int out_len = EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn;
 	int vect_len = _sizeIn*ELWISE_FUNC_SEC;
 	int vnorm_len = _sizeIn*2;
@@ -1679,7 +1775,6 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 			int k_ws = (kp - k_out*out_len)/sw_len;
 			int k_v = kp - k_out*out_len - k_ws*sw_len;
 
-//biases off
 			if(k_v > 2*_sizeIn)
 				continue;
 
@@ -1695,70 +1790,6 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 		}
 
 		//MakeAuxParams();
-
-		for(int kp = 0; kp < paramSize-2; kp++)//paramSize-2, B, C off
-		{
-
-			int out_len = EL_SWITCH*ELWISE_FUNC_SEC*_sizeIn;
-			int k_out = kp/out_len;
-			int sw_len = ELWISE_FUNC_SEC*_sizeIn;
-			int k_ws = (kp - k_out*out_len)/sw_len;
-			int k_v = kp - k_out*out_len - k_ws*sw_len;
-
-//biases off
-			if(k_v > 2*_sizeIn)
-				continue;
-
-			double grad = _grad[kp];
-			
-	//should make orthognal projection to equal vector(sizeIn)
-
-			double sum_grad = 0;
-			int nsum = 0;
-			for(int k = 0; k < _nstore; k++)
-			{
-				double g_stored = _grad_store[k*_param.size() + kp];
-
-				if(g_stored > 0)
-					nsum++;
-
-				sum_grad += g_stored*g_stored;
-			}
-
-			_grad_store[_nstore_count*_param.size() + kp] = grad;
-
-			if(sum_grad > 0)
-				grad = grad*sqrt(nsum)/sqrt(sum_grad);
-		
-			double eps = _epsP;
-			double wc = _wc;
-
-			_param_inc[kp] = _mom*_param_inc[kp] + eps*grad;
-			float r =_param_inc[kp] - wc*_param[kp];
-
-			if(_param_inc[kp]*r >= 0)
-				_param_inc[kp] = r;
-				
-	//debug
-			if(kp != paramSize-2)
-				_param[kp] += _param_inc[kp];
-		}
-
-		_nstore_count = (_nstore_count+1)%_nstore;
-
-		if(minibatch == 0)
-		{
-			int nump = _sizeIn*ELWISE_FUNC_SEC;
-			int numl = (_param.size()+nump-1)/nump;
-			printf("** params *** \n");
-			for (int nk = 0; nk < numl; nk++)
-			{
-				for (int k = 0; k < nump; k++)
-					if(k + nk*nump < _param.size())
-					printf("%f ", _param[k + nk*nump]);
-				printf("\n");
-			}
-		}
 
 	//test
 		//if(0)
@@ -2028,34 +2059,29 @@ MaxPoolLayer::MaxPoolLayer(ConvNet* convNet, PyObject* paramsDict) : PoolLayer(c
 
 void MaxPoolLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
-	int rndstep = 1;
-	int csize = 2;
+	//int rndstep = 2;
+	//int csize = 6;
 
-	if(_name == "pool3" || _name == "pool2")
-	{
-		rndstep = 2;
-		csize = 4;
-	}
 
-	int rndX = rand()%(2*rndstep+csize);
+	//int rndX = rand()%(2*rndstep+csize);
 
-	if (rndX <  2*rndstep) 
-		_startX = _start + rndX-rndstep;
-	else
-		_startX = _start;
-
-	int rndY = rand()%(2*rndstep+csize);
-
-	if (rndY <  2*rndstep) 
-		_startY = _start + rndY-rndstep;
-	else
-		_startY = _start;
-
-	//if(_name == "pool3" || _name == "pool2")
-	//{
+	//if (rndX <  2*rndstep) 
+	//	_startX = _start + rndX-rndstep;
+	//else
 	//	_startX = _start;
+
+	//int rndY = rand()%(2*rndstep+csize);
+
+	//if (rndY <  2*rndstep) 
+	//	_startY = _start + rndY-rndstep;
+	//else
 	//	_startY = _start;
-	//}
+
+	//if(_name == "pool3" || gepoch >= 70)
+	{
+		_startX = _start;
+		_startY = _start;
+	}
 
     convLocalPool(*_inputs[0], getActs(), _channels, _sizeX, _startX, _startY, _stride, _outputsX, MaxPooler());
 }

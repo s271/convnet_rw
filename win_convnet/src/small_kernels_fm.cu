@@ -80,10 +80,10 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 
 				float val = input[inp_off];
 				inpVal[inp_i] = val;
-				v_sw += (val>0) - (val<0);
+				v_sw += val;
 			}
 			float Sw = Switch(v_sw + Bsw,  Csw);
-			//float Sw = Median3(inpVal[0],inpVal[1],inpVal[2]);
+			//float v_sw = Median3(inpVal[0],inpVal[1],inpVal[2]);
 		
 			for (uint out_i = 0; out_i < sizeOut; out_i++) {
 				int out_par = out_i*EL_SWITCH*sizeIn*ELWISE_FUNC_SEC;
@@ -93,6 +93,7 @@ __global__ void kEltwiseFuncAct(const float* input, float* const target,
 				for (uint inp_i = 0; inp_i < sizeIn; inp_i++)
 				{	
 					float val = inpVal[inp_i];
+					//float Sw = Switch(v_sw + 4*val + Bsw,  Csw);
 
 					float param = const_area[out_par + inp_i];
 					float paramM = const_area[out_par + sizeIn + inp_i];
@@ -170,16 +171,16 @@ __global__ void kEltwiseFuncGrad(const float* actGrad, const float* input, float
 			{
 				float val = input[inp_off + inp_i*strideInpStep];
 				inpArr[inp_i] = val;
-				v_sw += (val>0) - (val<0);
+				v_sw += val;
 			}
-
-			//float Sw = Median3(inpArr[0],inpArr[1],inpArr[2]);			
+			//float v_sw = Median3(inpArr[0],inpArr[1],inpArr[2]);
+			
 			float Sw = Switch(v_sw+Bsw, Csw);
 
 			for (uint inp_i = 0; inp_i < sizeIn; inp_i++) {	
 
 				float val = inpArr[inp_i];
-																
+								
 				float sum_grad = 0;
 				
 				for (uint out_i = 0; out_i < sizeOut; out_i++)	
@@ -268,11 +269,12 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 #endif
 					float val = input[offset_in];
 					InArr[pin] = val;
-					v_sw += (val>0) - (val<0);
+					v_sw += val;
 				}
 
 				float Sw = Switch(v_sw+ Bsw, Csw);
-				//float Sw = Median3(InArr[0],InArr[1],InArr[2]);
+
+				//float v_sw = Median3(InArr[0],InArr[1],InArr[2]);
 
 				float grad_next = actGrad[offset_act + pout*groupStride];
 
@@ -282,12 +284,12 @@ __global__ void kEltwiseFuncParamWeightGrad(float* actGrad, float* input, float*
 					float in_val = InArr[pin];
 
 					sum[pin] += (.5+Sw)*grad_next*in_val;
-					sum_m[pin] += (.5+Sw)*grad_next*(in_val > 0)*in_val;
-					sum_mn[pin] += -(.5+Sw)*grad_next*(in_val < 0)*in_val;
+					sum_m[pin] += (.5+Sw)*grad_next*fmaxf(in_val, 0);
+					sum_mn[pin] += (.5+Sw)*grad_next*fmaxf(-in_val, 0);
 
 					sum[pin + sizeIn] += (.5-Sw)*grad_next*in_val;
-					sum_m[pin + sizeIn] += (.5-Sw)*grad_next*(in_val > 0)*in_val;
-					sum_mn[pin + sizeIn] += -(.5-Sw)*grad_next*(in_val < 0)*in_val;
+					sum_m[pin + sizeIn] += (.5-Sw)*grad_next*fmaxf(in_val, 0);
+					sum_mn[pin + sizeIn] += (.5-Sw)*grad_next*fmaxf(-in_val, 0);
 				}
 			}
 		}
@@ -348,7 +350,7 @@ __global__ void kEltwiseFuncBCWeightGrad(const float* input, const float* actGra
 #endif
 				float val = input[inp_off];
 				inpVal[inp_i] = val;
-				v_sw += (val>0) - (val<0);
+				v_sw += val;
 			}
 			//float v_sw = Median3(inpVal[0],inpVal[1],inpVal[2]);
 			
@@ -598,7 +600,8 @@ __global__ void kEltwiseFuncGroupTestS(float* actGrad, float* input, float** tar
     }
 
 #define getValInput(X, Y, Z) input[channelOffset + (X)*widthyz+(Y)*widthz + (Z)]
-#define getValAct(X, Y, Z) actGrad[filterOffset + (X)*widthyz+(Y)*widthz + (Z)]
+#define getValActGrad(X, Y, Z) actGrad[filterOffset + (X)*widthyz+(Y)*widthz + (Z)]
+#define getMaxAct(X, Y, Z) actGrad[filterOffset + (X)*widthyz+(Y)*widthz + (Z)]
 
 template < int LOBE, int SIZE_CONV>
 __global__ void kMAvgAct(const float* input, float* const target,
@@ -715,7 +718,7 @@ __global__ void kMAvgGrad(const float* actGrad, float* const target,
 			if(z < numCases)
 			{
 
-				SHARED_MEM(ix, iy, z, LOBE, getValAct, sdata)	
+				SHARED_MEM(ix, iy, z, LOBE, getValActGrad, sdata)	
 			}
 		}
 
@@ -745,6 +748,163 @@ __global__ void kMAvgGrad(const float* actGrad, float* const target,
 
 			}//if
 		}//channel
+	}//zind
+}
+
+template < int LOBE, int SIZE_CONV>
+__global__ void kMMaxAct(const float* input, float* const target,
+								const uint numCases, const uint channels, const uint casePerThread,
+								const uint sharedY, const uint modulesPerBlockX, const uint modulesPerBlockY, 
+								const uint imgSizeX, const uint imgSizeY,
+								const uint imgPixels)
+{
+	extern __shared__ float sdata[];
+//order x>y>z, *not* y>x
+	//const int bsizeX = imgSizeX/modulesPerBlockX;
+	const int bsizeY = imgSizeY/modulesPerBlockY;
+	const int startX = (blockIdx.y/bsizeY)*modulesPerBlockX;
+	const int startY = (blockIdx.y%bsizeY)*modulesPerBlockY;
+
+    const int  bw = modulesPerBlockX;
+    const int  bh = modulesPerBlockY;
+    const int  sx = threadIdx.y/modulesPerBlockY;
+    const int  sy = threadIdx.y - sx*modulesPerBlockY;
+
+	const int  ix = sx+startX;
+	const int  iy = sy+startY;
+
+	const int widthz = numCases;
+	const int widthyz = imgSizeY*numCases;
+
+	//const int sizeConv2 = SIZE_CONV*SIZE_CONV;
+	const int sharedY2 = sharedY*sharedY;
+
+
+//put pragme unroll here	
+	for(int zind = 0; zind < casePerThread; zind++)
+	{
+		const int z = threadIdx.x + blockIdx.x*blockDim.x + zind*blockDim.x*gridDim.x;			
+		for(int channelInd = 0; channelInd < channels; channelInd++)
+		{	
+			const int sOffset = channelInd*sharedY2*blockDim.x + threadIdx.x*sharedY2;
+			const int channelOffset = channelInd*imgPixels*numCases;
+
+			if(z < numCases)
+			{
+
+				SHARED_MEM(ix, iy, z, LOBE, getValInput, sdata)	
+			}
+		}
+
+		__syncthreads();
+
+		for(int channelInd = 0; channelInd < channels; channelInd++)
+		{	
+			const int sOffset = channelInd*sharedY2*blockDim.x + threadIdx.x*sharedY2;
+			const int channelOffset = channelInd*imgPixels*numCases;
+
+			if(z < numCases)
+			{
+
+						float sum = 0;
+
+						for(int dsx = - LOBE; dsx < LOBE+1; dsx++)
+						for(int dsy = - LOBE; dsy <  LOBE+1; dsy++)
+						{
+							int idx = min(max(ix + dsx, 0), imgSizeX-1);
+							int idy = min(max(iy + dsy, 0), imgSizeY-1);
+
+							float sd = sdata[(sx + dsx + LOBE)*sharedY+(sy + dsy + LOBE) + sOffset];
+
+							sum = fmaxf(sum, sd);
+						}									
+						target[channelOffset  + ix*widthyz + iy*widthz + z] = sum;
+
+			}//if
+		}//channel
+	}//zind
+}
+
+
+template < int LOBE, int SIZE_CONV>
+__global__ void kMMaxGrad(const float* actGrad, float* maxActs, const float* input, float* const target,
+								const uint numCases, const uint channels, const uint casePerThread,
+								const uint sharedY, const uint modulesPerBlockX, const uint modulesPerBlockY,  
+								const uint imgSizeX, const uint imgSizeY,
+								const uint imgPixels, const uint shared_size)
+{
+	extern __shared__ float sdata_x3[];
+	float* sdata = sdata_x3;
+	float* sdata_m = sdata_x3 + shared_size;
+//order x>y>z, *not* y>x
+	//const int bsizeX = imgSizeX/modulesPerBlockX;
+	const int bsizeY = imgSizeY/modulesPerBlockY;
+	const int startX = (blockIdx.y/bsizeY)*modulesPerBlockX;
+	const int startY = (blockIdx.y%bsizeY)*modulesPerBlockY;
+
+    const int  bw = modulesPerBlockX;
+    const int  bh = modulesPerBlockY;
+    const int  sx = threadIdx.y/modulesPerBlockY;
+    const int  sy = threadIdx.y - sx*modulesPerBlockY;
+
+	const int  ix = sx+startX;
+	const int  iy = sy+startY;
+
+	const int widthz = numCases;
+	const int widthyz = imgSizeY*numCases;
+
+	//const int sizeConv2 = SIZE_CONV*SIZE_CONV;
+	const int sharedY2 = sharedY*sharedY;
+
+
+//put pragme unroll here	
+	for(int zind = 0; zind < casePerThread; zind++)
+	{
+		const int z = threadIdx.x + blockIdx.x*blockDim.x + zind*blockDim.x*gridDim.x;			
+		for(int channelInd = 0; channelInd < channels; channelInd++)
+		{	
+			const int sOffset = channelInd*sharedY2*blockDim.x + threadIdx.x*sharedY2;
+			const int filterOffset = channelInd*imgPixels*numCases;
+
+			if(z < numCases)
+			{
+
+				SHARED_MEM(ix, iy, z, LOBE, getValActGrad, sdata)	
+				SHARED_MEM(ix, iy, z, LOBE, getMaxAct, sdata_m)
+			}
+		}
+
+		__syncthreads();
+
+		for(int channelInd = 0; channelInd < channels; channelInd++)
+		{	
+			const int sOffset = channelInd*sharedY2*blockDim.x + threadIdx.x*sharedY2;
+			const int channelOffset = channelInd*imgPixels*numCases;
+
+			if(z < numCases)
+			{
+
+						float sum = 0;
+
+						float val = input[channelOffset  + ix*widthyz + iy*widthz + z];
+
+						for(int dsx = - LOBE; dsx < LOBE+1; dsx++)
+						for(int dsy = - LOBE; dsy <  LOBE+1; dsy++)
+						{
+							int idx = min(max(ix + dsx, 0), imgSizeX-1);
+							int idy = min(max(iy + dsy, 0), imgSizeY-1);
+
+							float grad = sdata[(sx + dsx + LOBE)*sharedY+(sy + dsy + LOBE) + sOffset];
+							float vmax = sdata_m[(sx + dsx + LOBE)*sharedY+(sy + dsy + LOBE) + sOffset];
+
+							if(vmax == val)
+								sum += grad;
+						}									
+						target[channelOffset  + ix*widthyz + iy*widthz + z] = sum;
+
+			}//if
+		}//channel
+
 	}//zind
 }
 
@@ -871,7 +1031,7 @@ __global__ void kMicroConvActGrad(const float* actGrad, float* const target,
 				const int sOffset = channelInd*numFilters*sharedY2*blockDim.x + filterID*sharedY2*blockDim.x + threadIdx.x*sharedY2;
 				const int filterOffset = numFilters*channelOffset + filterID*imgPixels*numCases;
 
-				SHARED_MEM(ix, iy, z, lobe, getValAct, sdata)	
+				SHARED_MEM(ix, iy, z, lobe, getValActGrad, sdata)	
 			}
 		}
 
@@ -1875,6 +2035,112 @@ void computeMAvgGrad(NVMatrix& actGrad,  NVMatrix& target, int sizeModuleSide, i
 										sharedY, img_threads_x,  img_threads_y,
 										imgSizeX, imgSizeY,
 										imgPixels, scale);
+
+		cutilCheckMsg("computeMAvgGrad: Kernel execution failed");
+
+}
+
+void computeMMaxAct(NVMatrix& input, NVMatrix& target, int sizeModuleSide, int channels,
+						 int imgSize, int imgPixels)
+{
+	int out_width = input.getNumCols();
+	int out_height = input.getNumRows();
+
+    if (target.getNumCols() != out_width || target.getNumRows() != out_height) {
+        target.resize(out_height, out_width);
+		//printf("**resize out_height %i out_width %i \n",out_height, out_width);
+    }
+
+	int numCases = out_width;
+
+	int imgSizeX = imgSize;
+	int imgSizeY = imgSize;
+
+	int img_threads_x = 4;
+	int img_threads_y = 4;
+	int casePerThread = 32;
+	int nblocksx = 2;//~number of blocks x
+	int case_threads = DIVUP(numCases, nblocksx*casePerThread); 
+
+	int imgBlocksY = DIVUP(imgSizeY,img_threads_x);
+	int imgBlocksX = DIVUP(imgSizeX,img_threads_y);
+
+	int lobe = sizeModuleSide/2;
+
+	float scale = 1./(sizeModuleSide*sizeModuleSide);
+
+	int sharedX = lobe*2 + img_threads_x;
+	int sharedY = lobe*2 + img_threads_y;
+	int shared_size = sharedX*sharedY*channels*case_threads*sizeof(float);
+
+	dim3 threads(case_threads, img_threads_x*img_threads_y);
+	dim3 blocks = dim3(DIVUP(numCases, threads.x*casePerThread), imgBlocksY*imgBlocksX);
+
+	printf("blocks.x %i blocks.y %i threads.x %i threads.y %i shared_size %i casePerThread %i\n",
+		blocks.x, blocks.y, threads.x, threads.y, shared_size, casePerThread);
+
+
+	assert(SIZE_CONV == 3);
+
+	kMMaxAct<(SIZE_CONV-1)/2, SIZE_CONV><<<blocks, threads, shared_size>>>(input.getDevData(), target.getDevData(),
+										numCases, channels, casePerThread,
+										sharedY, img_threads_x,  img_threads_y,
+										imgSizeX, imgSizeY,
+										imgPixels);
+
+	cutilCheckMsg("computeMMaxAct: Kernel execution failed");
+
+};
+
+void computeMMaxGrad(NVMatrix& actGrad,  NVMatrix& input, NVMatrix& actMax, NVMatrix& target, int sizeModuleSide, int channels,
+						 int imgSize, int imgPixels)
+{
+	int out_width = actGrad.getNumCols();
+	int out_height = actGrad.getNumRows();
+
+    if (target.getNumCols() != out_width || target.getNumRows() != out_height) {
+        target.resize(out_height, out_width);
+		//printf("**resize out_height %i out_width %i \n",out_height, out_width);
+    }
+
+	int numCases = out_width;
+
+	int imgSizeX = imgSize;
+	int imgSizeY = imgSize;
+
+	int img_threads_x = 4;
+	int img_threads_y = 4;
+	int casePerThread = 32;
+	int nblocksx = 2;//~number of blocks x
+	int case_threads = DIVUP(numCases, nblocksx*casePerThread); 
+
+	int imgBlocksY = DIVUP(imgSizeY,img_threads_x);
+	int imgBlocksX = DIVUP(imgSizeX,img_threads_y);
+
+	int lobe = sizeModuleSide/2;
+
+	float scale = 1./(sizeModuleSide*sizeModuleSide);
+
+
+	int sharedX = lobe*2 + img_threads_x;
+	int sharedY = lobe*2 + img_threads_y;
+	int shared_size_arr = sharedX*sharedY*channels*case_threads*sizeof(float);
+	int shared_size = 2*shared_size_arr;
+	assert(shared_size <= 32*1024);
+
+	dim3 threads(case_threads, img_threads_x*img_threads_y);
+	dim3 blocks = dim3(DIVUP(numCases, threads.x*casePerThread), imgBlocksY*imgBlocksX);
+
+	assert(SIZE_CONV == 3);
+
+
+	kMMaxGrad<(SIZE_CONV-1)/2, SIZE_CONV><<<blocks, threads, shared_size>>>(
+										actGrad.getDevData(), actMax.getDevData(),
+										input.getDevData(), target.getDevData(),
+										numCases, channels, casePerThread,
+										sharedY, img_threads_x,  img_threads_y,
+										imgSizeX, imgSizeY,
+										imgPixels, shared_size_arr);
 
 		cutilCheckMsg("computeMAvgGrad: Kernel execution failed");
 
