@@ -438,6 +438,9 @@ void WeightLayer::rollbackWeights(float reduceScale) {
 
 void WeightLayer::updateWeights(bool useAux) {
 
+//	printf(" layer name %s \n", _name.c_str());
+
+
     _weights.update(useAux);
 	_biases->update(useAux);
 

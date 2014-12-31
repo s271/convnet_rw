@@ -28,7 +28,7 @@
 
 bool Weights::_autoCopyToGPU = false;
 
-int AUX_STORAGE = 1;
+int AUX_STORAGE = 3;
 
 void Weights::shrink(float lambda)
 {
@@ -71,17 +71,12 @@ void Weights::procAux() {
 	//_aux_filled = min(_aux_filled+1, _aux_store_size);
 	//_aux_update = (_aux_update+1)%_aux_store_size;
 
-
-	if(!_weightsGrad->isSameDims(getAux(0)));
-		getAux(0).resize(*_weightsGrad);
-	_weightsGrad->copy(getAux(0));
-
 }
 
 void Weights::stepAuxInd()
 {
-	_aux_update = (_aux_update+1)%_aux_store_size;
-	_aux_filled = min(_aux_filled+1, _aux_store_size);
+	//_aux_update = (_aux_update+1)%_aux_store_size;
+	//_aux_filled = min(_aux_filled+1, _aux_store_size);
 }
 
 
@@ -163,13 +158,56 @@ void Weights::update(bool useAux) {
 //			}
 //rmsprop end
 
-	//float norm2aux = getAux(0).norm2();
-	//float dot = getAux(0).dotProduct(*_weightsGrad);
-	//getAux(0).add(*_weightsGrad, -dot/norm2aux, 1);
-	//_weightsInc->add(getAux(0), _mom, scaleGrad);
+	//float norm2aux = getAux(1).norm2();
+	//float dot = getAux(1).dotProduct(*_weightsGrad);
+	//getAux(1).add(*_weightsGrad, -dot/norm2aux, 1);
+	//_weightsInc->add(getAux(1), _mom, scaleGrad);
+
+#define PREV_GRAD 1
+#define CONG 2
+
+	if(useAux && _weightsGrad->isSameDims(getAux(PREV_GRAD)))
+	{
+		float g2 = _weightsGrad->norm2();
+		float g2prev = getAux(PREV_GRAD).norm2();
+
+		float dot = getAux(PREV_GRAD).dotProduct(*_weightsGrad);
+		float beta = (g2 - dot)/g2prev;
+
+//		printf("beta %f g2 %f g2prev %f dot/g2prev %f g2/g2prev %f\n", beta, g2, g2prev, dot/g2prev, g2/g2prev);
+
+		getAux(CONG).add(*_weightsGrad, beta, 1);
+
+		_weightsInc->add(getAux(CONG), _mom, 1);
+
+		_weightsGrad->copy(getAux(PREV_GRAD));
+		
+	}
+	else
+		_weightsInc->add(*_weightsGrad, _mom, scaleGrad);
+
+//float g2 = _weightsGrad->norm2();
+//
+//if(_weightsGrad->isSameDims(getAux(PREV_GRAD)))
+//{
+//	float g2prev = getAux(PREV_GRAD).norm2();
+//	float dot =   getAux(PREV_GRAD).dotProduct(*_weightsGrad);
+//printf("1e9x g2 %f g2prev %f dot %f g2/g2prev %f\n", 1e9*g2, 1e9*g2prev, 1e9*dot, g2/g2prev);
+//
+//
+//	_weightsGrad->copy(getAux(PREV_GRAD));
+//}
+
+	if(!_weightsGrad->isSameDims(getAux(PREV_GRAD)));
+	{
+		getAux(PREV_GRAD).resize(*_weightsGrad);
+		getAux(CONG).resize(*_weightsGrad);
+		_weightsGrad->copy(getAux(CONG));
+		_weightsGrad->copy(getAux(PREV_GRAD));
+	}
 
 
-			_weightsInc->add(*_weightsGrad, _mom, scaleGrad);
+		
 	
         }
 
@@ -184,9 +222,30 @@ void Weights::update(bool useAux) {
 		//	getAux(0).add(*_weightsInc);
 		//	getAux(0).add(*_weightsInc, 1, _mom, *_weights);
 		//}
-		//else	        
+		//else	   
 
-		_weights->add(*_weightsInc);
+
+		if(!_weightsInc->isSameDims(getAuxSum()));
+		{
+			getAuxSum().resize(*_weightsInc);
+			getAux(0).resize(*_weights);
+			zeroAux();
+			_weights->copy(getAux(0));
+			_aux_filled = 0;
+		}
+
+		getAuxSum().add(*_weightsInc);
+		getAuxSum().add(getAux(0), *_weights);
+		_aux_filled++;
+
+		if(_aux_filled >= 64)
+		{
+			_weights->copy(getAux(0));
+			_aux_filled = 0;
+			zeroAux();
+		}
+
+		//_weights->add(*_weightsInc);
 
 		_numUpdates = 0;
 

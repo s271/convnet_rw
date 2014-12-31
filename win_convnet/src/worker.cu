@@ -179,6 +179,8 @@ int failure_num = 0;
 minibatch=ki;
 //printf("minibatch %i \n", ki);
 
+//useAux=(ki%2==0);
+
 		_convNet->setParam(_eps_scale);
 
        //_convNet->fprop(mini_ind, _test ? PASS_TEST : PASS_TRAIN);
@@ -241,8 +243,8 @@ minibatch=ki;
 
             _convNet->updateWeights(useAux);
 
-			if(useAux)
-				_convNet->procAuxWeights();
+			//if(useAux)
+			//	_convNet->procAuxWeights();
 
 			//if(gepoch >= epoch_switch)
 			//{
@@ -261,7 +263,7 @@ minibatch=ki;
         }
 
 //debug aux
-		//if(ki > 60)
+		//if(ki > 10)
 		//	exit(-1);
     }
 	printf("***failures %f \n", 1.*failure_num/ _dp->getNumMinibatches());
