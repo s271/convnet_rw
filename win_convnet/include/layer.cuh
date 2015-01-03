@@ -306,6 +306,7 @@ protected:
 	void l1normalize();
 public:
 	virtual void rollbackWeights(float reduceScale);
+	 virtual void updateWeights(bool useAux);
 	virtual void setCommon(float eps_scale);
     EltwiseFuncLayer(ConvNet* convNet, PyObject* paramsDict);
 	~EltwiseFuncLayer();
@@ -327,6 +328,17 @@ protected:
 	int _imgPixels;
 public:
     MAvgPoolLayer(ConvNet* convNet, PyObject* paramsDict);    
+    void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
+    void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
+}; 
+
+class MMaxPoolLayer : public Layer {
+protected:
+    int _channels, _size;
+    int _imgSize;
+	int _imgPixels;
+public:
+    MMaxPoolLayer(ConvNet* convNet, PyObject* paramsDict);    
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
 }; 

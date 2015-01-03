@@ -71,7 +71,7 @@ class CroppedCIFARDataProvider(LabeledMemoryDataProvider):
         self.border_size = dp_params['crop_border']
         self.inner_size = 32 - self.border_size*2
         self.multiview = dp_params['multiview_test'] and test
-        self.num_views = 5*2
+        self.num_views = 9*2
         self.data_mult = self.num_views if self.multiview else 1
         self.num_colors = 3
         
@@ -125,7 +125,9 @@ class CroppedCIFARDataProvider(LabeledMemoryDataProvider):
             if self.multiview:
                 start_positions = [(0,0),  (0, self.border_size*2),
                                    (self.border_size, self.border_size),
-                                  (self.border_size*2, 0), (self.border_size*2, self.border_size*2)]
+                                    (self.border_size*2, 0), (self.border_size*2, self.border_size*2),
+                                    (self.border_size/2, self.border_size), (self.border_size, self.border_size/2),
+                                    (self.border_size*3/2, self.border_size), (self.border_size, self.border_size*3/2)]
                 end_positions = [(sy+self.inner_size, sx+self.inner_size) for (sy,sx) in start_positions]
                 for i in xrange(self.num_views/2):
                     pic = y[:,start_positions[i][0]:end_positions[i][0],start_positions[i][1]:end_positions[i][1],:]

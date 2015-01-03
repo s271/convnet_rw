@@ -217,20 +217,13 @@ minibatch=ki;
 		}
 
 		float scale_rollback_stage0 = 0;
-		//if( err-prev_err > avg_neg_delta/2)// && gepoch < epoch_switch)
-		//{
-		//	successs = false;		
-		//	scale_rollback_stage0 =  .25 + .5*fmax(1-( err-prev_err)/avg_neg_delta,0);
-		//	failure_num++;
-		//}
 
-		if( err-prev_err > 0)// && gepoch < epoch_switch)
+		if( err-prev_err > 0)
 		{
 			successs = false;		
 			scale_rollback_stage0 =  .2 + .5*fmax(1-(err-prev_err)/avg_neg_delta,0);
 			failure_num++;
 		}
-
 
 		error_upd = (error_upd+1)%err_size;
 		prev_err = err;
@@ -246,24 +239,10 @@ minibatch=ki;
 			//if(useAux)
 			//	_convNet->procAuxWeights();
 
-			//if(gepoch >= epoch_switch)
-			//{
-			//	_convNet->fpropRnd(ki, _epoch, _test ? PASS_TEST : PASS_TRAIN);
-			//	_convNet->getCost(batchCost);
-			//	float errNew = _convNet->getErrorNum()/ _convNet->getNumCases();
-
-			//	if(errNew-err > 0)
-			//	{
-			//		float scale_rollback = .2 + .8*fmax(1-(errNew-err)/avg_neg_delta,0);
-			//		_convNet->rollbackWeights(scale_rollback);
-			//		failure_num++;
-			//	}
-			//}
-
         }
 
 //debug aux
-		//if(ki > 10)
+		//if(ki > 50)
 		//	exit(-1);
     }
 	printf("***failures %f \n", 1.*failure_num/ _dp->getNumMinibatches());
