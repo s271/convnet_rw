@@ -29,6 +29,7 @@
 bool Weights::_autoCopyToGPU = false;
 
 int AUX_STORAGE = 2;
+//#define USE_PREC
 
 void Weights::shrink(float lambda)
 {
@@ -94,9 +95,11 @@ void Weights::zeroAux(int ind) {
 #define PREV_GRAD 1
 void Weights::rollback(float reduceScale) 
 {
+#ifdef USE_PREC
+	getAuxSum().add(*_weightsInc, reduceScale-1);
+#else	
 	_weights->add(*_weightsInc, reduceScale-1);
-
-	//getAux(BASE).add(*_weightsInc, reduceScale-1);
+#endif
 }
 
 // Scale your gradient by epsW / numCases!
@@ -132,28 +135,22 @@ void Weights::update(bool useAux) {
 			_weightsInc->add(*_weights, -_wc * _epsW);				
         }
   
-		//if(!_weightsInc->isSameDims(getAuxSum()))
-		//{
-		//	getAuxSum().resize(*_weightsInc);
-		//	getAux(BASE).resize(*_weights);
-		//	zeroAux();
-		//	_weights->copy(getAux(BASE));
-		//	_aux_filled = 0;
-		//}
+#ifdef USE_PREC
+		if(!_weightsInc->isSameDims(getAuxSum()))
+		{
+			getAuxSum().resize(*_weightsInc);
+			getAux(BASE).resize(*_weights);
+			zeroAux();
+			_weights->copy(getAux(BASE));
+			_aux_filled = 0;
+		}
 
-		//getAuxSum().add(*_weightsInc);
-		//getAuxSum().add(getAux(BASE), *_weights);
-		//_aux_filled++;
-
-		//if(_aux_filled >= 64)
-		//{
-		//	_weights->copy(getAux(BASE));
-		//	_aux_filled = 0;
-		//	zeroAux();
-		//}
-
+		getAuxSum().add(*_weightsInc);
+		getAuxSum().add(getAux(BASE), *_weights);
+		_aux_filled++;
+#else
 		_weights->add(*_weightsInc);
-
+#endif
 		_numUpdates = 0;
 
 		if(_renorm > 0)
@@ -167,9 +164,18 @@ void Weights::update(bool useAux) {
 			{	
 				float renormScale = _renorm/layerNorm;
 				_weights->scale(renormScale);
+				getAuxSum().scale(renormScale);
+				getAux(BASE).scale(renormScale);
 			}
 		}
-
+#ifdef USE_PREC
+		if(_aux_filled >= 64)
+		{
+			_weights->copy(getAux(BASE));
+			zeroAux();
+			_aux_filled = 0;
+		}
+#endif
     }
 }
 
