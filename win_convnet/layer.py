@@ -1153,7 +1153,45 @@ class WeightLayerParser(LayerWithInputParser):
                     print "Layer '%s' initialized weight matrix %d from %s" % (dic['name'], i, dic['weightSource'][i])
                 else:
                     dic['weights'] += [n.array(initW[i] * nr.randn(rows[i], cols[i]), dtype=n.single, order=order)]
+                    
                     dic['weightsInc'] += [n.zeros_like(dic['weights'][i])]
+                    
+    def make_weights_orthofilters(self, initW, rows, cols, order='C'):
+        dic = self.dic
+        dic['weights'], dic['weightsInc'] = [], []
+        if dic['initWFunc']: # Initialize weights from user-supplied python function
+            # Initialization function is supplied in the format
+            # module.func
+            for i in xrange(len(dic['inputs'])):
+                dic['weights'] += [self.call_init_func('initWFunc', (rows[i], cols[i]), input_idx=i)]
+
+                if type(dic['weights'][i]) != n.ndarray:
+                    raise LayerParsingError("Layer '%s[%d]': weight initialization function %s must return numpy.ndarray object. Got: %s." % (dic['name'], i, dic['initWFunc'], type(dic['weights'][i])))
+                if dic['weights'][i].dtype != n.float32:
+                    raise LayerParsingError("Layer '%s[%d]': weight initialization function %s must weight matrices consisting of single-precision floats. Got: %s." % (dic['name'], i, dic['initWFunc'], dic['weights'][i].dtype))
+                if dic['weights'][i].shape != (rows[i], cols[i]):
+                    raise LayerParsingError("Layer '%s[%d]': weight matrix returned by weight initialization function %s has wrong shape. Should be: %s; got: %s." % (dic['name'], i, dic['initWFunc'], (rows[i], cols[i]), dic['weights'][i].shape))
+                # Convert to desired order
+                dic['weights'][i] = n.require(dic['weights'][i], requirements=order)
+                dic['weightsInc'] += [n.zeros_like(dic['weights'][i])]
+                print "Layer '%s[%d]' initialized weight matrices from function %s" % (dic['name'], i, dic['initWFunc'])
+        else:
+            for i in xrange(len(dic['inputs'])):
+                if dic['weightSourceLayerIndices'][i] >= 0: # Shared weight matrix
+                    src_layer = self.prev_layers[dic['weightSourceLayerIndices'][i]] if dic['weightSourceLayerIndices'][i] < len(self.prev_layers) else dic
+                    dic['weights'] += [src_layer['weights'][dic['weightSourceMatrixIndices'][i]]]
+                    dic['weightsInc'] += [src_layer['weightsInc'][dic['weightSourceMatrixIndices'][i]]]
+                    if dic['weights'][i].shape != (rows[i], cols[i]):
+                        raise LayerParsingError("Layer '%s': weight sharing source matrix '%s' has shape %dx%d; should be %dx%d." 
+                                                % (dic['name'], dic['weightSource'][i], dic['weights'][i].shape[0], dic['weights'][i].shape[1], rows[i], cols[i]))
+                    print "Layer '%s' initialized weight matrix %d from %s" % (dic['name'], i, dic['weightSource'][i])
+                else:
+                    assert rows[i] >= cols[i]                 
+                    qo, tmp = n.linalg.qr(nr.randn(rows[i], cols[i]))
+                    
+                    dic['weights'] += [n.array(initW[i] * qo, dtype=n.single, order=order)]
+                     
+                    dic['weightsInc'] += [n.zeros_like(dic['weights'][i])]                    
  
 
     def make_aux_weight(self, rows, cols, order='C'):
@@ -1398,7 +1436,8 @@ class ConvLayerParser(LocalLayerParser):
         num_biases = dic['filters'] if dic['sharedBiases'] else dic['modules']*dic['filters']
 
         eltmult = lambda list1, list2: [l1 * l2 for l1,l2 in zip(list1, list2)]
-        self.make_weights(dic['initW'], eltmult(dic['filterPixels'], dic['filterChannels']), [dic['filters']] * len(dic['inputs']), order='C')
+        #self.make_weights(dic['initW'], eltmult(dic['filterPixels'], dic['filterChannels']), [dic['filters']] * len(dic['inputs']), order='C')
+        self.make_weights_orthofilters(dic['initW'], eltmult(dic['filterPixels'], dic['filterChannels']), [dic['filters']] * len(dic['inputs']), order='C')
         self.make_biases(num_biases, 1, order='C')
                     
         if dic['svrg'] > 0 : 
