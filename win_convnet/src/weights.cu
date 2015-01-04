@@ -164,8 +164,10 @@ void Weights::update(bool useAux) {
 			{	
 				float renormScale = _renorm/layerNorm;
 				_weights->scale(renormScale);
+#ifdef USE_PREC
 				getAuxSum().scale(renormScale);
 				getAux(BASE).scale(renormScale);
+#endif
 			}
 		}
 #ifdef USE_PREC
