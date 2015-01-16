@@ -598,14 +598,14 @@ void LeakReLuLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_
 
 	NVMatrix& target = _prev[0]->getActsGrad();
 	NVMatrix& actsGrad = v;
-	NVMatrix& acts = getActs();
+	NVMatrix& input = *_inputs[0];
 
     if (scaleTargets == 0) {
 		if (!target.isSameDims(actsGrad))
 			target.resize(actsGrad);
-        actsGrad.applyDTernaryV(LeakReLuGradOperator(), acts, _biases->getW(), target);
+        actsGrad.applyDTernaryV(LeakReLuGradOperator(), input, _biases->getW(), target);
     } else {
-		actsGrad.addDTernaryV(LeakReLuGradOperator(), acts, _biases->getW(), target);
+		actsGrad.addDTernaryV(LeakReLuGradOperator(), input, _biases->getW(), target);
 	}
 };
 
@@ -621,8 +621,9 @@ void LeakReLuLayer::bpropBiases(NVMatrix& v, PASS_TYPE passType)
         tempMult.resize(getActs());
     }
 
-	NVMatrix& actsGrad = v;
-	getActs().eltwiseMult(v, tempMult);
+	NVMatrix& input = *_inputs[0];
+
+	input.eltwiseMult(v, tempMult);
 
 	_biases->getGrad().addSum(tempMult, 1, 0, scaleBGrad);
 
