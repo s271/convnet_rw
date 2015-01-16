@@ -235,6 +235,31 @@ __global__ void kRowVectorOp(const float* mat, const float* vec, float* const tg
     }
 }
 
+template <class Op, int add>
+__global__ void kRowVectorDTernaryOp(const float* mat_0, const float* mat_1, const float* vec, float* const tgtMat, const uint width, const uint height,
+                             const uint matStride, const uint tgtStride, Op op) {
+    __shared__ float shVec[ADD_VEC_THREADS_X];
+    const uint bx = ADD_VEC_THREADS_X * blockIdx.x;
+    const uint by = ADD_VEC_THREADS_Y * blockIdx.y;
+
+    for (uint x = bx; x < width; x += gridDim.x * ADD_VEC_THREADS_X) {
+        __syncthreads();
+        if (x + threadIdx.x < width && threadIdx.y == 0) {
+            shVec[threadIdx.x] = vec[x + threadIdx.x];
+        }
+        __syncthreads();
+
+        if (x + threadIdx.x < width) {
+            for (uint y = by + threadIdx.y; y < height; y += gridDim.y * ADD_VEC_THREADS_Y) {
+				if(add==0)
+					tgtMat[y * tgtStride + x + threadIdx.x] = op(mat_0[y * matStride + x + threadIdx.x], mat_1[y * matStride + x + threadIdx.x], shVec[threadIdx.x]);
+				else
+					tgtMat[y * tgtStride + x + threadIdx.x] += op(mat_0[y * matStride + x + threadIdx.x], mat_1[y * matStride + x + threadIdx.x], shVec[threadIdx.x]);
+            }
+        }
+    }
+}
+
 template <class Op>
 __global__ void kRowVectorTernaryOp(const float* mat, const float* vec_0, const float* vec_1, float* const tgtMat, const uint width, const uint height,
                              const uint matStride, const uint tgtStride, Op op) {
@@ -283,6 +308,34 @@ __global__ void kColVectorOp(const float* mat, const float* vec, float* const tg
         if (y + threadIdx.y < height) {
             for (uint x = bx + threadIdx.x; x < width; x += gridDim.x * ADD_VEC_THREADS_X) {
                 tgtMat[(y+threadIdx.y) * tgtStride + x] = op(mat[(y+threadIdx.y) * matStride + x], shVec[threadIdx.y]);
+            }
+        }
+    }
+}
+
+template <class Op, int add>
+__global__ void kColVectorDTernaryOp(const float* mat_0, const float* mat_1, const float* vec, float* const tgtMat,
+                             const uint width, const uint height,
+                             const uint matStride, const uint tgtStride, Op op) {
+    __shared__ float shVec[ADD_VEC_THREADS_Y];
+    const uint by = ADD_VEC_THREADS_Y * blockIdx.y;
+    const uint bx = ADD_VEC_THREADS_X * blockIdx.x;
+
+    const uint tidx = ADD_VEC_THREADS_X * threadIdx.y + threadIdx.x;
+
+    for (uint y = by; y < height; y += gridDim.y * ADD_VEC_THREADS_Y) {
+        __syncthreads();
+        if (y + tidx < height && tidx < ADD_VEC_THREADS_Y) {
+            shVec[tidx] = vec[y + tidx];
+        }
+        __syncthreads();
+
+        if (y + threadIdx.y < height) {
+            for (uint x = bx + threadIdx.x; x < width; x += gridDim.x * ADD_VEC_THREADS_X) {
+				if(add==0)
+					tgtMat[(y+threadIdx.y) * tgtStride + x] = op(mat_0[(y+threadIdx.y) * matStride + x], mat_1[(y+threadIdx.y) * matStride + x], shVec[threadIdx.y]);
+				else
+					tgtMat[(y+threadIdx.y) * tgtStride + x] += op(mat_0[(y+threadIdx.y) * matStride + x], mat_1[(y+threadIdx.y) * matStride + x], shVec[threadIdx.y]);
             }
         }
     }

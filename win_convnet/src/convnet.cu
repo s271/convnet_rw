@@ -116,6 +116,8 @@ Layer* ConvNet::initLayer(string& layerType, PyObject* paramsDict, bool fix_nan)
         _layers.push_back(new MicroConvLayer(this, paramsDict));
     } else if (layerType == "dshrink") {
         _layers.push_back(new DShrinkLayer(this, paramsDict));
+    } else if (layerType == "lrelu") {
+        _layers.push_back(new LeakReLuLayer(this, paramsDict));
     } else if (layerType == "eltfunc") {
         _layers.push_back(new EltwiseFuncLayer(this, paramsDict));
     } else if (layerType == "eltdfunc") {

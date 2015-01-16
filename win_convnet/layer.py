@@ -1056,6 +1056,18 @@ class ShrinkLayerParser(BiasLayerParser):
         print "Initialized shrink layer '%s', producing %d outputs" % (name, dic['outputs'])
         return dic
         
+class LeakedReLuLayerParser(BiasLayerParser):
+    def __init__(self):
+        BiasLayerParser.__init__(self)
+        
+    def parse(self, name, mcp, prev_layers, model):
+        dic = BiasLayerParser.parse(self, name, mcp, prev_layers, model)
+                
+        self.make_biases(dic['channels'], 1, order='C')
+                
+        print "Initialized leaked ReLu layer '%s', producing %d outputs" % (name, dic['outputs'])
+        return dic        
+        
 
 class WeightLayerParser(LayerWithInputParser):
     LAYER_PAT = re.compile(r'^\s*([^\s\[]+)(?:\[(\d+)\])?\s*$') # matches things like layername[5], etc
@@ -1675,6 +1687,7 @@ layer_parsers = {'data': lambda : DataLayerParser(),
                  'eltfunc': lambda : EltwiseFuncParser(),
                  'eltdfunc': lambda : EltwiseDFuncParser(),
                  'dshrink': lambda : ShrinkLayerParser(),
+                 'lrelu': lambda : LeakedReLuLayerParser(),
                  'vfunc': lambda : VectFuncParser(),
                  'neuron': lambda : NeuronLayerParser(),
                  'pool': lambda : PoolLayerParser(),

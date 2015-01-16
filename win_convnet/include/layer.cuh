@@ -203,9 +203,13 @@ public:
 
 class LeakReLuLayer : public BiasLayer {
 protected:
-    virtual void bpropBiases(NVMatrix& v, PASS_TYPE passType) = 0;
+    void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
+    void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
+    void bpropBiases(NVMatrix& v, PASS_TYPE passType);
 public:
-    LeakReLuLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, bool useGrad);
+    LeakReLuLayer(ConvNet* convNet, PyObject* paramsDict);
+	virtual void updateWeights(bool useAux);
+
     Weights* getLeak();
 
     class LeakReLuOperator {
