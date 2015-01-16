@@ -611,21 +611,20 @@ void LeakReLuLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_
 
 void LeakReLuLayer::bpropBiases(NVMatrix& v, PASS_TYPE passType)
 {
-	static NVMatrix tempMult;
 
 	int numCases = getActs().getNumCols(); 
 
     float scaleBGrad = passType == PASS_GC ? 1 : _biases->getEps() / numCases;
 
-    if (tempMult.isSameDims(getActs())) {
-        tempMult.resize(getActs());
+    if (_tempMult.isSameDims(getActs())) {
+        _tempMult.resize(getActs());
     }
 
 	NVMatrix& input = *_inputs[0];
 
-	input.eltwiseMult(v, tempMult);
+	input.eltwiseMult(v, _tempMult);
 
-	_biases->getGrad().addSum(tempMult, 1, 0, scaleBGrad);
+	_biases->getGrad().addSum(_tempMult, 1, 0, scaleBGrad);
 
 };
 
@@ -1868,7 +1867,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 	//test
 		//if(0)
-		if(minibatch == 0)
+		//if(minibatch == 0)
 		{
 
 		//debug

@@ -203,6 +203,7 @@ public:
 
 class LeakReLuLayer : public BiasLayer {
 protected:
+	NVMatrix _tempMult;
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropBiases(NVMatrix& v, PASS_TYPE passType);
