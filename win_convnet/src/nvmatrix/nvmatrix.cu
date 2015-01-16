@@ -917,6 +917,11 @@ void NVMatrix::minWithScalar(float scalar) {
     minWithScalar(scalar, *this);
 }
 
+
+void NVMatrix::absMinWithScalar(float scalar) {
+     apply(NVMatrixOps::AbsMinWithScalar(scalar),  *this);
+}
+
 void NVMatrix::maxWithScalar(float scalar, NVMatrix& target) {
     apply(NVMatrixOps::MaxWithScalar(scalar), target);
 }

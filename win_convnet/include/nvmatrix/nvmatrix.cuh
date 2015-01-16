@@ -413,6 +413,7 @@ public:
     void addScalar(float scalar);
     void minWithScalar(float scalar, NVMatrix& target);
     void minWithScalar(float scalar);
+	void absMinWithScalar(float scalar);
     void maxWithScalar(float scalar, NVMatrix& target);
     void maxWithScalar(float scalar);
     void pow(float p, NVMatrix& target);

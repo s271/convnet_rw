@@ -211,6 +211,22 @@ public:
         }
     };
 
+    class AbsMinWithScalar {
+    private:
+        const float scalar;
+    public:
+        AbsMinWithScalar(const float _scalar) : scalar(_scalar) {
+        }
+        __device__ inline float operator()(const float a) const {
+			if(a > scalar)
+				return scalar;
+			else if(a < -scalar)
+				return -scalar;
+			else
+				return a;
+        }
+    };
+
     class MaxWithScalar {
     private:
         const float scalar;

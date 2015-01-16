@@ -586,8 +586,10 @@ void LeakReLuLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
         getActs().resize(*_inputs[inpIdx]);
     }
 
-//	printf("getActs() tran %i rc %i %i \n", getActs().isTrans(),
-//		getActs().getNumRows(), getActs().getNumCols());
+	printf("name %s \n", _name.c_str());
+
+	printf("getActs() tran %i rc %i %i w %i\n", getActs().isTrans(),
+		getActs().getNumRows(), getActs().getNumCols(), _biases->getW().getNumElements() );
 	_inputs[inpIdx]->applyBinaryV(LeakReLuOperator(), _biases->getW(), getActs());
 
 };
@@ -624,10 +626,12 @@ void LeakReLuLayer::bpropBiases(NVMatrix& v, PASS_TYPE passType)
 	getActs().eltwiseMult(v, tempMult);
 
 	_biases->getGrad().addSum(tempMult, 1, 0, scaleBGrad);
+
 };
 
 void LeakReLuLayer::updateWeights(bool useAux) {
 	_biases->update(useAux);
+	_biases->getW().absMinWithScalar(.3);
 }
 
 Weights* LeakReLuLayer::getLeak() {
