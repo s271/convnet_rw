@@ -1186,13 +1186,14 @@ class WeightLayerParser(LayerWithInputParser):
                                                 % (dic['name'], dic['weightSource'][i], dic['weights'][i].shape[0], dic['weights'][i].shape[1], rows[i], cols[i]))
                     print "Layer '%s' initialized weight matrix %d from %s" % (dic['name'], i, dic['weightSource'][i])
                 else:
-                    assert rows[i] >= cols[i]                 
-                    qo, tmp = n.linalg.qr(nr.randn(rows[i], cols[i]))
+                    if rows[i] >= cols[i]:                
+                        qo, tmp = n.linalg.qr(nr.randn(rows[i], cols[i]))          
+                        dic['weights'] += [n.array(n.sqrt(rows[i])*initW[i] * qo, dtype=n.single, order=order)]                                        
+                    else:
+                        dic['weights'] += [n.array(initW[i] * nr.randn(rows[i], cols[i]), dtype=n.single, order=order)]
                     
-                    dic['weights'] += [n.array(initW[i] * qo, dtype=n.single, order=order)]
-                     
-                    dic['weightsInc'] += [n.zeros_like(dic['weights'][i])]                    
- 
+                    dic['weightsInc'] += [n.zeros_like(dic['weights'][i])]
+  
 
     def make_aux_weight(self, rows, cols, order='C'):
         dic = self.dic
@@ -1436,8 +1437,8 @@ class ConvLayerParser(LocalLayerParser):
         num_biases = dic['filters'] if dic['sharedBiases'] else dic['modules']*dic['filters']
 
         eltmult = lambda list1, list2: [l1 * l2 for l1,l2 in zip(list1, list2)]
-        #self.make_weights(dic['initW'], eltmult(dic['filterPixels'], dic['filterChannels']), [dic['filters']] * len(dic['inputs']), order='C')
-        self.make_weights_orthofilters(dic['initW'], eltmult(dic['filterPixels'], dic['filterChannels']), [dic['filters']] * len(dic['inputs']), order='C')
+        self.make_weights(dic['initW'], eltmult(dic['filterPixels'], dic['filterChannels']), [dic['filters']] * len(dic['inputs']), order='C')
+        #self.make_weights_orthofilters(dic['initW'], eltmult(dic['filterPixels'], dic['filterChannels']), [dic['filters']] * len(dic['inputs']), order='C')
         self.make_biases(num_biases, 1, order='C')
                     
         if dic['svrg'] > 0 : 

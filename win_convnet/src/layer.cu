@@ -553,6 +553,10 @@ void BiasLayer::updateBiases() {
     _biases->update(false);    
 }
 
+void BiasLayer::rollbackWeights(float reduceScale) {
+	_biases->rollback(reduceScale);
+}
+
 //procAux here?
 
 void BiasLayer::copyToCPU() {
@@ -564,6 +568,19 @@ void BiasLayer::copyToGPU() {
 }
 
 Weights* BiasLayer::getBiases() {
+    return _biases;
+}
+
+/* 
+ * =======================
+ * LeakReLuLayer
+ * =======================
+ */
+LeakReLuLayer::LeakReLuLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, bool useGrad) : 
+    BiasLayer(convNet, paramsDict, trans, useGrad) {
+}
+
+Weights* LeakReLuLayer::getLeak() {
     return _biases;
 }
 
@@ -1688,11 +1705,12 @@ void EltwiseFuncLayer::updateWeights(bool useAux)
 		double eps = _epsP;
 		double wc = _wc;
 
-		_param_inc[kp] = _mom*_param_inc[kp] + eps*grad;
-		float r =_param_inc[kp] - wc*_param[kp];
+		//_param_inc[kp] = _mom*_param_inc[kp] + eps*grad;
+		//float r =_param_inc[kp] - wc*_param[kp];
+		//if(_param_inc[kp]*r >= 0)
+		//	_param_inc[kp] = r;
+		_param_inc[kp] = _mom*_param_inc[kp] + eps*grad - wc*_param[kp];
 
-		if(_param_inc[kp]*r >= 0)
-			_param_inc[kp] = r;
 			
 //debug
 		if(kp != paramSize-2)

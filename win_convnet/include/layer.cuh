@@ -194,10 +194,34 @@ protected:
     virtual void bpropBiases(NVMatrix& v, PASS_TYPE passType) = 0;
 public:
     BiasLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, bool useGrad);
+	virtual void rollbackWeights(float reduceScale);
     virtual void updateBiases();
     virtual void copyToCPU();
     virtual void copyToGPU();
     Weights* getBiases();
+};
+
+class LeakReLuLayer : public BiasLayer {
+protected:
+    virtual void bpropBiases(NVMatrix& v, PASS_TYPE passType) = 0;
+public:
+    LeakReLuLayer(ConvNet* convNet, PyObject* paramsDict, bool trans, bool useGrad);
+    Weights* getLeak();
+
+    class LeakReLuOperator {
+    public:
+        __device__ inline float operator()(float x, float C) const  {
+            return (x < 0.0f ? 0.0f : x) + C*x;
+        }
+    };
+
+    class LeakReLuGradOperator {
+    public:
+        __device__ inline float operator()(float unitActGrad, float unitAct, float C) const  {
+            return unitActGrad * ((unitAct > 0.0f) + C); 
+        }
+    };
+
 };
 
 class DShrinkLayer : public BiasLayer {
