@@ -586,10 +586,9 @@ void LeakReLuLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType
         getActs().resize(*_inputs[inpIdx]);
     }
 
-	printf("name %s \n", _name.c_str());
-
-	printf("getActs() tran %i rc %i %i w %i\n", getActs().isTrans(),
-		getActs().getNumRows(), getActs().getNumCols(), _biases->getW().getNumElements() );
+//	printf("name %s \n", _name.c_str());
+//	printf("getActs() tran %i rc %i %i w %i\n", getActs().isTrans(),
+//		getActs().getNumRows(), getActs().getNumCols(), _biases->getW().getNumElements() );
 	_inputs[inpIdx]->applyBinaryV(LeakReLuOperator(), _biases->getW(), getActs());
 
 };

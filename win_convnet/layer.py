@@ -1030,6 +1030,12 @@ class BiasLayerParser(LayerWithInputParser):
             dic['biases'] = dic['initB'] * n.ones((rows, cols), order='C', dtype=n.single)
         dic['biasesInc'] = n.zeros_like(dic['biases'])
         
+    def make_biases_zero(self, rows, cols, order='C'):
+        dic = self.dic
+        dic['biases'] = dic['initB'] * n.zeros((rows, cols), order='C', dtype=n.single)
+        dic['biasesInc'] = n.zeros_like(dic['biases'])        
+        
+        
     def parse(self, name, mcp, prev_layers, model):
         dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
         dic['channels'] = mcp.safe_get_int(name, 'channels')
@@ -1063,7 +1069,7 @@ class LeakedReLuLayerParser(BiasLayerParser):
     def parse(self, name, mcp, prev_layers, model):
         dic = BiasLayerParser.parse(self, name, mcp, prev_layers, model)
                        
-        self.make_biases(dic['outputs'], 1, order='C')
+        self.make_biases_zero(dic['outputs'], 1, order='C')
                 
         print "Initialized leaked ReLu layer '%s', producing %d outputs" % (name, dic['outputs'])
         return dic        
