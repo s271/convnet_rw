@@ -630,7 +630,17 @@ void LeakReLuLayer::bpropBiases(NVMatrix& v, PASS_TYPE passType)
 
 void LeakReLuLayer::updateWeights(bool useAux) {
 	_biases->update(useAux);
-	_biases->getW().absMinWithScalar(.3);
+	//_biases->getW().absMinWithScalar(.1);
+	_biases->getW().minWithScalar(.5);
+	_biases->getW().maxWithScalar(0);
+//debug
+if(minibatch == 0)
+{
+float avgNorm = _biases->getW().norm()/sqrtf(_biases->getW().getNumElements());
+float avg = _biases->getW().sum()/_biases->getW().getNumElements();
+printf("%s avg %f avg_norm %f \n", _name.c_str(), avg, avgNorm);
+}
+
 }
 
 Weights* LeakReLuLayer::getLeak() {
@@ -1867,7 +1877,7 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 
 	//test
 		//if(0)
-		//if(minibatch == 0)
+		if(minibatch == 0)
 		{
 
 		//debug

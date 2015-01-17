@@ -1069,7 +1069,7 @@ class LeakedReLuLayerParser(BiasLayerParser):
     def parse(self, name, mcp, prev_layers, model):
         dic = BiasLayerParser.parse(self, name, mcp, prev_layers, model)
                        
-        self.make_biases_zero(dic['outputs'], 1, order='C')
+        self.make_biases(dic['outputs'], 1, order='C')
                 
         print "Initialized leaked ReLu layer '%s', producing %d outputs" % (name, dic['outputs'])
         return dic        
