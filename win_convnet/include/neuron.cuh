@@ -101,7 +101,9 @@ public:
             _addInputGrad(actsGrad, target);
         }
     }
-        
+
+	virtual void setParamScale(float param){};
+       
     static Neuron& makeNeuron(PyObject* neuronDict);
 };
 
@@ -173,6 +175,60 @@ public:
     };
     
     ReluNeuron() : Neuron() {
+    }
+};
+
+/* =======================
+ * LeakReluNeuron
+ * -----------------------
+ * 
+ * f(x) = max(0, x) + a*x
+ * =======================
+ */
+class LeakReluNeuron : public Neuron {
+protected:
+	float _a, _a_init;
+
+    void _activate() {
+        _inputs->apply(LeakReluOperator(_a), *_outputs);
+    }
+
+    void _computeInputGrad(NVMatrix& actsGrad, NVMatrix& target) {
+        actsGrad.applyBinary(LeakReluGradientOperator(_a), *_outputs, target);
+    }
+    
+    void _addInputGrad(NVMatrix& actsGrad, NVMatrix& target) {
+        actsGrad.applyTernary(AddGradientBinaryOperator<LeakReluGradientOperator>(LeakReluGradientOperator(_a)), *_outputs, target, target);
+    }
+public:
+
+	virtual void setParamScale(float param) {
+		_a = _a_init*param;
+	};
+
+    class LeakReluOperator {
+    private:
+        float _a;
+    public: 
+        LeakReluOperator(float a) : _a(a) {
+        }
+        __device__ inline float operator()(float x) const {
+            return (x < 0.0f ? 0.0f : x) + _a*x;
+        }
+    };
+
+    class LeakReluGradientOperator {
+    private:
+        float _a;
+    public:
+        LeakReluGradientOperator(float a) : _a(a) {
+        }
+        __device__ inline float operator()(float unitActGrad, float unitAct) const  {
+            return unitActGrad * ((unitAct > 0.0f) + _a); 
+        }
+    };
+    
+	LeakReluNeuron(float a) : Neuron(),_a(a), _a_init(a) {
     }
 };
 

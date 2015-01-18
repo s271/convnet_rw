@@ -181,7 +181,7 @@ minibatch=ki;
 
 //useAux=(ki%2==0);
 
-		_convNet->setParam(_eps_scale);
+		_convNet->setParam(_eps_scale, 1);
 
        //_convNet->fprop(mini_ind, _test ? PASS_TEST : PASS_TRAIN);
 		_convNet->fpropRnd(ki, _epoch, _test ? PASS_TEST : PASS_TRAIN);

@@ -109,18 +109,20 @@ void Layer::fprop(PASS_TYPE passType) {
 //    vl.push_back(&v);
 //    fprop(vl, passType);
 //}
-void Layer::setParam(float eps_scale)
+void Layer::setParam(float eps_scale, float param)
 {
 
 	if(eps_scale > 0)
 		setCommon(eps_scale);
 
-	setParamNext(eps_scale);
+	setNeuronParamScale(param);
+
+	setParamNext(eps_scale, param);
 }
 
-void Layer::setParamNext(float eps_scale) {
+void Layer::setParamNext(float eps_scale, float param) {
     for (int i = 0; i < _next.size(); i++) {
-        _next[i]->setParam(eps_scale);
+        _next[i]->setParam(eps_scale, param);
     }
 }
 
@@ -299,6 +301,10 @@ void NeuronLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TY
 
 void NeuronLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
     _neuron->activate(*_inputs[0], getActs());
+}
+
+void NeuronLayer::setNeuronParamScale(float param) {
+    _neuron->setParamScale(param);
 }
 
 /* 
@@ -612,19 +618,19 @@ void LeakReLuLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_
 void LeakReLuLayer::bpropBiases(NVMatrix& v, PASS_TYPE passType)
 {
 
-	int numCases = getActs().getNumCols(); 
+	//int numCases = getActs().getNumCols(); 
 
-    float scaleBGrad = passType == PASS_GC ? 1 : _biases->getEps() / numCases;
+ //   float scaleBGrad = passType == PASS_GC ? 1 : _biases->getEps() / numCases;
 
-    if (_tempMult.isSameDims(getActs())) {
-        _tempMult.resize(getActs());
-    }
+ //   if (_tempMult.isSameDims(getActs())) {
+ //       _tempMult.resize(getActs());
+ //   }
 
-	NVMatrix& input = *_inputs[0];
+	//NVMatrix& input = *_inputs[0];
 
-	input.eltwiseMult(v, _tempMult);
+	//input.eltwiseMult(v, _tempMult);
 
-	_biases->getGrad().addSum(_tempMult, 1, 0, scaleBGrad);
+	//_biases->getGrad().addSum(_tempMult, 1, 0, scaleBGrad);
 
 };
 
@@ -1740,7 +1746,7 @@ void EltwiseFuncLayer::updateWeights(bool useAux)
 		int sw_len = ELWISE_FUNC_SEC*_sizeIn;
 		int k_ws = (kp - k_out*out_len)/sw_len;
 		int k_v = kp - k_out*out_len - k_ws*sw_len;
-
+//bias off
 		if(k_v > 2*_sizeIn)
 			continue;
 
@@ -1773,11 +1779,8 @@ void EltwiseFuncLayer::updateWeights(bool useAux)
 		//if(_param_inc[kp]*r >= 0)
 		//	_param_inc[kp] = r;
 		_param_inc[kp] = _mom*_param_inc[kp] + eps*grad - wc*_param[kp];
-
-			
-//debug
-		if(kp != paramSize-2)
-			_param[kp] += _param_inc[kp];
+		
+		_param[kp] += _param_inc[kp];
 	}
 
 	_nstore_count = (_nstore_count+1)%_nstore;
@@ -1859,17 +1862,18 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 			int k_ws = (kp - k_out*out_len)/sw_len;
 			int k_v = kp - k_out*out_len - k_ws*sw_len;
 
+			//bias off
 			if(k_v > 2*_sizeIn)
 				continue;
 
 			double grad = 0;
-			if(kp < paramSize-2)
+			//if(kp < paramSize-2)
 				 grad = _tempMatrixArray[kp].sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU);
-			else if(kp == paramSize-2)
-				grad =0;// _tempC.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
-			else if(kp == paramSize-1)
-				grad = _tempB.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
-				//grad = -6*(*_inputs[inpIdx]).sum()/(*_inputs[inpIdx]).getNumElements() - _param[paramSize-1];
+			//else if(kp == paramSize-2)
+			//	grad =0;// _tempC.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
+			//else if(kp == paramSize-1)
+			//	grad = _tempB.sum_fast(_aggStorageC._aggMatrix, _aggStorageC._srcCPU);
+			//	//grad = -6*(*_inputs[inpIdx]).sum()/(*_inputs[inpIdx]).getNumElements() - _param[paramSize-1];
 			_grad[kp] = grad;
 		}
 

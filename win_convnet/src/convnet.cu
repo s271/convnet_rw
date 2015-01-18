@@ -290,10 +290,10 @@ void ConvNet::fprop(PASS_TYPE passType) {
     }
 }
 
-void ConvNet::setParam(float eps_scale)
+void ConvNet::setParam(float eps_scale, float param)
 {
     for (int i = 0; i < _dataLayers.size(); i++) {
-        _dataLayers[i]->setParam(eps_scale);
+        _dataLayers[i]->setParam(eps_scale, param);
     }
 }
 

@@ -60,6 +60,12 @@ Neuron& Neuron::makeNeuron(PyObject* neuronDict) {
         
         return *new TanhNeuron(a, b);
     }
+
+    if (type == "leak_relu") {
+        float a = pyDictGetFloat(neuronParamsDict, "a");
+        
+        return *new LeakReluNeuron(a);
+    }
     
     if (type == "square") {
         return *new SquareNeuron();

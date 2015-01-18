@@ -86,7 +86,11 @@ protected:
         // Do nothing by default
     }
 
-    virtual void setParamNext(float eps_scale);
+    virtual void setNeuronParamScale(float param) {
+        // Do nothing by default
+    }
+
+    virtual void setParamNext(float eps_scale, float param);
 
     virtual void bpropCommon(NVMatrix& v, PASS_TYPE passType) {
         // Do nothing by default
@@ -96,7 +100,7 @@ protected:
     }
 public:    
     static bool _saveActsGrad, _saveActs;
-	virtual void setParam(float eps_scale);  
+	virtual void setParam(float eps_scale, float param);  
     Layer(ConvNet* convNet, PyObject* paramsDict, bool trans);
     
     virtual void fprop(PASS_TYPE passType);
@@ -152,6 +156,7 @@ protected:
     virtual void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     virtual void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
 public:
+    virtual void setNeuronParamScale(float param);
     NeuronLayer(ConvNet* convNet, PyObject* paramsDict);
 };
 
@@ -203,7 +208,6 @@ public:
 
 class LeakReLuLayer : public BiasLayer {
 protected:
-	NVMatrix _tempMult;
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropBiases(NVMatrix& v, PASS_TYPE passType);

@@ -90,7 +90,7 @@ public:
 	int getNumCases();
 	double getErrorNum();
 
-	void setParam(float eps_scale);
+	void setParam(float eps_scale, float param);
 	void setEpoch(int epoch);
 	int getEpoch();
     
