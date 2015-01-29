@@ -97,13 +97,15 @@ public:
     void bprop(PASS_TYPE passType);
     void fprop(PASS_TYPE passType);
     void fprop(int miniIdx, PASS_TYPE passType);
-	void fpropRnd(int miniIdx, int prime_ind, PASS_TYPE passType);
+	void fpropRnd(int miniIdx, int prime_ind, PASS_TYPE passType, vector<int>& mini2pos);
+	void fpropHard(int miniIdx, int prime_ind, int numMinibatches, PASS_TYPE passType, vector<int>& wrongRes, vector<int>& mini2pos);
     void fprop(GPUData& data, PASS_TYPE passType);
 
     bool checkGradient(const std::string& name, float eps, Weights& weights); 
     void checkGradients();
     Cost& getCost();
     Cost& getCost(Cost& cost);
+	int getCorrRes(int miniInd);
     double getCostValue();
 };
 

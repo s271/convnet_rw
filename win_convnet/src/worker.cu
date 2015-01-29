@@ -104,7 +104,23 @@ void TrainingWorker::run() {
 
     Cost& batchCost = *new Cost(0);
 
-	trainingPass(batchCost);
+	vector<int> wrongRes;
+	trainingPass(batchCost, wrongRes);
+
+	//if(!_test)
+	//{
+	//	float first_err = wrongRes.size()*1./_convNet->getNumCases();
+	//	for (int k = 0; k < 6; k++)
+	//	{
+	//		if(wrongRes.size()== 0)
+	//			break;
+
+	//		float err =	hardPass(wrongRes, k);
+
+	//		if(err < .5*first_err)
+	//			break;
+	//	}
+	//}
 
     cudaThreadSynchronize();
     _convNet->getResultQueue().enqueue(new WorkResult(WorkResult::BATCH_DONE, batchCost));
@@ -159,7 +175,7 @@ void TrainingWorker::auxPass() {
 
 }
 
-void TrainingWorker::trainingPass(Cost& batchCost) {
+void TrainingWorker::trainingPass(Cost& batchCost, vector<int>& wrongRes) {
 
 bool useAux  = true;
 
@@ -184,8 +200,19 @@ minibatch=ki;
 		_convNet->setParam(_eps_scale, 1);
 
        //_convNet->fprop(mini_ind, _test ? PASS_TEST : PASS_TRAIN);
-		_convNet->fpropRnd(ki, _epoch, _test ? PASS_TEST : PASS_TRAIN);
+
+		vector<int> mini2pos;
+		_convNet->fpropRnd(ki, _epoch, _test ? PASS_TEST : PASS_TRAIN, mini2pos);
         _convNet->getCost(batchCost);
+
+		for(int indMini = 0; indMini < _convNet->getNumCases(); indMini++)
+		{
+			int res = _convNet->getCorrRes(indMini);
+			if(res == 0)
+			{
+				wrongRes.push_back(mini2pos[indMini]);
+			}
+		};
 
 		bool successs = true;
 
@@ -246,6 +273,58 @@ minibatch=ki;
 		//	exit(-1);
     }
 	printf("***failures %f \n", 1.*failure_num/ _dp->getNumMinibatches());
+
+
+
+
+}
+
+//wrong result pass
+float TrainingWorker::hardPass( vector<int>& wrongRes, int prime_off) {
+
+
+	bool useAux  = true;
+
+	vector<int> wrongOut;
+
+
+
+	int numMinibatches = DIVUP(wrongRes.size(), _dp->getMinibatchSize());
+
+	int fill_size = wrongRes.size()%_dp->getMinibatchSize();
+	int from = _convNet->getNumCases();
+
+	//printf("***hard pass %i wrongRes %f numMinibatches %i\n", prime_off, wrongRes.size()*1./_dp->getNumCases(), numMinibatches);
+
+
+	for (int ki = 0; ki < numMinibatches; ki++) {
+//debug
+minibatch=ki;
+
+		_convNet->setParam(_eps_scale, 1);
+
+		vector<int> mini2pos;
+		_convNet->fpropHard(ki, _epoch+1+prime_off, numMinibatches, _test ? PASS_TEST : PASS_TRAIN, wrongRes, mini2pos);
+
+		for(int indMini = 0; indMini < mini2pos.size(); indMini++)
+		{
+			int res = _convNet->getCorrRes(indMini);
+			if(res == 0)
+			{
+				wrongOut.push_back(mini2pos[indMini]);
+			}
+		};
+
+        _convNet->bprop(PASS_TRAIN);
+
+        _convNet->updateWeights(useAux);
+
+    }
+
+	printf("***  hard pass %i res %f \n", prime_off, wrongOut.size()*1./_dp->getNumCases());
+
+	return wrongOut.size()*1./_dp->getNumCases();
+	//wrongRes = wrongOut;
 }
 
 /*

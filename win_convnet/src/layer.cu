@@ -1880,7 +1880,6 @@ void EltwiseFuncLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PA
 		//MakeAuxParams();
 
 	//test
-		//if(0)
 		if(minibatch == 0)
 		{
 
@@ -2143,40 +2142,65 @@ void AvgPoolLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_T
  * =====================
  */
 MaxPoolLayer::MaxPoolLayer(ConvNet* convNet, PyObject* paramsDict) : PoolLayer(convNet, paramsDict, false) {
+
+	_rndS = 0;
+	_off_rndX = 0;
+	_off_rndY = 0;
 }
+
 
 void MaxPoolLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
-	//int rndstep = 2;
-	//int csize = 6;
-
-
-	//int rndX = rand()%(2*rndstep+csize);
-
-	//if (rndX <  2*rndstep) 
-	//	_startX = _start + rndX-rndstep;
-	//else
+	//if(do_rnd_max = 0)
+	//{
 	//	_startX = _start;
-
-	//int rndY = rand()%(2*rndstep+csize);
-
-	//if (rndY <  2*rndstep) 
-	//	_startY = _start + rndY-rndstep;
-	//else
 	//	_startY = _start;
+	//}
+	//else
+	//{
 
-	//if(_name == "pool3" || gepoch >= 70)
+	//	int rndstep = 2;
+	//	int csize = 0;
+
+	//	int rndX = rand()%(2*rndstep+csize);
+
+	//	if (rndX <  2*rndstep) 
+	//		_startX = _start + rndX-rndstep;
+	//	else
+	//		_startX = _start;
+
+	//	int rndY = rand()%(2*rndstep+csize);
+
+	//	if (rndY <  2*rndstep) 
+	//		_startY = _start + rndY-rndstep;
+	//	else
+	//		_startY = _start;
+	//}
+
+	//if(_name == "pool3")
 	{
 		_startX = _start;
 		_startY = _start;
 	}
 
     convLocalPool(*_inputs[0], getActs(), _channels, _sizeX, _startX, _startY, _stride, _outputsX, MaxPooler());
+
+	//_rndS = sqrt(2);
+	//_off_rndX = rand()*1./RAND_MAX;
+	//_off_rndY = rand()*1./RAND_MAX;
+
+	//convLocalPoolRnd(*_inputs[0], getActs(), _channels, _sizeX, _startX, _startY, _stride, _outputsX, MaxPooler(),
+	//	_off_rndX, _off_rndY, _rndS);
+
 }
 
 void MaxPoolLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType) {
 
-    convLocalMaxUndo(_prev[0]->getActs(), v, getActs(), _prev[inpIdx]->getActsGrad(), _sizeX, _startX, _startY, _stride, _outputsX, scaleTargets, 1);
+    convLocalMaxUndo(_prev[0]->getActs(), v, getActs(), _prev[inpIdx]->getActsGrad(), _sizeX, _startX, _startY, _stride,
+		_outputsX, scaleTargets, 1);
+
+//    convLocalMaxUndoRnd(_prev[0]->getActs(), v, getActs(), _prev[inpIdx]->getActsGrad(), _sizeX, _startX, _startY, _stride,
+//		_outputsX, scaleTargets, 1, _off_rndX, _off_rndY, _rndS);
 }
 
 /* 
@@ -2464,6 +2488,13 @@ void LogregCostLayer::bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PAS
 L2SVMCostLayer::L2SVMCostLayer(ConvNet* convNet, PyObject* paramsDict) : CostLayer(convNet, paramsDict, false) {
 }
 
+int L2SVMCostLayer::getCorrValue(int miniInd)
+{
+	assert(_passCorr.getNumCols() > miniInd);
+
+	return _passCorr.getCell(0, miniInd) > 0;
+};
+
 void L2SVMCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType) {
     // This layer uses its two inputs together
     if (inpIdx == 0) {
@@ -2477,6 +2508,8 @@ void L2SVMCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passTyp
         _costv.clear();
         _costv.push_back(acts.sum_fast(_aggStorage._aggMatrix, _aggStorage._srcCPU));//should be max(1-t*act_prev, 0) instead
 		_costv.push_back(numCases - correctPreds.sum());
+
+		correctPreds.copyToHost(_passCorr, true);
     }
 
 }

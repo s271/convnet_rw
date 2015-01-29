@@ -73,7 +73,8 @@ protected:
 public:
     TrainingWorker(ConvNet& convNet, CPUData& data, bool test, int epoch, float eps_scale);
     void run();
-	void trainingPass(Cost& batchCost);
+	void trainingPass(Cost& batchCost, vector<int>& wrongRes);
+	float hardPass(vector<int>& wrongRes, int ind);
 	void auxPass();
 };
 

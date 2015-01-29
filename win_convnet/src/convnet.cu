@@ -311,16 +311,29 @@ void ConvNet::fprop(int miniIdx, PASS_TYPE passType) {
     fprop(passType);
 }
 
-void ConvNet::fpropRnd(int miniIdx, int prime_ind, PASS_TYPE passType)
+void ConvNet::fpropRnd(int miniIdx, int prime_ind, PASS_TYPE passType,  vector<int>& mini2pos)
 {
     delete _data;
-    _data = &_dp->getMinibatchRnd(miniIdx, prime_ind);
+    _data = &_dp->getMinibatchRnd(miniIdx, prime_ind, mini2pos);
     fprop(passType);
 };
+
+void ConvNet::fpropHard(int miniIdx, int prime_ind, int numMinibatches, PASS_TYPE passType, vector<int>& wrongRes, vector<int>& mini2pos)
+{
+    delete _data;
+    _data = &_dp->getMinibatchHard(miniIdx, prime_ind, numMinibatches, wrongRes, mini2pos);
+    fprop(passType);
+};
+
 
 Cost& ConvNet::getCost() {
     return *new Cost(_data->getNumCases(), _costs);
 }
+
+int ConvNet::getCorrRes(int miniInd)
+{
+	return _costs[0]->getCorrValue(miniInd);
+};
 
 // Same as getCost() but adds results to given cost and returns it
 Cost& ConvNet::getCost(Cost& cost) {

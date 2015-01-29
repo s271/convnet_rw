@@ -85,9 +85,11 @@ public:
     void setData(CPUData&);
     void clearData();
     GPUData& getMinibatch(int idx);
-	GPUData& getMinibatchRnd(int idx, int prime_ind);
+	GPUData& getMinibatchRnd(int idx, int prime_ind, vector<int>& mini2pos);
+	GPUData& getMinibatchHard(int idx, int prime_ind, int numMinibatches, vector<int>& wrongRes, vector<int>& mini2pos);
     GPUData& getDataSlice(int startCase, int endCase);
-	GPUData& getPrimeDataSlice(int startCase, int endCase, int prime);
+	GPUData& getPrimeDataSlice(int startCase, int endCase, int prime, vector<int>& mini2pos);
+	GPUData& getHardDataSlice(int startCase, int endCase, int prime, vector<int>& wrongRes, vector<int>& mini2pos);
     int getNumMinibatches();
     int getMinibatchSize();
     int getNumCases();

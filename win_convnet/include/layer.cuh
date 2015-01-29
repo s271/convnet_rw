@@ -514,6 +514,7 @@ public:
 
 class MaxPoolLayer : public PoolLayer {
 protected:
+	float _rndS, _off_rndX, _off_rndY;
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
 public:
@@ -621,6 +622,7 @@ class CostLayer : public Layer {
 protected:
     float _coeff;
     doublev _costv;
+	Matrix _passCorr;
 public:
     CostLayer(ConvNet* convNet, PyObject* paramsDict, bool trans);
     void bprop(PASS_TYPE passType); 
@@ -628,6 +630,7 @@ public:
 	double getErrorNum();
     float getCoeff();
     bool isGradProducer();
+	virtual int getCorrValue(int miniInd){return -1;};
     
     static CostLayer& makeCostLayer(ConvNet* convNet, string& type, PyObject* paramsDict);
 };
@@ -671,6 +674,7 @@ protected:
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType);
     void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
 public:
+	int getCorrValue(int miniInd);
     L2SVMCostLayer(ConvNet* convNet, PyObject* paramsDict);
 	void SetCoeff(float newCoeff);
 };

@@ -70,7 +70,7 @@ GPUData& DataProvider::getMinibatch(int idx) {
 }
 
 #include "primes.h"
-GPUData& DataProvider::getMinibatchRnd(int idx, int prime_ind, vector<int>& mini2pos)
+GPUData& DataProvider::getMinibatchRnd(int idx, int prime_ind, vector<int> mini2pos)
 {
 	assert(idx >= 0 && idx < getNumMinibatches());
 	assert(prime_ind < sizeof(primes)/sizeof(int));
@@ -79,21 +79,8 @@ GPUData& DataProvider::getMinibatchRnd(int idx, int prime_ind, vector<int>& mini
 	return getPrimeDataSlice(idx * _minibatchSize,  min(_hData->getNumCases(), (idx + 1) * _minibatchSize), prime_sector, mini2pos);
 };
 
-
-GPUData& DataProvider::getMinibatchHard(int idx, int prime_ind, int numMinibatches, vector<int>& wrongRes, vector<int>& mini2pos)
+void getSlice(bool trans, int case_ind, int start, int end, int startCase, int endCase, NVMatrix* src, NVMatrix* target)
 {
-	assert(idx >= 0 && idx < numMinibatches);
-	assert(prime_ind < sizeof(primes)/sizeof(int));
-	int prime_sector = primes[prime_ind];
-	
-	return getHardDataSlice(idx * _minibatchSize,  min((int)wrongRes.size(), (idx + 1) * _minibatchSize), prime_sector, wrongRes, mini2pos);
-};
-
-void getSlice(bool trans, int case_ind, int startCase, int endCase, NVMatrix* src, NVMatrix* target)
-{
-	int start = case_ind;
-	int end = case_ind + 1;
-
 	if (trans) {
 
 		int startRow = start;
@@ -126,6 +113,32 @@ void getSlice(bool trans, int case_ind, int startCase, int endCase, NVMatrix* sr
 		src->copy(*target, startRow, endRow, startCol, endCol, 0, case_ind-startCase);
 	
 	}
+}
+
+GPUData& DataProvider::getPrimeDataSlice(int startCase, int endCase, int prime, vector<int> mini2pos)
+{
+    assert(_hData != NULL);
+    assert(_hData->getNumCases() > 0);
+    
+    NVMatrixV& miniData = *new NVMatrixV();
+
+    for (int i = 0; i < _hData->getData().size(); i++)
+	{
+	    bool trans = _data[i]->isTrans();
+
+        miniData.push_back(new NVMatrix());
+
+		for(int cind = startCase; cind < endCase; cind++)
+		{
+			NVMatrix* src = _data[i];
+			NVMatrix* target = miniData[i];
+			int cpos = (cind*prime)%_hData->getNumCases();
+
+			if(i==0)
+				mini2pos.push_back(cpos);
+
+			getSlice(trans, cind, cpos, cpos+1, startCase, endCase, src, target);
+		}
 
 //        if (_data[i]->isTrans()) {
 //			for(int cind = startCase; cind < endCase; cind++)
@@ -177,62 +190,6 @@ void getSlice(bool trans, int case_ind, int startCase, int endCase, NVMatrix* sr
 //			}
 //
 //        }
-}
-
-GPUData& DataProvider::getHardDataSlice(int startCase, int endCase, int prime, vector<int>& wrongRes, vector<int>& mini2pos)
-{
-    assert(_hData != NULL);
-    
-    NVMatrixV& miniData = *new NVMatrixV();
-
-    for (int i = 0; i < _hData->getData().size(); i++)
-	{
-	    bool trans = _data[i]->isTrans();
-
-        miniData.push_back(new NVMatrix());
-
-		for(int cind = startCase; cind < endCase; cind++)
-		{
-			NVMatrix* src = _data[i];
-			NVMatrix* target = miniData[i];
-			int cpos = wrongRes[cind];//wrongRes[(cind*prime)%wrongRes.size()];
-
-			if(i==0)
-				mini2pos.push_back(cpos);
-
-			getSlice(trans, cind, startCase, endCase, src, target);
-		}
-
-    }
-
-    return *new GPUData(miniData);
-};
-
-GPUData& DataProvider::getPrimeDataSlice(int startCase, int endCase, int prime, vector<int>& mini2pos)
-{
-    assert(_hData != NULL);
-    assert(_hData->getNumCases() > 0);
-    
-    NVMatrixV& miniData = *new NVMatrixV();
-
-    for (int i = 0; i < _hData->getData().size(); i++)
-	{
-	    bool trans = _data[i]->isTrans();
-
-        miniData.push_back(new NVMatrix());
-
-		for(int cind = startCase; cind < endCase; cind++)
-		{
-				NVMatrix* src = _data[i];
-				NVMatrix* target = miniData[i];
-				int cpos = (cind*prime)%_hData->getNumCases();
-
-				if(i==0)
-					mini2pos.push_back(cpos);
-
-				getSlice(trans, cind, startCase, endCase, src, target);
-		}
-
     }
 
     return *new GPUData(miniData);
